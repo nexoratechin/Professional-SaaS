@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: college_erp
+          POSTGRES_PASSWORD: college_erp_ci_password
+          POSTGRES_DB: college_erp
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgresql://college_erp:college_erp_ci_password@localhost:5432/college_erp
+      REDIS_URL: redis://localhost:6379
+      JWT_PRIVATE_KEY: ${{ secrets.CI_JWT_PRIVATE_KEY }}
+      JWT_PUBLIC_KEY: ${{ secrets.CI_JWT_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma validate + generate
+        run: |
+          pnpm --filter @college-erp/database prisma:validate
+          pnpm --filter @college-erp/database prisma:generate
+
+      - name: Run migrations
+        run: pnpm --filter @college-erp/database exec prisma migrate deploy
+
+      - name: Typecheck
+        run: pnpm turbo run typecheck
+
+      - name: Lint
+        run: pnpm turbo run lint
+
+      - name: Unit tests
+        run: pnpm turbo run test
+
+      - name: Build
+        run: pnpm turbo run build
+
+      - name: E2E tests (includes tenant-isolation suite)
+        run: pnpm turbo run test:e2e

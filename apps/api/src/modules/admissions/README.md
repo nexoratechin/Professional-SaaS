@@ -1,0 +1,1 @@
+Phase 3 (Admissions + onboarding) — not yet implemented. See `College_ERP_SaaS_Product_Blueprint.pdf` and the Phase 0/1 foundation plan for the roadmap this folder fits into. The `admissions` feature flag already exists (see `packages/auth/src/feature-keys.ts`) and is enforced by `FeatureFlagsGuard` — this module just needs its controller/service/DTOs.
