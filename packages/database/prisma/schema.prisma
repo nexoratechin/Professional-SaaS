@@ -1,0 +1,982 @@
+// College ERP SaaS — Foundation + Organization domains
+//
+// Foundation (Phase 1): tenants, users, roles, permissions, user_roles, sessions, login_events
+// — the SaaS control plane and tenant identity/RBAC core.
+// Organization (Phase 2, schema-only for now): campuses, departments, academic_years, terms,
+// rooms — master data every later academic/admissions/attendance/exam module anchors to. Their
+// CRUD API modules are a later pass; the schema, RBAC permissions, and tenant-isolation wiring
+// are complete now so that later work has a stable foundation to build on.
+//
+// Conventions applied across every model in this file:
+// - Primary keys are database-generated UUIDs (`gen_random_uuid()`, native to Postgres 13+ —
+//   pgcrypto is enabled defensively in the migration for older Postgres compatibility), not
+//   cuid()s, per this project's "production-grade" requirement.
+// - Every tenant-owned model carries a real, required, indexed, FK'd tenantId column — even
+//   where derivable through a parent relation — so tenant-isolation enforcement (see
+//   packages/database/src/client.ts) can be mechanical (driven off the DMMF) rather than bespoke
+//   per model. Tenant relations use onDelete: Restrict; tenants are status-transitioned, not
+//   hard-deleted.
+// - createdBy/updatedBy are plain nullable UUID columns, not enforced Prisma relations: the
+//   actor may be a tenant User OR a PlatformUser (see PlatformAuditLog, which already
+//   disambiguates actor type for the full audit trail) — these columns are a lightweight
+//   "who touched this last" convenience, not the system of record for authorship.
+// - Soft deletion (deletedAt) is added where records are reference/master data that other rows
+//   go on to point at (campuses, departments, academic years, terms, rooms, custom roles) —
+//   hard-deleting these would orphan history. It's deliberately NOT added to Tenant/User (their
+//   status enums already model "gone" without a second, competing concept) or to join/log tables
+//   (an assignment's existence is itself binary; sessions/login events are immutable).
+// - Known trade-off: Prisma's schema DSL has no partial/filtered unique index support, so
+//   `@@unique([tenantId, code])`-style constraints on soft-deletable models apply even to
+//   soft-deleted rows — a soft-deleted campus/department/etc.'s code stays reserved rather than
+//   becoming reusable. Acceptable for now; revisit with a hand-written partial index migration
+//   if code reuse after deletion becomes a real product requirement.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELED
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+  ONE_TIME
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum SubscriptionItemType {
+  BASE
+  PER_STUDENT
+  PER_CAMPUS
+  ADDON_MODULE
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum PlatformUserRole {
+  PLATFORM_ADMIN
+  PLATFORM_SUPPORT
+}
+
+enum LoginEventResult {
+  SUCCESS
+  FAILED_PASSWORD
+  FAILED_TENANT_SUSPENDED
+  FAILED_USER_INACTIVE
+  FAILED_UNKNOWN_EMAIL
+  FAILED_ACCOUNT_LOCKED
+  FAILED_SUSPICIOUS_LOGIN_BLOCKED
+}
+
+enum AuditScope {
+  PLATFORM
+  TENANT
+}
+
+enum RoomType {
+  CLASSROOM
+  LABORATORY
+  SEMINAR_HALL
+  AUDITORIUM
+  LIBRARY
+  OFFICE
+  OTHER
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum DocumentStatus {
+  PENDING_UPLOAD
+  UPLOADED
+}
+
+enum PermissionAction {
+  VIEW
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  PUBLISH
+  EXPORT
+  REFUND
+  MANAGE
+}
+
+/// What a role's grant of a permission is narrowed to. The TYPE lives on RolePermission (part
+/// of the role's definition — e.g. "HOD's students.view is department-scoped" is a fact about
+/// the HOD role, not about any one assignment); the concrete VALUE (which department) lives on
+/// UserRole (bound per assignment — Dr. Smith's HOD assignment is for the CS department, Dr.
+/// Jones's is for Physics, same role). OWN means "records the acting user is themselves the
+/// subject of" (a student viewing their own grades) — enforced by the owning module's queries
+/// once that module exists, not by RBAC itself.
+enum PermissionScopeType {
+  GLOBAL
+  CAMPUS
+  DEPARTMENT
+  PROGRAM
+  OWN
+}
+
+/// A single, structured, typed timeline distinct from PlatformAuditLog's generic CRUD/action
+/// trail — purpose-built for a "Security" feed (MFA changes, backup-code use, device trust,
+/// suspicious logins, lockouts, password changes). Polymorphic actor (nullable tenantId/userId/
+/// platformUserId), same convention as PlatformAuditLog, because it is the one security concept
+/// that spans BOTH the tenant-user and platform-admin realms — every other new security model in
+/// this file stays tenant-scoped-only (see the User/PlatformUser section header for the scoping
+/// rationale).
+enum SecurityEventType {
+  MFA_ENABLED
+  MFA_DISABLED
+  MFA_CHALLENGE_SUCCEEDED
+  MFA_CHALLENGE_FAILED
+  BACKUP_CODE_USED
+  BACKUP_CODES_REGENERATED
+  NEW_DEVICE_LOGIN
+  SUSPICIOUS_LOGIN_FLAGGED
+  SUSPICIOUS_LOGIN_BLOCKED
+  TRUSTED_DEVICE_ADDED
+  TRUSTED_DEVICE_REVOKED
+  PASSWORD_CHANGED
+  PASSWORD_REUSE_BLOCKED
+  ACCOUNT_LOCKED
+  ACCOUNT_UNLOCKED
+  SESSION_REVOKED
+  ALL_SESSIONS_REVOKED
+}
+
+enum SecurityEventSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+// ---------------------------------------------------------------------------
+// SaaS control plane
+// ---------------------------------------------------------------------------
+
+model Tenant {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug         String       @unique
+  name         String
+  status       TenantStatus @default(TRIAL)
+  billingEmail String       @map("billing_email")
+  timezone     String       @default("Asia/Kolkata")
+  createdBy    String?      @map("created_by") @db.Uuid
+  updatedBy    String?      @map("updated_by") @db.Uuid
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  subscriptions           Subscription[]
+  subscriptionItems       SubscriptionItem[]
+  featureOverrides        TenantFeatureFlag[]
+  usageEvents             UsageEvent[]
+  users                   User[]
+  roles                   Role[]
+  rolePermissions         RolePermission[]
+  userRoles               UserRole[]
+  sessions                Session[]
+  loginEvents             LoginEvent[]
+  auditLogs               PlatformAuditLog[]
+  campuses                Campus[]
+  departments             Department[]
+  programs                Program[]
+  academicYears           AcademicYear[]
+  terms                   Term[]
+  rooms                   Room[]
+  notifications           Notification[]
+  documents               Document[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  mfaBackupCodes          MfaBackupCode[]
+  trustedDevices          TrustedDevice[]
+  passwordHistory         PasswordHistory[]
+  securityEvents          SecurityEvent[]
+  securitySettings        TenantSecuritySettings?
+
+  @@index([status])
+  @@map("tenants")
+}
+
+model Plan {
+  id           String       @id @default(cuid())
+  code         String       @unique
+  name         String
+  description  String?
+  priceCents   Int?         @map("price_cents")
+  currency     String       @default("INR")
+  billingCycle BillingCycle @default(ANNUAL) @map("billing_cycle")
+  isCustom     Boolean      @default(false) @map("is_custom")
+  isActive     Boolean      @default(true) @map("is_active")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+  planFeatures  PlanFeatureFlag[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  tenantId           String             @map("tenant_id") @db.Uuid
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  planId             String             @map("plan_id")
+  plan               Plan               @relation(fields: [planId], references: [id])
+  status             SubscriptionStatus @default(TRIALING)
+  billingCycle       BillingCycle       @map("billing_cycle")
+  currentPeriodStart DateTime           @map("current_period_start")
+  currentPeriodEnd   DateTime           @map("current_period_end")
+  canceledAt         DateTime?          @map("canceled_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  items SubscriptionItem[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("subscriptions")
+}
+
+model SubscriptionItem {
+  id             String               @id @default(cuid())
+  tenantId       String               @map("tenant_id") @db.Uuid
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subscriptionId String               @map("subscription_id")
+  subscription   Subscription         @relation(fields: [subscriptionId], references: [id])
+  itemType       SubscriptionItemType @map("item_type")
+  description    String
+  quantity       Int                  @default(1)
+  unitPriceCents Int                  @map("unit_price_cents")
+  currency       String               @default("INR")
+  createdAt      DateTime             @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([subscriptionId])
+  @@map("subscription_items")
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  module      String
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  planFeatures    PlanFeatureFlag[]
+  tenantOverrides TenantFeatureFlag[]
+
+  @@map("feature_flags")
+}
+
+model PlanFeatureFlag {
+  id            String      @id @default(cuid())
+  planId        String      @map("plan_id")
+  plan          Plan        @relation(fields: [planId], references: [id])
+  featureFlagId String      @map("feature_flag_id")
+  featureFlag   FeatureFlag @relation(fields: [featureFlagId], references: [id])
+
+  @@unique([planId, featureFlagId])
+  @@map("plan_feature_flags")
+}
+
+model TenantFeatureFlag {
+  id                      String      @id @default(cuid())
+  tenantId                String      @map("tenant_id") @db.Uuid
+  tenant                  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  featureFlagId           String      @map("feature_flag_id")
+  featureFlag             FeatureFlag @relation(fields: [featureFlagId], references: [id])
+  enabled                 Boolean
+  reason                  String?
+  createdByPlatformUserId String?     @map("created_by_platform_user_id")
+  createdAt               DateTime    @default(now()) @map("created_at")
+
+  @@unique([tenantId, featureFlagId])
+  @@index([tenantId])
+  @@map("tenant_feature_flags")
+}
+
+model UsageEvent {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id") @db.Uuid
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  eventType  String   @map("event_type")
+  quantity   Decimal  @db.Decimal(18, 4)
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  metadata   Json?
+
+  @@index([tenantId, eventType, occurredAt])
+  @@map("usage_events")
+}
+
+model PlatformAuditLog {
+  id                  String     @id @default(cuid())
+  scope               AuditScope
+  tenantId            String?    @map("tenant_id") @db.Uuid
+  tenant              Tenant?    @relation(fields: [tenantId], references: [id])
+  actorType           String     @map("actor_type")
+  actorUserId         String?    @map("actor_user_id") @db.Uuid
+  actorPlatformUserId String?    @map("actor_platform_user_id")
+  action              String
+  entityType          String     @map("entity_type")
+  entityId            String?    @map("entity_id")
+  before              Json?
+  after               Json?
+  ipAddress           String?    @map("ip_address")
+  userAgent           String?    @map("user_agent")
+  createdAt           DateTime   @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@index([action, createdAt])
+  @@map("platform_audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model PlatformUser {
+  id                  String           @id @default(cuid())
+  email               String           @unique
+  passwordHash        String           @map("password_hash")
+  fullName            String           @map("full_name")
+  role                PlatformUserRole @default(PLATFORM_SUPPORT)
+  isActive            Boolean          @default(true) @map("is_active")
+  failedLoginAttempts Int              @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?        @map("locked_until")
+  /// MFA/TOTP for the platform-admin realm mirrors the tenant-user realm's mechanism (same
+  /// packages/auth core, same AES-256-GCM-at-rest encryption) since PlatformUser is the
+  /// highest-privilege account in the whole system. Deliberately NOT extended with trusted
+  /// devices / suspicious-login detection / password history — see PlatformMfaService's doc
+  /// comment for that scope boundary.
+  mfaEnabled          Boolean          @default(false) @map("mfa_enabled")
+  mfaSecretEncrypted  String?          @map("mfa_secret_encrypted")
+  mfaEnabledAt        DateTime?        @map("mfa_enabled_at")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  sessions       PlatformSession[]
+  mfaBackupCodes PlatformMfaBackupCode[]
+  securityEvents SecurityEvent[]
+
+  @@map("platform_users")
+}
+
+model PlatformSession {
+  id               String       @id @default(cuid())
+  platformUserId   String       @map("platform_user_id")
+  platformUser     PlatformUser @relation(fields: [platformUserId], references: [id])
+  refreshTokenHash String       @unique @map("refresh_token_hash")
+  userAgent        String?      @map("user_agent")
+  ipAddress        String?      @map("ip_address")
+  expiresAt        DateTime     @map("expires_at")
+  revokedAt        DateTime?    @map("revoked_at")
+  lastUsedAt       DateTime     @default(now()) @map("last_used_at")
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  @@index([platformUserId])
+  @@map("platform_sessions")
+}
+
+model User {
+  id                  String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String     @map("tenant_id") @db.Uuid
+  tenant              Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  email               String
+  passwordHash        String?    @map("password_hash")
+  fullName            String     @map("full_name")
+  status              UserStatus @default(INVITED)
+  emailVerifiedAt     DateTime?  @map("email_verified_at")
+  lastLoginAt         DateTime?  @map("last_login_at")
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?  @map("locked_until")
+  /// TOTP secret is encrypted at rest (AES-256-GCM, apps/api's MfaSecretCipher) — unlike
+  /// refresh/reset tokens it must be decryptable to verify a 6-digit code, so it can't be a
+  /// one-way hash. mfaEnabled flips true only after enroll+confirm succeeds (see MfaService) —
+  /// a secret can exist mid-enrollment without mfaEnabled being true yet.
+  mfaEnabled          Boolean    @default(false) @map("mfa_enabled")
+  mfaSecretEncrypted  String?    @map("mfa_secret_encrypted")
+  mfaEnabledAt        DateTime?  @map("mfa_enabled_at")
+  createdBy           String?    @map("created_by") @db.Uuid
+  updatedBy           String?    @map("updated_by") @db.Uuid
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+
+  userRoles               UserRole[]
+  sessions                Session[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  mfaBackupCodes          MfaBackupCode[]
+  trustedDevices          TrustedDevice[]
+  passwordHistory         PasswordHistory[]
+  securityEvents          SecurityEvent[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("users")
+}
+
+model Role {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code      String
+  name      String
+  isSystem  Boolean   @default(false) @map("is_system")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key         String           @unique
+  module      String
+  action      PermissionAction
+  description String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+
+  @@index([module, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String              @map("tenant_id") @db.Uuid
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  roleId       String              @map("role_id") @db.Uuid
+  role         Role                @relation(fields: [roleId], references: [id])
+  permissionId String              @map("permission_id") @db.Uuid
+  permission   Permission          @relation(fields: [permissionId], references: [id])
+  /// What kind of scope this role's grant of this permission operates under — see
+  /// PermissionScopeType. The concrete scope VALUE (which campus/department/program) is bound
+  /// per user assignment on UserRole, not here.
+  scopeType    PermissionScopeType @default(GLOBAL) @map("scope_type")
+  createdBy    String?             @map("created_by") @db.Uuid
+  createdAt    DateTime            @default(now()) @map("created_at")
+
+  @@unique([roleId, permissionId])
+  @@index([tenantId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String      @map("tenant_id") @db.Uuid
+  tenant            Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId            String      @map("user_id") @db.Uuid
+  user              User        @relation(fields: [userId], references: [id])
+  roleId            String      @map("role_id") @db.Uuid
+  role              Role        @relation(fields: [roleId], references: [id])
+  /// Org-unit anchors for this specific assignment, used whenever one of the role's granted
+  /// permissions has a CAMPUS/DEPARTMENT/PROGRAM scopeType. At most one is normally set,
+  /// matching whichever scope the assignment represents (e.g. a HOD assignment sets
+  /// scopeDepartmentId); enforced at the application layer, not a DB constraint.
+  scopeCampusId     String?     @map("scope_campus_id") @db.Uuid
+  scopeCampus       Campus?     @relation(fields: [scopeCampusId], references: [id], onDelete: SetNull)
+  scopeDepartmentId String?     @map("scope_department_id") @db.Uuid
+  scopeDepartment   Department? @relation(fields: [scopeDepartmentId], references: [id], onDelete: SetNull)
+  scopeProgramId    String?     @map("scope_program_id") @db.Uuid
+  scopeProgram      Program?    @relation(fields: [scopeProgramId], references: [id], onDelete: SetNull)
+  assignedByUserId  String?     @map("assigned_by_user_id") @db.Uuid
+  assignedAt        DateTime    @default(now()) @map("assigned_at")
+
+  @@unique([tenantId, userId, roleId])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([scopeCampusId])
+  @@index([scopeDepartmentId])
+  @@index([scopeProgramId])
+  @@map("user_roles")
+}
+
+model Session {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId           String    @map("user_id") @db.Uuid
+  user             User      @relation(fields: [userId], references: [id])
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  userAgent        String?   @map("user_agent")
+  ipAddress        String?   @map("ip_address")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId, userId])
+  @@map("sessions")
+}
+
+model LoginEvent {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String?          @map("tenant_id") @db.Uuid
+  tenant         Tenant?          @relation(fields: [tenantId], references: [id])
+  emailAttempted String           @map("email_attempted")
+  result         LoginEventResult
+  ipAddress      String?          @map("ip_address")
+  userAgent      String?          @map("user_agent")
+  occurredAt     DateTime         @default(now()) @map("occurred_at")
+
+  @@index([tenantId, occurredAt])
+  @@index([emailAttempted, occurredAt])
+  @@map("login_events")
+}
+
+/// Single-use, short-lived token for the forgot/reset-password flow. Only the SHA-256 hash is
+/// stored (same convention as refresh tokens) — the raw value exists only in the link sent to
+/// the user. A successful reset revokes every active Session for the user (see
+/// PasswordResetService), so a stolen old session can't outlive a password change.
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+/// Single-use, short-lived token for confirming a user's email address. Verification is
+/// tracked (emailVerifiedAt) but deliberately does NOT block login (see UsersService.invite) —
+/// an admin who invites a user with a known-good email and sets their password has already
+/// vouched for the account; gating login on verification is left for a future self-registration
+/// flow where nobody has vouched for the email yet.
+model EmailVerificationToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Advanced security controls (tenant-user realm). All required tenantId, so the tenant-guard
+// extension auto-scopes them like any other tenant-owned model WHEN accessed through a
+// request-scoped TenantScopedPrismaClient. Several of the services that own these tables also
+// run pre-authentication (the MFA challenge step of login itself, before a session/JWT exists),
+// where no request-scoped tenant context is available yet — those call sites deliberately go
+// through PlatformPrismaService with an explicit tenantId on every query instead, the same
+// established pattern AuthService/PasswordResetService/EmailVerificationService already use for
+// User/Session/token rows. Deliberately NOT extended to the platform-admin realm (beyond MFA
+// itself, see PlatformUser/PlatformMfaBackupCode) — see PlatformMfaService's doc comment.
+// ---------------------------------------------------------------------------
+
+/// Single-use recovery codes for when a user's authenticator device is unavailable. Hashed with
+/// SHA-256 (packages/auth's high-entropy-opaque-value convention), not bcrypt — these are
+/// crypto-random, never user-chosen, so bcrypt's slow-by-design property buys nothing here.
+model MfaBackupCode {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique @map("code_hash")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([userId])
+  @@map("mfa_backup_codes")
+}
+
+/// Platform-admin-realm equivalent of MfaBackupCode — a separate table (no tenantId at all)
+/// rather than a polymorphic column on the tenant-realm table, matching this schema's existing
+/// Session/PlatformSession precedent of parallel realm-specific models.
+model PlatformMfaBackupCode {
+  id             String       @id @default(cuid())
+  platformUserId String       @map("platform_user_id")
+  platformUser   PlatformUser @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+  codeHash       String       @unique @map("code_hash")
+  usedAt         DateTime?    @map("used_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@index([platformUserId])
+  @@map("platform_mfa_backup_codes")
+}
+
+/// "Remember this device" — set only after a full MFA challenge succeeds (never as a substitute
+/// for MFA, only as a way to skip re-prompting for `trustedDeviceDays`). deviceTokenHash follows
+/// the opaque-token/SHA-256 convention; the raw token lives only in an httpOnly cookie.
+model TrustedDevice {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId          String    @map("user_id") @db.Uuid
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceTokenHash String    @unique @map("device_token_hash")
+  label           String?
+  userAgent       String?   @map("user_agent")
+  ipAddress       String?   @map("ip_address")
+  lastUsedAt      DateTime  @default(now()) @map("last_used_at")
+  expiresAt       DateTime  @map("expires_at")
+  revokedAt       DateTime? @map("revoked_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId, userId])
+  @@map("trusted_devices")
+}
+
+/// Stores each REPLACED password hash (not the current one, which lives on User.passwordHash)
+/// so a future change can be checked against the last N — see SecuritySettingsService's
+/// passwordHistoryCount. Rows beyond the configured count are pruned on each password change.
+model PasswordHistory {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId       String   @map("user_id") @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([userId, createdAt])
+  @@map("password_history")
+}
+
+model SecurityEvent {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scope          AuditScope
+  tenantId       String?               @map("tenant_id") @db.Uuid
+  tenant         Tenant?               @relation(fields: [tenantId], references: [id])
+  userId         String?               @map("user_id") @db.Uuid
+  user           User?                 @relation(fields: [userId], references: [id])
+  platformUserId String?               @map("platform_user_id")
+  platformUser   PlatformUser?         @relation(fields: [platformUserId], references: [id])
+  eventType      SecurityEventType     @map("event_type")
+  severity       SecurityEventSeverity @default(INFO)
+  ipAddress      String?               @map("ip_address")
+  userAgent      String?               @map("user_agent")
+  metadata       Json?
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([platformUserId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("security_events")
+}
+
+/// Tenant-level security policy — one row per tenant (created lazily on first read/write with
+/// defaults, see SecuritySettingsService). Every threshold is nullable so "unset" cleanly means
+/// "inherit the platform default" (PlatformSecuritySettings) rather than needing a sentinel
+/// value. mfaRequired only takes effect if the tenant's plan grants FEATURE_KEYS.MFA AND
+/// PlatformSecuritySettings.mfaGloballyEnabled is true — enforced in SecuritySettingsService, not
+/// the DB.
+model TenantSecuritySettings {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String   @unique @map("tenant_id") @db.Uuid
+  tenant                 Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  mfaRequired            Boolean  @default(false) @map("mfa_required")
+  passwordHistoryCount   Int?     @map("password_history_count")
+  maxFailedLoginAttempts Int?     @map("max_failed_login_attempts")
+  accountLockoutMinutes  Int?     @map("account_lockout_minutes")
+  trustedDeviceDays      Int?     @map("trusted_device_days")
+  notifyOnNewDeviceLogin Boolean  @default(true) @map("notify_on_new_device_login")
+  blockSuspiciousLogins  Boolean  @default(false) @map("block_suspicious_logins")
+  createdBy              String?  @map("created_by") @db.Uuid
+  updatedBy              String?  @map("updated_by") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("tenant_security_settings")
+}
+
+/// Control-plane singleton (one row; SecuritySettingsService finds-or-creates it) — global
+/// defaults applied wherever a tenant hasn't overridden, plus platform-realm-only toggles
+/// (mfaRequiredForPlatformAdmins) and kill switches a platform admin can flip without a deploy.
+model PlatformSecuritySettings {
+  id                              String   @id @default(cuid())
+  mfaGloballyEnabled              Boolean  @default(true) @map("mfa_globally_enabled")
+  mfaRequiredForPlatformAdmins    Boolean  @default(false) @map("mfa_required_for_platform_admins")
+  defaultMaxFailedLoginAttempts   Int      @default(5) @map("default_max_failed_login_attempts")
+  defaultAccountLockoutMinutes    Int      @default(15) @map("default_account_lockout_minutes")
+  defaultPasswordHistoryCount     Int      @default(5) @map("default_password_history_count")
+  defaultTrustedDeviceDays        Int      @default(30) @map("default_trusted_device_days")
+  suspiciousLoginDetectionEnabled Boolean  @default(true) @map("suspicious_login_detection_enabled")
+  updatedBy                       String?  @map("updated_by")
+  createdAt                       DateTime @default(now()) @map("created_at")
+  updatedAt                       DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_security_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Organization (master data — schema-only this pass; see file header)
+// ---------------------------------------------------------------------------
+
+model Campus {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  addressLine String?   @map("address_line")
+  city        String?
+  state       String?
+  country     String?   @default("India")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdBy   String?   @map("created_by") @db.Uuid
+  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  departments    Department[]
+  rooms          Room[]
+  roleScopeUsers UserRole[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+  @@map("campuses")
+}
+
+model Department {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId    String?   @map("campus_id") @db.Uuid
+  campus      Campus?   @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  code        String
+  name        String
+  description String?
+  isActive    Boolean   @default(true) @map("is_active")
+  createdBy   String?   @map("created_by") @db.Uuid
+  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  programs       Program[]
+  roleScopeUsers UserRole[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([campusId])
+  @@index([tenantId, deletedAt])
+  @@map("departments")
+}
+
+model Program {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  departmentId  String?     @map("department_id") @db.Uuid
+  department    Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  code          String
+  name          String
+  degreeLevel   String?     @map("degree_level")
+  durationYears Int?        @map("duration_years")
+  isActive      Boolean     @default(true) @map("is_active")
+  createdBy     String?     @map("created_by") @db.Uuid
+  updatedBy     String?     @map("updated_by") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  deletedAt     DateTime?   @map("deleted_at")
+
+  roleScopeUsers UserRole[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([departmentId])
+  @@index([tenantId, deletedAt])
+  @@map("programs")
+}
+
+model AcademicYear {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code      String
+  name      String
+  startDate DateTime  @map("start_date")
+  endDate   DateTime  @map("end_date")
+  isCurrent Boolean   @default(false) @map("is_current")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  terms Term[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, isCurrent])
+  @@index([tenantId, deletedAt])
+  @@map("academic_years")
+}
+
+model Term {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String       @map("tenant_id") @db.Uuid
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  academicYearId String       @map("academic_year_id") @db.Uuid
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  code           String
+  name           String
+  sequence       Int          @default(1)
+  startDate      DateTime     @map("start_date")
+  endDate        DateTime     @map("end_date")
+  isCurrent      Boolean      @default(false) @map("is_current")
+  createdBy      String?      @map("created_by") @db.Uuid
+  updatedBy      String?      @map("updated_by") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+
+  @@unique([academicYearId, code])
+  @@index([tenantId])
+  @@index([academicYearId])
+  @@index([tenantId, deletedAt])
+  @@map("terms")
+}
+
+model Room {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId  String    @map("campus_id") @db.Uuid
+  campus    Campus    @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  code      String
+  name      String
+  roomType  RoomType  @default(CLASSROOM) @map("room_type")
+  capacity  Int?
+  building  String?
+  floor     String?
+  isActive  Boolean   @default(true) @map("is_active")
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  @@unique([campusId, code])
+  @@index([tenantId])
+  @@index([campusId])
+  @@index([tenantId, deletedAt])
+  @@map("rooms")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (minimal vertical slice proving tenant-aware background jobs —
+// see apps/api's NotificationsModule and apps/worker's NotificationsProcessor).
+// Templates/broadcasts/delivery-provider integrations are Phase 8+; this is the
+// tenant-isolation-correct dispatch mechanism only.
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String              @map("tenant_id") @db.Uuid
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  recipientUserId String?             @map("recipient_user_id") @db.Uuid
+  channel         NotificationChannel
+  subject         String
+  body            String
+  status          NotificationStatus  @default(PENDING)
+  error           String?
+  sentAt          DateTime?           @map("sent_at")
+  createdBy       String?             @map("created_by") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([recipientUserId])
+  @@map("notifications")
+}
+
+// ---------------------------------------------------------------------------
+// Documents (tenant-scoped file metadata — see apps/api's StorageService/
+// DocumentsModule). storageKey always embeds the owning tenantId as a path
+// prefix; StorageService refuses to sign a URL for a key outside the caller's
+// tenant prefix regardless of what this table says, so tenant isolation for
+// file access is enforced twice: once by the tenant-scoped Prisma query that
+// finds the Document row, once by the key-prefix check before signing.
+// ---------------------------------------------------------------------------
+
+model Document {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String         @map("tenant_id") @db.Uuid
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  category         String
+  storageKey       String         @unique @map("storage_key")
+  originalFilename String         @map("original_filename")
+  mimeType         String         @map("mime_type")
+  sizeBytes        Int?           @map("size_bytes")
+  status           DocumentStatus @default(PENDING_UPLOAD)
+  uploadedBy       String?        @map("uploaded_by") @db.Uuid
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  deletedAt        DateTime?      @map("deleted_at")
+
+  @@index([tenantId])
+  @@index([tenantId, category])
+  @@map("documents")
+}

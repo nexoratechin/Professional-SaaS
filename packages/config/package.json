@@ -1,0 +1,22 @@
+{
+  "name": "@college-erp/config",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.js",
+    "test": "echo \"no unit tests yet in @college-erp/config\"",
+    "clean": "rimraf dist .turbo"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.3"
+  }
+}
