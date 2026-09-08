@@ -54,9 +54,25 @@ export class StorageService {
     return getSignedUrl(this.client, command, { expiresIn: UPLOAD_URL_TTL_SECONDS });
   }
 
-  async getDownloadUrl(tenantId: string, key: string): Promise<string> {
+  /** Server-side write for backend-generated artifacts (e.g. invoice PDFs). The key must still
+   * live under the owning tenant's prefix — the same isolation rule as every other stored path,
+   * so a downloaded artifact can never point outside its tenant. */
+  async uploadBuffer(key: string, body: Buffer, contentType: string): Promise<void> {
+    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }));
+  }
+
+  async getDownloadUrl(
+    tenantId: string,
+    key: string,
+    options?: { contentType?: string; filename?: string },
+  ): Promise<string> {
     this.assertKeyBelongsToTenant(tenantId, key);
-    const command = new GetObjectCommand({ Bucket: this.bucket, Key: key });
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ...(options?.contentType ? { ResponseContentType: options.contentType } : {}),
+      ...(options?.filename ? { ResponseContentDisposition: `inline; filename="${options.filename}"` } : {}),
+    });
     return getSignedUrl(this.client, command, { expiresIn: DOWNLOAD_URL_TTL_SECONDS });
   }
 

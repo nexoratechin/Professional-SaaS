@@ -10,4 +10,5 @@ export const AUDIT_ACTION_KEY = 'college_erp:audit_action';
  * (role/permission changes, tenant provisioning, cross-tenant rejections), call
  * AuditService.record() explicitly inside the same transaction instead.
  */
-export const Audit = (action: string, entityType: string) => SetMetadata(AUDIT_ACTION_KEY, { action, entityType });
+export const Audit = (action: string, entityType: string, module: string) =>
+  SetMetadata(AUDIT_ACTION_KEY, { action, entityType, module });

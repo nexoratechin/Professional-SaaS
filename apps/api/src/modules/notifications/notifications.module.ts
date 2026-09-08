@@ -9,5 +9,6 @@ import { NotificationsService } from './notifications.service';
   imports: [BullModule.registerQueue({ name: QUEUE_NAMES.NOTIFICATIONS }), CommonGuardsModule],
   controllers: [NotificationsController],
   providers: [NotificationsService],
+  exports: [NotificationsService],
 })
 export class NotificationsModule {}

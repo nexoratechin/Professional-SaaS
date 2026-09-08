@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import type { JwtAccessTokenClaims } from '@college-erp/auth';
+import { AUDIT_ACTIONS, AUDIT_MODULES, type JwtAccessTokenClaims } from '@college-erp/auth';
 import type { User } from '@college-erp/database';
 import { AppConfigService } from '../../config/app-config.service';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
@@ -171,6 +171,18 @@ export class AuthService {
       data: { lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null },
     });
     await this.recordLoginEvent(tenantId, user.email, 'SUCCESS', meta);
+    await this.auditService.record({
+      scope: 'TENANT',
+      tenantId,
+      actorType: 'USER',
+      actorUserId: user.id,
+      action: AUDIT_ACTIONS.LOGIN_SUCCESS,
+      module: AUDIT_MODULES.AUTH,
+      entityType: 'Session',
+      entityId: session.id,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
 
     return { mfaRequired: false, accessToken, rawRefreshToken, user };
   }
@@ -202,7 +214,8 @@ export class AuthService {
         scope: 'TENANT',
         tenantId,
         actorType: 'SYSTEM',
-        action: 'ACCOUNT_LOCKED',
+        action: AUDIT_ACTIONS.ACCOUNT_LOCKED,
+        module: AUDIT_MODULES.AUTH,
         entityType: 'User',
         entityId: userId,
         after: { lockedForMs: lockoutMs, reason: 'too many failed login attempts' },
@@ -238,7 +251,8 @@ export class AuthService {
         tenantId: session.tenantId,
         actorType: 'USER',
         actorUserId: session.userId,
-        action: 'REFRESH_TOKEN_REUSE_DETECTED',
+        action: AUDIT_ACTIONS.REFRESH_TOKEN_REUSE_DETECTED,
+        module: AUDIT_MODULES.AUTH,
         entityType: 'Session',
         entityId: session.id,
         ipAddress: meta.ipAddress,
@@ -275,10 +289,29 @@ export class AuthService {
     return { accessToken, rawRefreshToken: rawRefreshTokenNext, user };
   }
 
-  async logout(rawRefreshToken: string): Promise<void> {
-    await this.platformPrisma.client.session.updateMany({
-      where: { refreshTokenHash: hashToken(rawRefreshToken), revokedAt: null },
+  async logout(rawRefreshToken: string, meta: RequestMeta = {}): Promise<void> {
+    const session = await this.platformPrisma.client.session.findUnique({
+      where: { refreshTokenHash: hashToken(rawRefreshToken) },
+    });
+    if (!session || session.revokedAt) {
+      return;
+    }
+
+    await this.platformPrisma.client.session.update({
+      where: { id: session.id },
       data: { revokedAt: new Date() },
+    });
+    await this.auditService.record({
+      scope: 'TENANT',
+      tenantId: session.tenantId,
+      actorType: 'USER',
+      actorUserId: session.userId,
+      action: AUDIT_ACTIONS.LOGOUT,
+      module: AUDIT_MODULES.AUTH,
+      entityType: 'Session',
+      entityId: session.id,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
     });
   }
 
@@ -330,7 +363,8 @@ export class AuthService {
       tenantId,
       actorType: 'USER',
       actorUserId: userId,
-      action: 'PASSWORD_CHANGED',
+      action: AUDIT_ACTIONS.PASSWORD_CHANGED,
+      module: AUDIT_MODULES.AUTH,
       entityType: 'User',
       entityId: userId,
     });

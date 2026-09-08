@@ -12,6 +12,7 @@
     "clean": "rimraf dist .turbo"
   },
   "dependencies": {
+    "@college-erp/auth": "workspace:*",
     "@college-erp/config": "workspace:*",
     "@college-erp/database": "workspace:*",
     "@college-erp/types": "workspace:*",

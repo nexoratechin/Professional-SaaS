@@ -5,16 +5,17 @@ import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-pri
 import { REDIS_CLIENT } from '../../common/redis/redis.constants';
 
 const CACHE_TTL_SECONDS = 60;
-const ACTIVE_SUBSCRIPTION_STATUSES = ['TRIALING', 'ACTIVE', 'PAST_DUE'] as const;
 
 function cacheKey(tenantId: string): string {
   return `features:${tenantId}`;
 }
 
-/** Effective feature flags = active subscription's plan mapping, then TenantFeatureFlag
- * overrides applied on top (override always wins). Redis-cached (60s), invalidated whenever a
- * tenant's subscription/plan/override changes — this is what lets plan/entitlement changes take
- * effect without a code deploy. */
+/** Effective feature flags = the tenant's materialized Entitlement rows (kept up to date by
+ * EntitlementsService.recompute — see its doc comment for the full subscription→entitlement
+ * pipeline), then TenantFeatureFlag overrides applied on top (override always wins, unchanged
+ * from before this was Entitlement-backed). Redis-cached (60s), invalidated whenever a tenant's
+ * subscription/plan/override changes — this is what lets plan/entitlement changes take effect
+ * without a code deploy. */
 @Injectable()
 export class TenantFeaturesService {
   constructor(
@@ -28,11 +29,12 @@ export class TenantFeaturesService {
       return JSON.parse(cached) as Record<FeatureKey, boolean>;
     }
 
-    const [activeSubscription, overrides] = await Promise.all([
-      this.tenantPrisma.client.subscription.findFirst({
-        where: { status: { in: [...ACTIVE_SUBSCRIPTION_STATUSES] } },
-        orderBy: { createdAt: 'desc' },
-        include: { plan: { include: { planFeatures: { include: { featureFlag: true } } } } },
+    const [entitlements, overrides] = await Promise.all([
+      this.tenantPrisma.client.entitlement.findMany({
+        where: {
+          type: 'BOOLEAN',
+          OR: [{ effectiveUntil: null }, { effectiveUntil: { gt: new Date() } }],
+        },
       }),
       this.tenantPrisma.client.tenantFeatureFlag.findMany({ include: { featureFlag: true } }),
     ]);
@@ -42,9 +44,9 @@ export class TenantFeaturesService {
       boolean
     >;
 
-    if (activeSubscription) {
-      for (const planFeature of activeSubscription.plan.planFeatures) {
-        effective[planFeature.featureFlag.key as FeatureKey] = true;
+    for (const entitlement of entitlements) {
+      if (entitlement.key in effective) {
+        effective[entitlement.key as FeatureKey] = entitlement.boolValue;
       }
     }
     for (const override of overrides) {

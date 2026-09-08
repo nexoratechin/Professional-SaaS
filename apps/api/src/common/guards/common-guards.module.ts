@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { RbacModule } from '../../modules/rbac/rbac.module';
 import { AuditInterceptor } from '../interceptors/audit.interceptor';
+import { EntitlementFlagsGuard } from './entitlement-flag.guard';
 import { FeatureFlagsGuard } from './feature-flag.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard } from './permissions.guard';
@@ -19,6 +20,7 @@ import { TenantMatchGuard } from './tenant-match.guard';
     TenantMatchGuard,
     PermissionsGuard,
     FeatureFlagsGuard,
+    EntitlementFlagsGuard,
     PlatformRoleGuard,
     AuditInterceptor,
   ],
@@ -28,6 +30,7 @@ import { TenantMatchGuard } from './tenant-match.guard';
     TenantMatchGuard,
     PermissionsGuard,
     FeatureFlagsGuard,
+    EntitlementFlagsGuard,
     PlatformRoleGuard,
     AuditInterceptor,
   ],

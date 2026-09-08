@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { createTenantScopedClient } from '@college-erp/database';
+import { createTenantScopedClient, type Prisma, type TenantScopedPrismaClient } from '@college-erp/database';
 import {
   DEFAULT_ROLE_DEFINITIONS,
+  DEFAULT_WORKFLOW_DEFINITIONS,
   PERMISSION_SCOPE_TYPES,
   SYSTEM_ROLE_CODES,
   type PermissionScopeType,
+  type WorkflowDefinitionDefault,
 } from '@college-erp/auth';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 
@@ -23,9 +25,11 @@ export interface ProvisionDefaultAdminInput {
  * (TENANT_ADMIN) system role with every currently-defined permission, the first active admin
  * user, and the other 13 default system roles (Principal, Registrar, HOD, Faculty, Accountant,
  * Exam Controller, Librarian, Hostel Warden, Transport Manager, HR, Placement Officer, Student,
- * Parent — see DEFAULT_ROLE_DEFINITIONS) ready for the admin to assign to real people. This is
- * what makes "tenant onboarding without DB changes" true — a platform admin can provision a
- * fully working, fully role-structured tenant through the API alone.
+ * Parent — see DEFAULT_ROLE_DEFINITIONS) ready for the admin to assign to real people, plus the
+ * example DEFAULT_WORKFLOW_DEFINITIONS (fee refund + leave request approval chains) proving the
+ * workflow engine end-to-end. This is what makes "tenant onboarding without DB changes" true — a
+ * platform admin can provision a fully working, fully role-structured tenant through the API
+ * alone.
  *
  * "SaaS Super Admin" is deliberately not one of these — it's PlatformUserRole.PLATFORM_ADMIN in
  * the control plane, a different realm from tenant Roles (see packages/auth's doc comment).
@@ -112,5 +116,91 @@ export class TenantProvisioningService {
         });
       }
     }
+
+    for (const definition of DEFAULT_WORKFLOW_DEFINITIONS) {
+      await this.seedWorkflowDefinition(tenantClient, input.tenantId, definition, input.createdBy);
+    }
+  }
+
+  /**
+   * Mirrors WorkflowDefinitionsService.createDefinition()'s write shape (definition -> states ->
+   * transitions -> approvers) but skips its request-time validation — this data comes from
+   * DEFAULT_WORKFLOW_DEFINITIONS, not tenant-admin input, so it's trusted by construction.
+   * Written directly against `tenantClient` (built manually via createTenantScopedClient, same
+   * as every other write in this method) rather than injecting WorkflowDefinitionsService: this
+   * runs from POST /tenants, a PLATFORM-realm request with no resolved tenant context yet — the
+   * request-scoped TenantScopedPrismaService that service depends on would throw before ever
+   * reaching this tenant, which doesn't exist until this very call creates it.
+   */
+  private async seedWorkflowDefinition(
+    tenantClient: TenantScopedPrismaClient,
+    tenantId: string,
+    definition: WorkflowDefinitionDefault,
+    createdBy?: string,
+  ): Promise<void> {
+    await tenantClient.$transaction(async (tx) => {
+      const created = await tx.workflowDefinition.create({
+        data: {
+          tenantId,
+          code: definition.code,
+          name: definition.name,
+          description: definition.description,
+          entityType: definition.entityType,
+          isActive: true,
+          createdBy,
+        },
+      });
+
+      const stateIdByCode = new Map<string, string>();
+      for (const state of definition.states) {
+        const row = await tx.workflowState.create({
+          data: {
+            tenantId,
+            definitionId: created.id,
+            code: state.code,
+            name: state.name,
+            category: state.category ?? 'IN_PROGRESS',
+            allowsResubmission: state.allowsResubmission ?? false,
+            sequenceOrder: state.sequenceOrder ?? 0,
+          },
+        });
+        stateIdByCode.set(state.code, row.id);
+      }
+
+      for (const transition of definition.transitions) {
+        const transitionRow = await tx.workflowTransition.create({
+          data: {
+            tenantId,
+            definitionId: created.id,
+            code: transition.code,
+            name: transition.name,
+            fromStateId: stateIdByCode.get(transition.fromStateCode) as string,
+            toStateId: stateIdByCode.get(transition.toStateCode) as string,
+            action: transition.action,
+            priority: transition.priority ?? 0,
+            conditionExpression: (transition.conditionExpression ?? undefined) as Prisma.InputJsonValue,
+            approvalMode: transition.approvalMode ?? 'NONE',
+            parallelRule: transition.parallelRule,
+            parallelQuorumCount: transition.parallelQuorumCount,
+            deadlineHours: transition.deadlineHours,
+            escalationRoleCode: transition.escalationRoleCode,
+            escalationAfterHours: transition.escalationAfterHours,
+          },
+        });
+
+        if (transition.approvers?.length) {
+          await tx.workflowTransitionApprover.createMany({
+            data: transition.approvers.map((approver) => ({
+              tenantId,
+              transitionId: transitionRow.id,
+              approverType: approver.approverType,
+              roleCode: approver.roleCode,
+              scopeField: approver.scopeField,
+              sequenceOrder: approver.sequenceOrder ?? 0,
+            })),
+          });
+        }
+      }
+    });
   }
 }

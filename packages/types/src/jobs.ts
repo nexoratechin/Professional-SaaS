@@ -1,5 +1,7 @@
 export const QUEUE_NAMES = {
   NOTIFICATIONS: 'notifications',
+  WORKFLOW_ESCALATION: 'workflow-escalation',
+  SUBSCRIPTION_LIFECYCLE: 'subscription-lifecycle',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -18,3 +20,21 @@ export interface TenantJobData {
 export interface NotificationJobData extends TenantJobData {
   notificationId: string;
 }
+
+/**
+ * Deliberately does NOT extend TenantJobData — this is a maintenance sweep across every tenant's
+ * overdue workflow approval tasks, not a job scoped to one tenant. WorkflowEscalationProcessor
+ * queries across tenants via the unscoped platform client to FIND overdue tasks, then performs
+ * every actual mutation through a tenant-scoped client built per-tenant from what it found —
+ * consistent with "tenant-aware background jobs" everywhere else in this codebase, just applied
+ * at the read-then-fan-out level instead of the job-payload level.
+ */
+export type WorkflowEscalationSweepJobData = Record<string, never>;
+
+/**
+ * Same cross-tenant maintenance-sweep shape as WorkflowEscalationSweepJobData, for the same
+ * reason: SubscriptionLifecycleProcessor finds every tenant's overdue invoices/expired
+ * subscriptions via the unscoped platform client, then mutates each one through a tenant-scoped
+ * client built per-tenant — never a job scoped to a single tenant up front.
+ */
+export type SubscriptionLifecycleSweepJobData = Record<string, never>;

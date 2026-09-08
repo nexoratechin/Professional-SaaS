@@ -25,6 +25,16 @@ describe('tenant-guard model classification (from Prisma DMMF)', () => {
     'TrustedDevice',
     'PasswordHistory',
     'TenantSecuritySettings',
+    'TenantConfiguration',
+    'WorkflowDefinition',
+    'WorkflowState',
+    'WorkflowTransition',
+    'WorkflowTransitionApprover',
+    'WorkflowInstance',
+    'WorkflowApprovalTask',
+    'Invoice',
+    'InvoiceLineItem',
+    'Entitlement',
   ];
 
   const notTenantScoped = [
@@ -32,6 +42,7 @@ describe('tenant-guard model classification (from Prisma DMMF)', () => {
     'Plan',
     'FeatureFlag',
     'PlanFeatureFlag',
+    'PlanModule',
     'Permission',
     'PlatformUser',
     'PlatformSession',
@@ -40,6 +51,8 @@ describe('tenant-guard model classification (from Prisma DMMF)', () => {
     'PlatformMfaBackupCode',
     'SecurityEvent',
     'PlatformSecuritySettings',
+    'SupportTicket',
+    'SupportTicketComment',
   ];
 
   it.each(tenantScoped)('%s is tenant-scoped (guarded by the extension)', (model) => {

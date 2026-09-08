@@ -41,8 +41,8 @@ export class DocumentsController {
 
   @Get(':id/download-url')
   @RequirePermission(PERMISSION_KEYS.DOCUMENTS_VIEW)
-  getDownloadUrl(@Param('id') id: string) {
-    return this.documentsService.getDownloadUrl(this.tenantContext.tenantId as string, id);
+  getDownloadUrl(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.documentsService.getDownloadUrl(this.tenantContext.tenantId as string, id, user.id);
   }
 
   @Delete(':id')

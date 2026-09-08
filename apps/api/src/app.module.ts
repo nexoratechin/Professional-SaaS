@@ -1,6 +1,7 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { TenantResolutionMiddleware } from './common/middleware/tenant-resolution.middleware';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { QueueModule } from './common/queue/queue.module';
@@ -9,12 +10,17 @@ import { StorageModule } from './common/storage/storage.module';
 import { ConfigModule } from './config/config.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { PlatformOpsModule } from './modules/platform-ops/platform-ops.module';
 import { SaasModule } from './modules/saas/saas.module';
+import { SupportModule } from './modules/support/support.module';
+import { TenantConfigurationModule } from './modules/tenant-configuration/tenant-configuration.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
+import { WorkflowModule } from './modules/workflow/workflow.module';
 
 @Module({
   imports: [
@@ -32,11 +38,20 @@ import { UsersModule } from './modules/users/users.module';
     SaasModule,
     DocumentsModule,
     NotificationsModule,
+    WorkflowModule,
+    BillingModule,
+    SupportModule,
+    PlatformOpsModule,
+    TenantConfigurationModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
+    // Applies to every route, including /health, /api/docs, and /platform/** — unlike
+    // TenantResolutionMiddleware below, correlation ids have nothing to do with tenancy.
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+
     consumer
       .apply(TenantResolutionMiddleware)
       .exclude(
@@ -45,7 +60,13 @@ export class AppModule implements NestModule {
         { path: 'api/docs/(.*)', method: RequestMethod.ALL },
         { path: 'platform/(.*)', method: RequestMethod.ALL },
         { path: 'plans', method: RequestMethod.ALL },
+        { path: 'plans/(.*)', method: RequestMethod.ALL },
+        { path: 'feature-flags', method: RequestMethod.ALL },
+        { path: 'feature-flags/(.*)', method: RequestMethod.ALL },
         { path: 'subscriptions', method: RequestMethod.ALL },
+        { path: 'subscriptions/(.*)', method: RequestMethod.ALL },
+        { path: 'subscription-items/(.*)', method: RequestMethod.ALL },
+        { path: 'invoices/(.*)', method: RequestMethod.ALL },
         { path: 'tenants', method: RequestMethod.ALL },
         { path: 'tenants/(.*)', method: RequestMethod.ALL },
         { path: 'usage', method: RequestMethod.ALL },

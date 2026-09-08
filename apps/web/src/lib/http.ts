@@ -58,9 +58,9 @@ async function tryRefresh(tenantSlug?: string): Promise<boolean> {
   return true;
 }
 
-/** Fetch wrapper that attaches the tenant header + bearer token, and silently refreshes the
- * access token once on a 401 before giving up. */
-export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
+/** Attaches the tenant header + bearer token, and silently refreshes the access token once on a
+ * 401 before giving up. Shared by apiFetch and apiFetchPaged below. */
+async function fetchWithAuthRetry(path: string, options: ApiFetchOptions): Promise<Response> {
   let response = await rawFetch(path, options);
 
   if (response.status === 401 && !options.skipAuth) {
@@ -75,10 +75,31 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     throw new ApiError(response.status, (body as { message?: string }).message ?? 'Request failed');
   }
 
+  return response;
+}
+
+export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
+  const response = await fetchWithAuthRetry(path, options);
   if (response.status === 204) {
     return undefined as T;
   }
   return response.json() as Promise<T>;
+}
+
+export interface PagedResult<T> {
+  data: T;
+  /** From the X-Total-Count response header — the full matching row count, not just this page. */
+  total: number;
+}
+
+/** Same auth/retry behavior as apiFetch, but also surfaces the X-Total-Count header — for
+ * endpoints (like the searchable audit log) whose body stays a plain array for backward
+ * compatibility while pagination metadata rides along as a header instead. */
+export async function apiFetchPaged<T>(path: string, options: ApiFetchOptions = {}): Promise<PagedResult<T>> {
+  const response = await fetchWithAuthRetry(path, options);
+  const total = Number(response.headers.get('X-Total-Count') ?? '0');
+  const data = response.status === 204 ? (undefined as T) : ((await response.json()) as T);
+  return { data, total };
 }
 
 export { tryRefresh };

@@ -1,6 +1,13 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { buildTotpUri, generateBackupCodes, generateTotpSecret, verifyTotpCode } from '@college-erp/auth';
+import {
+  AUDIT_ACTIONS,
+  AUDIT_MODULES,
+  buildTotpUri,
+  generateBackupCodes,
+  generateTotpSecret,
+  verifyTotpCode,
+} from '@college-erp/auth';
 import { MfaSecretCipher } from '../../common/security/mfa-secret-cipher';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -96,7 +103,8 @@ export class MfaService {
       tenantId,
       actorType: 'USER',
       actorUserId: userId,
-      action: 'MFA_ENABLED',
+      action: AUDIT_ACTIONS.MFA_ENABLED,
+      module: AUDIT_MODULES.AUTH,
       entityType: 'User',
       entityId: userId,
     });
@@ -135,7 +143,8 @@ export class MfaService {
       tenantId,
       actorType: 'USER',
       actorUserId: userId,
-      action: 'MFA_DISABLED',
+      action: AUDIT_ACTIONS.MFA_DISABLED,
+      module: AUDIT_MODULES.AUTH,
       entityType: 'User',
       entityId: userId,
     });

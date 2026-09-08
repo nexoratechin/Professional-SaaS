@@ -2,11 +2,15 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { AppConfigService } from './config/app-config.service';
 import { ConfigModule } from './config/config.module';
+import { EntitlementModule } from './entitlement/entitlement.module';
 import { NotificationsProcessorModule } from './queues/notifications/notifications-processor.module';
+import { SubscriptionLifecycleProcessorModule } from './queues/subscription-lifecycle/subscription-lifecycle-processor.module';
+import { WorkflowEscalationProcessorModule } from './queues/workflow-escalation/workflow-escalation-processor.module';
 
 @Module({
   imports: [
     ConfigModule,
+    EntitlementModule,
     BullModule.forRootAsync({
       inject: [AppConfigService],
       useFactory: (config: AppConfigService) => {
@@ -21,6 +25,8 @@ import { NotificationsProcessorModule } from './queues/notifications/notificatio
       },
     }),
     NotificationsProcessorModule,
+    WorkflowEscalationProcessorModule,
+    SubscriptionLifecycleProcessorModule,
   ],
 })
 export class AppModule {}

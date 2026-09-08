@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { FEATURE_KEYS } from '@college-erp/auth';
+import { AUDIT_ACTIONS, AUDIT_MODULES, FEATURE_KEYS } from '@college-erp/auth';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { TenantFeaturesService } from '../rbac/tenant-features.service';
 import { AuditService } from '../audit/audit.service';
@@ -53,7 +53,8 @@ export class SecuritySettingsService {
       scope: 'PLATFORM',
       actorType: 'PLATFORM_USER',
       actorPlatformUserId,
-      action: 'PLATFORM_SECURITY_SETTINGS_UPDATED',
+      action: AUDIT_ACTIONS.PLATFORM_SECURITY_SETTINGS_UPDATED,
+      module: AUDIT_MODULES.SECURITY,
       entityType: 'PlatformSecuritySettings',
       entityId: updated.id,
       before: current,
@@ -90,7 +91,8 @@ export class SecuritySettingsService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'TENANT_SECURITY_SETTINGS_UPDATED',
+      action: AUDIT_ACTIONS.TENANT_SECURITY_SETTINGS_UPDATED,
+      module: AUDIT_MODULES.SECURITY,
       entityType: 'TenantSecuritySettings',
       entityId: updated.id,
       before: current,

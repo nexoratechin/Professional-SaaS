@@ -1,8 +1,10 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
+import { FEATURE_KEYS } from '@college-erp/auth';
 import { createTenantScopedClient, platformPrismaClient } from '@college-erp/database';
 import { QUEUE_NAMES, type NotificationJobData } from '@college-erp/types';
+import { EntitlementGate } from '../../entitlement/entitlement-gate';
 
 /**
  * Tenant-aware background job processing: an HTTP request gets its tenant context from
@@ -19,6 +21,10 @@ import { QUEUE_NAMES, type NotificationJobData } from '@college-erp/types';
 @Processor(QUEUE_NAMES.NOTIFICATIONS)
 export class NotificationsProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationsProcessor.name);
+
+  constructor(private readonly entitlementGate: EntitlementGate) {
+    super();
+  }
 
   async process(job: Job<NotificationJobData>): Promise<void> {
     const { tenantId, notificationId } = job.data;
@@ -37,6 +43,20 @@ export class NotificationsProcessor extends WorkerHost {
     }
 
     try {
+      // Entitlement enforcement in a background job: notification delivery is one of the last
+      // steps of the pipeline and the tenant might have had its plan/subscription downgraded
+      // since the job was enqueued. Re-checking the (self-healing) materialized entitlement here
+      // means a tenant that no longer holds the notifications module gets no delivery at all —
+      // the row is marked FAILED instead of silently skipped, so it surfaces in the audit trail.
+      if (!(await this.entitlementGate.isFeatureEnabled(tenantId, FEATURE_KEYS.NOTIFICATIONS))) {
+        await tenantClient.notification.update({
+          where: { id: notification.id },
+          data: { status: 'FAILED', error: "Tenant's plan no longer includes the notifications module." },
+        });
+        this.logger.debug(`Skipped notification ${notification.id}: tenant ${tenantId} lost notifications entitlement.`);
+        return;
+      }
+
       this.logger.log(
         `Delivering ${notification.channel} notification ${notification.id} to user ` +
           `${notification.recipientUserId} (tenant ${tenantId}): "${notification.subject}"`,

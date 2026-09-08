@@ -208,6 +208,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@college-erp/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@college-erp/config':
         specifier: workspace:*
         version: link:../../packages/config
