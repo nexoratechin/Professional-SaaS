@@ -21,6 +21,7 @@ import { PlatformTenantNewPage } from './routes/platform/platform-tenant-new';
 import { PlatformTenantsPage } from './routes/platform/platform-tenants';
 import { ProtectedRoute } from './routes/protected-route';
 import { TenantConfigurationPage } from './routes/tenant-configuration';
+import { OrganizationPage } from './routes/organization';
 
 /** Two entirely separate route trees, each wrapped in its OWN auth provider — the tenant realm
  * (AuthProvider) never renders inside the platform realm's tree and vice versa. This is the
@@ -107,6 +108,14 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <TenantConfigurationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/organization"
+          element={
+            <ProtectedRoute>
+              <OrganizationPage />
             </ProtectedRoute>
           }
         />

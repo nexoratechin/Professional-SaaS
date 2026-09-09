@@ -11,8 +11,9 @@
  * the key is an identifier, the action field is the queryable classification.
  *
  * Modules with a real controller today: tenants (self-service), users, roles, audit,
- * organization (campuses/departments/programs/academic-years/terms/rooms — schema+RBAC only,
- * CRUD modules are a later pass), notifications, documents. Every other module below
+ * organization (campuses/departments/programs/academic-years/terms/rooms/buildings/sections/
+ * batches — full CRUD API in apps/api's organization module), notifications, documents.
+ * Every other module below
  * (students…integrations, matching the blueprint's full product map) has no controller yet —
  * their permissions exist now so the 13 default tenant roles (see DEFAULT_ROLE_DEFINITIONS)
  * have real, differentiated grants to seed, and so each module's future CRUD controller has a
@@ -72,7 +73,7 @@ export const PERMISSION_KEYS = {
   SECURITY_SETTINGS_MANAGE: 'security.settings.manage',
   SECURITY_EVENTS_VIEW: 'security.events.view',
 
-  // --- Organization (schema + RBAC only; CRUD modules are a later pass) ---
+  // --- Organization (full CRUD API in apps/api's organization module) ---
   CAMPUSES_VIEW: 'campuses.read',
   CAMPUSES_MANAGE: 'campuses.manage',
   DEPARTMENTS_VIEW: 'departments.read',
@@ -85,6 +86,12 @@ export const PERMISSION_KEYS = {
   TERMS_MANAGE: 'terms.manage',
   ROOMS_VIEW: 'rooms.read',
   ROOMS_MANAGE: 'rooms.manage',
+  BUILDINGS_VIEW: 'buildings.read',
+  BUILDINGS_MANAGE: 'buildings.manage',
+  SECTIONS_VIEW: 'sections.read',
+  SECTIONS_MANAGE: 'sections.manage',
+  BATCHES_VIEW: 'batches.read',
+  BATCHES_MANAGE: 'batches.manage',
 
   // --- Notifications / Documents (have controllers) ---
   NOTIFICATIONS_VIEW: 'notifications.read',
@@ -309,6 +316,12 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
     [PERMISSION_KEYS.TERMS_MANAGE, MANAGE, 'Create, update, and archive terms within an academic year.'],
     [PERMISSION_KEYS.ROOMS_VIEW, VIEW, 'View rooms.'],
     [PERMISSION_KEYS.ROOMS_MANAGE, MANAGE, 'Create, update, and archive rooms.'],
+    [PERMISSION_KEYS.BUILDINGS_VIEW, VIEW, 'View buildings.'],
+    [PERMISSION_KEYS.BUILDINGS_MANAGE, MANAGE, 'Create, update, and archive buildings.'],
+    [PERMISSION_KEYS.SECTIONS_VIEW, VIEW, 'View sections.'],
+    [PERMISSION_KEYS.SECTIONS_MANAGE, MANAGE, 'Create, update, and archive sections.'],
+    [PERMISSION_KEYS.BATCHES_VIEW, VIEW, 'View batches.'],
+    [PERMISSION_KEYS.BATCHES_MANAGE, MANAGE, 'Create, update, and archive batches.'],
   ]),
   ...modulePermissions('notifications', [
     [PERMISSION_KEYS.NOTIFICATIONS_VIEW, VIEW, "View the tenant's notification history."],
@@ -551,6 +564,9 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.PROGRAMS_VIEW },
       { key: K.ACADEMIC_YEARS_VIEW },
       { key: K.TERMS_VIEW },
+      { key: K.BUILDINGS_VIEW },
+      { key: K.SECTIONS_VIEW },
+      { key: K.BATCHES_VIEW },
       { key: K.REPORTS_VIEW },
       { key: K.REPORTS_EXPORT },
       { key: K.WORKFLOWS_VIEW },

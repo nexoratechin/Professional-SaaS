@@ -18,6 +18,7 @@ import { PlatformOpsModule } from './modules/platform-ops/platform-ops.module';
 import { SaasModule } from './modules/saas/saas.module';
 import { SupportModule } from './modules/support/support.module';
 import { TenantConfigurationModule } from './modules/tenant-configuration/tenant-configuration.module';
+import { OrganizationModule } from './modules/organization/organization.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
@@ -35,6 +36,7 @@ import { WorkflowModule } from './modules/workflow/workflow.module';
     AuthModule,
     TenantsModule,
     UsersModule,
+    OrganizationModule,
     SaasModule,
     DocumentsModule,
     NotificationsModule,

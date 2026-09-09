@@ -2,10 +2,11 @@
 //
 // Foundation (Phase 1): tenants, users, roles, permissions, user_roles, sessions, login_events
 // — the SaaS control plane and tenant identity/RBAC core.
-// Organization (Phase 2, schema-only for now): campuses, departments, academic_years, terms,
-// rooms — master data every later academic/admissions/attendance/exam module anchors to. Their
-// CRUD API modules are a later pass; the schema, RBAC permissions, and tenant-isolation wiring
-// are complete now so that later work has a stable foundation to build on.
+// Organization: campuses, departments, academic_years, terms, rooms PLUS buildings, sections,
+// batches — master data every later academic/admissions/attendance/exam module anchors to. The
+// schema, RBAC permissions, and tenant-isolation wiring are complete, AND a full CRUD API module
+// (search/filter/import/export + scoped permissions) ships with it — see apps/api's organization
+// module — so later work has a stable, usable foundation to build on.
 //
 // Conventions applied across every model in this file:
 // - Primary keys are database-generated UUIDs (`gen_random_uuid()`, native to Postgres 13+ —
@@ -365,6 +366,9 @@ model Tenant {
   academicYears               AcademicYear[]
   terms                       Term[]
   rooms                       Room[]
+  buildings                   Building[]
+  sections                    Section[]
+  batches                     Batch[]
   notifications               Notification[]
   documents                   Document[]
   passwordResetTokens         PasswordResetToken[]
@@ -1195,7 +1199,10 @@ model PlatformSecuritySettings {
 }
 
 // ---------------------------------------------------------------------------
-// Organization (master data — schema-only this pass; see file header)
+// Organization (master data — campuses, departments, programs, academic_years,
+// terms, rooms, buildings, sections, batches). CRUD API lives in apps/api's
+// organization module; the schema, RBAC permissions, and tenant isolation are
+// enforced here and mirrored in packages/auth's permission catalog.
 // ---------------------------------------------------------------------------
 
 model Campus {
@@ -1216,6 +1223,7 @@ model Campus {
   deletedAt   DateTime? @map("deleted_at")
 
   departments    Department[]
+  buildings      Building[]
   rooms          Room[]
   roleScopeUsers UserRole[]
 
@@ -1269,6 +1277,8 @@ model Program {
   deletedAt     DateTime?   @map("deleted_at")
 
   roleScopeUsers UserRole[]
+  sections       Section[]
+  batches        Batch[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1292,7 +1302,9 @@ model AcademicYear {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  terms Term[]
+  terms    Term[]
+  sections Section[] @relation("AcademicYearSections")
+  batches  Batch[]   @relation("AcademicYearBatches")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1327,29 +1339,115 @@ model Term {
 }
 
 model Room {
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId  String    @map("tenant_id") @db.Uuid
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  campusId  String    @map("campus_id") @db.Uuid
-  campus    Campus    @relation(fields: [campusId], references: [id], onDelete: Restrict)
-  code      String
-  name      String
-  roomType  RoomType  @default(CLASSROOM) @map("room_type")
-  capacity  Int?
-  building  String?
-  floor     String?
-  isActive  Boolean   @default(true) @map("is_active")
-  createdBy String?   @map("created_by") @db.Uuid
-  updatedBy String?   @map("updated_by") @db.Uuid
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId     String    @map("campus_id") @db.Uuid
+  campus       Campus    @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  buildingId   String?   @map("building_id") @db.Uuid
+  building     Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  code         String
+  name         String
+  roomType     RoomType  @default(CLASSROOM) @map("room_type")
+  capacity     Int?
+  buildingName String?   @map("building_name")
+  floor        String?
+  isActive     Boolean   @default(true) @map("is_active")
+  createdBy    String?   @map("created_by") @db.Uuid
+  updatedBy    String?   @map("updated_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
 
   @@unique([campusId, code])
   @@index([tenantId])
   @@index([campusId])
+  @@index([buildingId])
   @@index([tenantId, deletedAt])
   @@map("rooms")
+}
+
+model Building {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId    String   @map("campus_id") @db.Uuid
+  campus      Campus   @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  addressLine String?  @map("address_line")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String?  @map("created_by") @db.Uuid
+  updatedBy   String?  @map("updated_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  rooms Room[]
+
+  @@unique([tenantId, campusId, code])
+  @@index([tenantId])
+  @@index([campusId])
+  @@index([tenantId, deletedAt])
+  @@map("buildings")
+}
+
+/// A cohort of students admitted to a Program for a given AcademicYear (e.g. "B.Tech 2024
+/// Batch"). academicYearId is the year the cohort started — optional because the admissions
+/// module (which will actually tick batches forward) is a later pass.
+model Batch {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String        @map("tenant_id") @db.Uuid
+  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  programId         String        @map("program_id") @db.Uuid
+  program           Program       @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYearId    String?       @map("academic_year_id") @db.Uuid
+  academicYear      AcademicYear? @relation("AcademicYearBatches", fields: [academicYearId], references: [id], onDelete: SetNull)
+  code              String
+  name              String
+  startDate         DateTime?     @map("start_date")
+  endDate           DateTime?     @map("end_date")
+  isActive          Boolean       @default(true) @map("is_active")
+  createdBy         String?       @map("created_by") @db.Uuid
+  updatedBy         String?       @map("updated_by") @db.Uuid
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  deletedAt         DateTime?     @map("deleted_at")
+
+  @@unique([tenantId, programId, code])
+  @@index([tenantId])
+  @@index([programId])
+  @@index([academicYearId])
+  @@index([tenantId, deletedAt])
+  @@map("batches")
+}
+
+/// A division within a Program for a given period (e.g. "CS-A"), used to group students for
+/// timetable/attendance/exams. academicYearId is optional for the same reason as Batch's.
+model Section {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String        @map("tenant_id") @db.Uuid
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  programId      String        @map("program_id") @db.Uuid
+  program        Program       @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYearId String?       @map("academic_year_id") @db.Uuid
+  academicYear   AcademicYear? @relation("AcademicYearSections", fields: [academicYearId], references: [id], onDelete: SetNull)
+  code           String
+  name           String
+  capacity       Int?
+  isActive       Boolean       @default(true) @map("is_active")
+  createdBy      String?       @map("created_by") @db.Uuid
+  updatedBy      String?       @map("updated_by") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+
+  @@unique([tenantId, programId, code])
+  @@index([tenantId])
+  @@index([programId])
+  @@index([academicYearId])
+  @@index([tenantId, deletedAt])
+  @@map("sections")
 }
 
 // ---------------------------------------------------------------------------
