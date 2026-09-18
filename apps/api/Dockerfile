@@ -2,11 +2,13 @@
 # (blueprint defers managed-cloud deployment to a later phase; this proves docker-compose up
 # brings the whole stack up end-to-end).
 FROM node:20-alpine
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 WORKDIR /app
 
 COPY pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY packages ./packages
+COPY tooling ./tooling
 COPY apps/api ./apps/api
 
 RUN pnpm install --frozen-lockfile=false

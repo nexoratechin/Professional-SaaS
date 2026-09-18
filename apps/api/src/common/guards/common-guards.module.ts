@@ -33,6 +33,7 @@ import { TenantMatchGuard } from './tenant-match.guard';
     EntitlementFlagsGuard,
     PlatformRoleGuard,
     AuditInterceptor,
+    RbacModule,
   ],
 })
 export class CommonGuardsModule {}

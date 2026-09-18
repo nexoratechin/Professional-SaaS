@@ -6,6 +6,7 @@ WORKDIR /app
 
 COPY pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY packages ./packages
+COPY tooling ./tooling
 COPY apps/worker ./apps/worker
 
 RUN pnpm install --frozen-lockfile=false
