@@ -409,6 +409,16 @@ model Tenant {
   studentStatusHistory        StudentStatusHistory[]
   studentCommunications       StudentCommunication[]
   studentActivities           StudentActivity[]
+  admissionSessions           AdmissionSession[]
+  admissionPrograms           AdmissionProgramOffer[]
+  admissionEnquiries          AdmissionEnquiry[]
+  admissionApplications       AdmissionApplication[]
+  admissionDocuments          AdmissionDocument[]
+  admissionQualifications     AdmissionQualification[]
+  admissionCounsellingSlots   AdmissionCounsellingSlot[]
+  admissionOffers             AdmissionOffer[]
+  admissionFeePayments        AdmissionFeePayment[]
+  admissionActivities         AdmissionActivity[]
 
   @@index([status])
   @@map("tenants")
@@ -1246,6 +1256,7 @@ model Campus {
   rooms          Room[]
   roleScopeUsers UserRole[]
   students       Student[]
+  admissionApplications AdmissionApplication[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1303,6 +1314,9 @@ model Program {
   enrollments    StudentEnrollment[]
   admissions     StudentAdmission[]
   exams          StudentExam[]
+  admissionPrograms AdmissionProgramOffer[]
+  admissionEnquiries AdmissionEnquiry[]
+  admissionCounsellingSlots AdmissionCounsellingSlot[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1332,6 +1346,8 @@ model AcademicYear {
   students Student[]
   enrollments StudentEnrollment[]
   admissions StudentAdmission[]
+  admissionSessions AdmissionSession[]
+  admissionApplications AdmissionApplication[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -2035,6 +2051,7 @@ model Student {
   statusHistory    StudentStatusHistory[]
   communications   StudentCommunication[]
   activities       StudentActivity[]
+  admissionApplications AdmissionApplication[]
 
   @@unique([tenantId, admissionNumber])
   @@index([tenantId])
@@ -2567,4 +2584,394 @@ model StudentActivity {
   @@index([studentId])
   @@index([studentId, occurredAt])
   @@map("student_activities")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMISSIONS (module ADMISSIONS) — the pre-student recruitment lifecycle:
+// Enquiry → Application → Documents → Verification → Merit → Counselling →
+// Selection → Offer → Payment → Enrollment (auto-creates the Student record).
+// Applicant-facing rows live here; once a student is enrolled the pipeline data
+// is copied into the Student 360 sub-resources (StudentAdmission, documents,
+// academic records, fee/payment ledger) so admissions stays applicant-centric.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AdmissionSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum AdmissionProgramStatus {
+  OPEN
+  CLOSED
+  FULL
+}
+
+/// Pipelined applicant status. The enum order mirrors the lifecycle; stage is derived
+/// (docs/merit/program boards filter on status, the pipeline report groups by stage).
+enum AdmissionApplicationStatus {
+  INITIATED
+  SUBMITTED
+  UNDER_VERIFICATION
+  DOCUMENTS_VERIFIED
+  MERIT_LISTED
+  COUNSELLING_SCHEDULED
+  COUNSELLED
+  SELECTED
+  OFFERED
+  OFFER_ACCEPTED
+  FEE_PAID
+  ENROLLED
+  WAITLISTED
+  REJECTED
+  CANCELLED
+}
+
+enum AdmissionOfferStatus {
+  ISSUED
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+/// A recruitment round for an academic year. Holds the pipeline’s defaults — fees,
+/// dates, seat offers per program (AdmissionProgramOffer) and the dynamic document
+/// checklist — so an institution can run parallel sessions (UG merit, lateral, midday).
+model AdmissionSession {
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                @map("tenant_id") @db.Uuid
+  tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code                 String
+  name                 String
+  academicYearId       String                @map("academic_year_id") @db.Uuid
+  academicYear         AcademicYear          @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  startAt              DateTime              @map("start_at")
+  endAt                 DateTime              @map("end_at")
+  applicationFeeCents  Int                   @default(0) @map("application_fee_cents")
+  admissionFeeCents    Int                   @default(0) @map("admission_fee_cents")
+  status               AdmissionSessionStatus @default(OPEN)
+  /// Drag of required document categories (strings) for this session; merged with the
+  /// per-program override. Defaults to the module’s DEFAULT_DOCUMENT_CHECKLIST.
+  requiredDocuments    Json?                 @map("required_documents")
+  source               String?               @default("FRONT_DESK")
+  meritPublishedAt     DateTime?             @map("merit_published_at")
+  createdBy            String?               @map("created_by") @db.Uuid
+  updatedBy            String?               @map("updated_by") @db.Uuid
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  programs    AdmissionProgramOffer[]
+  enquiries   AdmissionEnquiry[]
+  applications AdmissionApplication[]
+  counsellingSlots AdmissionCounsellingSlot[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([academicYearId])
+  @@map("admission_sessions")
+}
+
+/// A program offered in a session with seat + fee configuration (the seat matrix).
+/// filledSeats is incremented at offer-allocation and freed on decline/cancel; a seat
+/// can’t be offered past capacity (status flips FULL).
+model AdmissionProgramOffer {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String               @map("tenant_id") @db.Uuid
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId           String               @map("session_id") @db.Uuid
+  session             AdmissionSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  programId           String               @map("program_id") @db.Uuid
+  program             Program              @relation(fields: [programId], references: [id], onDelete: Restrict)
+  seats               Int                  @default(0)
+  filledSeats         Int                  @default(0) @map("filled_seats")
+  applicationFeeCents Int                  @default(0) @map("application_fee_cents")
+  admissionFeeCents   Int                  @default(0) @map("admission_fee_cents")
+  tuitionFeeCents     Int                  @default(0) @map("tuition_fee_cents")
+  requiredDocuments   Json?                @map("required_documents")
+  status              AdmissionProgramStatus @default(OPEN)
+  createdBy           String?              @map("created_by") @db.Uuid
+  updatedBy           String?              @map("updated_by") @db.Uuid
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+
+  applications AdmissionApplication[]
+
+  @@unique([tenantId, sessionId, programId])
+  @@index([tenantId])
+  @@index([sessionId])
+  @@index([programId])
+  @@map("admission_program_offers")
+}
+
+/// A pre-application contact — website/web form, walk-in, referral… converted once an
+/// actual application is created from it (source of the enquiry funnel report).
+model AdmissionEnquiry {
+  id                        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                  String             @map("tenant_id") @db.Uuid
+  tenant                    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId                 String?            @map("session_id") @db.Uuid
+  session                   AdmissionSession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  programId                 String?            @map("program_id") @db.Uuid
+  program                   Program?           @relation(fields: [programId], references: [id], onDelete: SetNull)
+  name                      String
+  email                     String?
+  phone                     String?
+  source                    String             @default("WEBSITE")
+  message                   String?
+  followUpAt                DateTime?          @map("follow_up_at")
+  convertedToApplicationId  String?            @map("converted_to_application_id") @db.Uuid
+  convertedAt               DateTime?          @map("converted_at")
+  createdBy                 String?            @map("created_by") @db.Uuid
+  updatedBy                 String?            @map("updated_by") @db.Uuid
+  createdAt                 DateTime           @default(now()) @map("created_at")
+  updatedAt                 DateTime           @updatedAt @map("updated_at")
+
+  applications AdmissionApplication[]
+
+  @@index([tenantId])
+  @@index([sessionId])
+  @@map("admission_enquiries")
+}
+
+/// The applicant’s application — the heart of the pipeline. Structured identity columns
+/// mirror Student; extra form answers live in `data` (the dynamic application form driven
+/// by TenantConfiguration or the module defaults). guardian is a single JSON object kept
+/// in sync with the Guardian row created at enrollment.
+model AdmissionApplication {
+  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                    @map("tenant_id") @db.Uuid
+  tenant               Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationNumber    String                    @map("application_number")
+  sessionId            String                    @map("session_id") @db.Uuid
+  session              AdmissionSession          @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  admissionProgramId   String                    @map("admission_program_id") @db.Uuid
+  admissionProgram     AdmissionProgramOffer     @relation(fields: [admissionProgramId], references: [id], onDelete: Restrict)
+  campusId             String                    @map("campus_id") @db.Uuid
+  campus               Campus                    @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  academicYearId       String                    @map("academic_year_id") @db.Uuid
+  academicYear         AcademicYear              @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  enquiryId            String?                   @map("enquiry_id") @db.Uuid
+  enquiry              AdmissionEnquiry?         @relation(fields: [enquiryId], references: [id], onDelete: SetNull)
+
+  firstName            String                    @map("first_name")
+  middleName           String?                   @map("middle_name")
+  lastName             String                    @map("last_name")
+  fullName             String                    @map("full_name")
+  gender               StudentGender             @default(NOT_SPECIFIED)
+  dateOfBirth          DateTime?                 @map("date_of_birth")
+  email                String?
+  phone                String?
+  category             String?
+  nationality          String?                   @default("Indian")
+  addressLine1         String?                   @map("address_line_1")
+  addressLine2         String?                   @map("address_line_2")
+  city                 String?
+  state                String?
+  postalCode           String?                   @map("postal_code")
+  country              String?                   @default("India")
+  guardian             Json?
+  /// Answers to the dynamic application form (TenantConfiguration-driven / default schema).
+  data                 Json?
+  remarks              String?
+
+  status               AdmissionApplicationStatus @default(INITIATED)
+  submittedAt          DateTime?                 @map("submitted_at")
+  submittedBy          String?                   @map("submitted_by") @db.Uuid
+  rejectedReason       String?                   @map("rejected_reason")
+
+  meritScore           Float?
+  meritRank            Int?                      @map("merit_rank")
+
+  counsellingSlotId    String?                   @map("counselling_slot_id") @db.Uuid
+  counsellingSlot      AdmissionCounsellingSlot? @relation(fields: [counsellingSlotId], references: [id], onDelete: SetNull)
+  counselledAt         DateTime?                 @map("counselled_at")
+  selectedAt           DateTime?                 @map("selected_at")
+
+  feePaidAt            DateTime?                 @map("fee_paid_at")
+  feeReceiptNumber     String?                   @map("fee_receipt_number")
+  enrolledStudentId    String?                   @map("enrolled_student_id") @db.Uuid
+  enrolledStudent      Student?                  @relation(fields: [enrolledStudentId], references: [id], onDelete: SetNull)
+  enrolledAt           DateTime?                 @map("enrolled_at")
+
+  createdBy            String?                   @map("created_by") @db.Uuid
+  updatedBy            String?                   @map("updated_by") @db.Uuid
+  createdAt            DateTime                  @default(now()) @map("created_at")
+  updatedAt            DateTime                  @updatedAt @map("updated_at")
+
+  documents     AdmissionDocument[]
+  qualifications AdmissionQualification[]
+  offers        AdmissionOffer[]
+  payments      AdmissionFeePayment[]
+  activities    AdmissionActivity[]
+
+  @@unique([tenantId, applicationNumber])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([sessionId])
+  @@index([admissionProgramId])
+  @@index([campusId])
+  @@index([academicYearId])
+  @@index([meritScore])
+  @@map("admission_applications")
+}
+
+/// Applicant document (scanned/uploaded before the student exists). Mirrors StudentDocument;
+/// verification is a first-class step that gates DOCUMENTS_VERIFIED.
+model AdmissionDocument {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId    String               @map("application_id") @db.Uuid
+  application      AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  category         String
+  documentName     String               @map("document_name")
+  storageKey       String?              @map("storage_key")
+  originalFilename String?              @map("original_filename")
+  mimeType         String?              @map("mime_type")
+  sizeBytes        Int?                 @map("size_bytes")
+  status           StudentDocumentStatus @default(PENDING)
+  verifiedAt       DateTime?            @map("verified_at")
+  verifiedBy       String?              @map("verified_by") @db.Uuid
+  remarks          String?
+  uploadedBy       String?              @map("uploaded_by") @db.Uuid
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([applicationId])
+  @@index([tenantId, status])
+  @@map("admission_documents")
+}
+
+/// Prior-education qualification entered with the application. Mirrors StudentAcademicRecord;
+/// the highest qualification feeds the default merit score computation.
+model AdmissionQualification {
+  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String               @map("tenant_id") @db.Uuid
+  tenant                 Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId          String               @map("application_id") @db.Uuid
+  application            AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  institution            String
+  board                  String?
+  degree                 String?
+  yearOfPassing          Int?                 @map("year_of_passing")
+  percentage             Float?
+  gpa                    Float?
+  grade                  String?
+  marksObtained          Int?                 @map("marks_obtained")
+  marksOutOf             Int?                 @map("marks_out_of")
+  rank                   String?
+  isHighestQualification Boolean              @default(false) @map("is_highest_qualification")
+  verificationStatus     StudentDocumentStatus @default(PENDING) @map("verification_status")
+  remarks                String?
+  createdBy              String?              @map("created_by") @db.Uuid
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([applicationId])
+  @@map("admission_qualifications")
+}
+
+/// Counselling slot on a session (optionally program-scoped). Capacity gates bookings.
+model AdmissionCounsellingSlot {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String           @map("tenant_id") @db.Uuid
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId    String           @map("session_id") @db.Uuid
+  session      AdmissionSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  programId    String?          @map("program_id") @db.Uuid
+  program      Program?         @relation(fields: [programId], references: [id], onDelete: SetNull)
+  date         DateTime         @map("date")
+  venue        String?
+  capacity     Int              @default(1)
+  bookedCount  Int              @default(0) @map("booked_count")
+  createdBy    String?          @map("created_by") @db.Uuid
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  applications AdmissionApplication[]
+
+  @@index([tenantId])
+  @@index([sessionId])
+  @@index([programId])
+  @@map("admission_counselling_slots")
+}
+
+/// An offer letter issued to a SELECTED applicant (seats are held at issuance and freed on
+/// decline/cancel). Offers are accepted → FEE_PAID → ENROLLED.
+model AdmissionOffer {
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String                 @map("tenant_id") @db.Uuid
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId       String                 @map("application_id") @db.Uuid
+  application         AdmissionApplication   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  offerNumber         String                 @map("offer_number")
+  admissionFeeCents   Int                    @default(0) @map("admission_fee_cents")
+  issuedAt            DateTime               @map("issued_at")
+  expiresAt           DateTime               @map("expires_at")
+  status              AdmissionOfferStatus   @default(ISSUED)
+  acceptedAt          DateTime?              @map("accepted_at")
+  declinedAt          DateTime?              @map("declined_at")
+  remarks             String?
+  createdBy           String?                @map("created_by") @db.Uuid
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+
+  @@unique([tenantId, offerNumber])
+  @@unique([tenantId, applicationId])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([applicationId])
+  @@map("admission_offers")
+}
+
+/// Applicant-side payment for the admission fee (the applicant isn’t a student yet, so it
+/// can’t live on the student ledger). Reuses the global PaymentMethod/PaymentStatus enums.
+/// On enrollment it’s copied to the created Student’s fee ledger.
+model AdmissionFeePayment {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String               @map("tenant_id") @db.Uuid
+  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId      String               @map("application_id") @db.Uuid
+  application        AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  amountCents        Int                  @map("amount_cents")
+  currency           String               @default("INR")
+  paymentDate        DateTime             @map("payment_date")
+  method             PaymentMethod
+  status             PaymentStatus        @default(SUCCEEDED)
+  referenceNumber    String?              @map("reference_number")
+  receiptNumber      String               @map("receipt_number")
+  remarks            String?
+  recordedByUserId   String?              @map("recorded_by_user_id") @db.Uuid
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  @@unique([tenantId, receiptNumber])
+  @@index([tenantId])
+  @@index([applicationId])
+  @@map("admission_fee_payments")
+}
+
+/// Applicant-side timeline mirror (AdmissionActivity). Records every pipeline transition so a
+/// profile page can show an audit trail without polling the platform audit log.
+model AdmissionActivity {
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String               @map("tenant_id") @db.Uuid
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId String            @map("application_id") @db.Uuid
+  application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  eventType   String               @map("event_type")
+  title       String
+  description String?
+  entityType  String?              @map("entity_type")
+  entityId    String?              @map("entity_id") @db.Uuid
+  occurredAt  DateTime             @default(now()) @map("occurred_at")
+  actorUserId String?              @map("actor_user_id") @db.Uuid
+  createdAt   DateTime             @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([applicationId])
+  @@index([applicationId, occurredAt])
+  @@map("admission_activities")
 }

@@ -8,6 +8,7 @@ import { QueueModule } from './common/queue/queue.module';
 import { RedisModule } from './common/redis/redis.module';
 import { StorageModule } from './common/storage/storage.module';
 import { ConfigModule } from './config/config.module';
+import { AdmissionsModule } from './modules/admissions/admissions.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BillingModule } from './modules/billing/billing.module';
@@ -43,6 +44,7 @@ import { WorkflowModule } from './modules/workflow/workflow.module';
     NotificationsModule,
     WorkflowModule,
     StudentsModule,
+    AdmissionsModule,
     BillingModule,
     SupportModule,
     PlatformOpsModule,
