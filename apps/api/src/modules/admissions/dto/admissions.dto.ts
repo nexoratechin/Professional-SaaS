@@ -15,6 +15,7 @@ import {
   IsString,
   Max,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 export const ADMISSION_SESSION_STATUSES = ['OPEN', 'CLOSED'] as const;
@@ -642,4 +643,176 @@ export class CancelApplicationDto {
   @IsOptional()
   @IsString()
   reason?: string;
+}
+
+// ── Configurable form fields ────────────────────────────────────────────────
+
+export const ADMISSION_FIELD_TYPES = ['TEXT', 'TEXTAREA', 'NUMBER', 'DATE', 'EMAIL', 'PHONE', 'SELECT', 'RADIO', 'CHECKBOX'] as const;
+
+export class AdmissionFormFieldInputDto {
+  @IsString()
+  @IsNotEmpty()
+  code: string;
+
+  @IsString()
+  @IsNotEmpty()
+  label: string;
+
+  @IsIn(ADMISSION_FIELD_TYPES)
+  fieldType: (typeof ADMISSION_FIELD_TYPES)[number];
+
+  @IsOptional()
+  @IsString()
+  placeholder?: string;
+
+  @IsOptional()
+  required?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  options?: string[];
+
+  @IsOptional()
+  @IsString()
+  helpText?: string;
+
+  @IsOptional()
+  @IsInt()
+  sequenceOrder?: number;
+
+  @IsOptional()
+  isActive?: boolean;
+}
+
+export class SetAdmissionFormFieldsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AdmissionFormFieldInputDto)
+  fields: AdmissionFormFieldInputDto[];
+}
+
+// ── Eligibility rules ───────────────────────────────────────────────────────
+
+export const ADMISSION_ELIGIBILITY_RULE_TYPES = ['MIN_PERCENTAGE', 'MIN_GPA', 'MIN_MARKS', 'MIN_AGE', 'MAX_AGE', 'CATEGORY_ALLOWED', 'CUSTOM'] as const;
+
+export class CreateAdmissionEligibilityRuleDto {
+  @IsString()
+  @IsNotEmpty()
+  programId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsIn(ADMISSION_ELIGIBILITY_RULE_TYPES)
+  ruleType: (typeof ADMISSION_ELIGIBILITY_RULE_TYPES)[number];
+
+  @IsOptional()
+  @IsObject()
+  config?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  appliesToCategory?: string;
+
+  @IsOptional()
+  @IsInt()
+  sequenceOrder?: number;
+
+  @IsOptional()
+  isActive?: boolean;
+}
+
+export class UpdateAdmissionEligibilityRuleDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsIn(ADMISSION_ELIGIBILITY_RULE_TYPES)
+  ruleType?: (typeof ADMISSION_ELIGIBILITY_RULE_TYPES)[number];
+
+  @IsOptional()
+  @IsObject()
+  config?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  appliesToCategory?: string;
+
+  @IsOptional()
+  @IsInt()
+  sequenceOrder?: number;
+
+  @IsOptional()
+  isActive?: boolean;
+}
+
+// ── Duplicate detection ─────────────────────────────────────────────────────
+
+export class FlagDuplicateDto {
+  @IsString()
+  @IsNotEmpty()
+  duplicateOfId: string;
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+// ── Bulk operations ─────────────────────────────────────────────────────────
+
+export class BulkImportApplicationDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateAdmissionApplicationDto)
+  applications: CreateAdmissionApplicationDto[];
+}
+
+export class BulkVerifyApplicationsDto {
+  @IsArray()
+  @IsString({ each: true })
+  applicationIds: string[];
+
+  @IsOptional()
+  @IsString()
+  remarks?: string;
+}
+
+// ── Applicant communication ─────────────────────────────────────────────────
+
+export const ADMISSION_MESSAGE_CHANNELS = ['EMAIL', 'SMS', 'IN_APP'] as const;
+
+export class SendAdmissionMessageDto {
+  @IsString()
+  @IsNotEmpty()
+  subject: string;
+
+  @IsString()
+  @IsNotEmpty()
+  body: string;
+
+  @IsIn(ADMISSION_MESSAGE_CHANNELS)
+  channel: (typeof ADMISSION_MESSAGE_CHANNELS)[number];
+}
+
+// ── Analytics ───────────────────────────────────────────────────────────────
+
+export class AdmissionAnalyticsQueryDto {
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(1)
+  @Max(365)
+  days?: number;
 }

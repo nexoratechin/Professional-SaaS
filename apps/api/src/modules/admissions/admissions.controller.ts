@@ -7,6 +7,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -49,6 +50,13 @@ import {
   UpdateApplicationDocumentDto,
   UpdateCounsellingSlotDto,
   UpdateQualificationDto,
+  SetAdmissionFormFieldsDto,
+  CreateAdmissionEligibilityRuleDto,
+  UpdateAdmissionEligibilityRuleDto,
+  FlagDuplicateDto,
+  BulkImportApplicationDto,
+  BulkVerifyApplicationsDto,
+  SendAdmissionMessageDto,
 } from './dto/admissions.dto';
 
 @ApiTags('admissions')
@@ -129,6 +137,52 @@ export class AdmissionsController {
   @RequirePermission(K.ADMISSIONS_VIEW)
   formDefinition(@Query('sessionId') sessionId: string, @Query('admissionProgramId') admissionProgramId?: string) {
     return this.admissionsService.formDefinition(this.tid(), sessionId, admissionProgramId ?? undefined);
+  }
+
+  // ── Configurable form fields ──────────────────────────────────────────────
+
+  @Get('sessions/:id/form-fields')
+  @RequirePermission(K.ADMISSIONS_VIEW)
+  listFormFields(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.listFormFields(this.tid(), user.id, id);
+  }
+
+  @Post('sessions/:id/form-fields')
+  @RequirePermission(K.ADMISSIONS_MANAGE)
+  setFormFields(@Param('id') id: string, @Body() dto: SetAdmissionFormFieldsDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.setFormFields(this.tid(), user.id, id, dto);
+  }
+
+  // ── Eligibility rules ─────────────────────────────────────────────────────
+
+  @Get('eligibility-rules')
+  @RequirePermission(K.ADMISSIONS_VIEW)
+  listEligibilityRules(@CurrentUser() user: AuthenticatedUser, @Query('programId') programId?: string) {
+    return this.admissionsService.listEligibilityRules(this.tid(), user.id, programId ?? undefined);
+  }
+
+  @Post('eligibility-rules')
+  @RequirePermission(K.ADMISSIONS_MANAGE)
+  createEligibilityRule(@Body() dto: CreateAdmissionEligibilityRuleDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.createEligibilityRule(this.tid(), user.id, dto);
+  }
+
+  @Patch('eligibility-rules/:ruleId')
+  @RequirePermission(K.ADMISSIONS_MANAGE)
+  updateEligibilityRule(@Param('ruleId') ruleId: string, @Body() dto: UpdateAdmissionEligibilityRuleDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.updateEligibilityRule(this.tid(), user.id, ruleId, dto);
+  }
+
+  @Delete('eligibility-rules/:ruleId')
+  @RequirePermission(K.ADMISSIONS_MANAGE)
+  deleteEligibilityRule(@Param('ruleId') ruleId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.deleteEligibilityRule(this.tid(), user.id, ruleId);
+  }
+
+  @Post('applications/:id/evaluate-eligibility')
+  @RequirePermission(K.ADMISSIONS_VIEW)
+  evaluateEligibility(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.evaluateEligibility(id, this.tid(), user.id);
   }
 
   // ── Enquiries ─────────────────────────────────────────────────────────────
@@ -337,6 +391,65 @@ export class AdmissionsController {
   @RequirePermission(K.ADMISSIONS_APPROVE)
   enroll(@Param('id') id: string, @Body() dto: EnrollApplicationDto, @CurrentUser() user: AuthenticatedUser) {
     return this.admissionsService.enroll(id, this.tid(), user.id, dto);
+  }
+
+  // ── Duplicates & bulk ops ─────────────────────────────────────────────────
+
+  @Get('duplicates')
+  @RequirePermission(K.ADMISSIONS_VIEW)
+  detectDuplicates(@CurrentUser() user: AuthenticatedUser, @Query('sessionId') sessionId?: string) {
+    return this.admissionsService.detectDuplicates(this.tid(), user.id, sessionId ?? undefined);
+  }
+
+  @Post('applications/:id/flag-duplicate')
+  @RequirePermission(K.ADMISSIONS_MANAGE)
+  flagDuplicate(@Param('id') id: string, @Body() dto: FlagDuplicateDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.flagDuplicate(id, this.tid(), user.id, dto);
+  }
+
+  @Post('applications/:id/clear-duplicate')
+  @RequirePermission(K.ADMISSIONS_MANAGE)
+  clearDuplicate(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.clearDuplicate(id, this.tid(), user.id);
+  }
+
+  @Post('bulk/import')
+  @RequirePermission(K.ADMISSIONS_MANAGE)
+  bulkImport(@Body() dto: BulkImportApplicationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.bulkImport(this.tid(), user.id, dto);
+  }
+
+  @Post('bulk/verify')
+  @RequirePermission(K.ADMISSIONS_APPROVE)
+  bulkVerify(@Body() dto: BulkVerifyApplicationsDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.bulkVerify(this.tid(), user.id, dto);
+  }
+
+  // ── Applicant communication ───────────────────────────────────────────────
+
+  @Get('applications/:id/messages')
+  @RequirePermission(K.ADMISSIONS_VIEW)
+  listMessages(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.listMessages(id, this.tid(), user.id);
+  }
+
+  @Post('applications/:id/messages')
+  @RequirePermission(K.ADMISSIONS_CREATE)
+  sendMessage(@Param('id') id: string, @Body() dto: SendAdmissionMessageDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.admissionsService.sendMessage(id, this.tid(), user.id, dto);
+  }
+
+  // ── Analytics ─────────────────────────────────────────────────────────────
+
+  @Get('analytics')
+  @RequirePermission(K.ADMISSIONS_VIEW)
+  analytics(@CurrentUser() user: AuthenticatedUser, @Query('days') days?: string, @Query('sessionId') sessionId?: string) {
+    return this.admissionsService.analytics(
+      this.tid(),
+      user.id,
+      { days: days ? Number(days) : undefined },
+      sessionId ?? undefined,
+    );
   }
 
   // ── Dashboard & reports ───────────────────────────────────────────────────

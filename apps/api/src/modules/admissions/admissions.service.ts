@@ -14,6 +14,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, type PrismaClient } from '@college-erp/database';
@@ -21,6 +22,9 @@ import { AUDIT_ACTIONS } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PermissionsService } from '../rbac/permissions.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { WorkflowDefinitionsService } from '../workflow/workflow-definitions.service';
+import { WorkflowEngineService } from '../workflow/workflow-engine.service';
 import { rowsToCsv } from '../organization/org-csv';
 import { admissionScopeFilter } from './admissions-scope';
 import {
@@ -56,6 +60,14 @@ import {
   UpdateApplicationDocumentDto,
   UpdateCounsellingSlotDto,
   UpdateQualificationDto,
+  SetAdmissionFormFieldsDto,
+  CreateAdmissionEligibilityRuleDto,
+  UpdateAdmissionEligibilityRuleDto,
+  FlagDuplicateDto,
+  BulkImportApplicationDto,
+  BulkVerifyApplicationsDto,
+  SendAdmissionMessageDto,
+  AdmissionAnalyticsQueryDto,
 } from './dto/admissions.dto';
 
 type Client = PrismaClient;
@@ -68,10 +80,15 @@ const FEEDING_STATUSES = ['OFFERED', 'OFFER_ACCEPTED', 'FEE_PAID', 'ENROLLED'];
 
 @Injectable()
 export class AdmissionsService {
+  private readonly logger = new Logger(AdmissionsService.name);
+
   constructor(
     private readonly tenantPrisma: TenantScopedPrismaService,
     private readonly auditService: AuditService,
     private readonly permissionsService: PermissionsService,
+    private readonly notifications: NotificationsService,
+    private readonly workflowDefinitions: WorkflowDefinitionsService,
+    private readonly workflowEngine: WorkflowEngineService,
   ) {}
 
   // ── Scope ─────────────────────────────────────────────────────────────────
@@ -102,6 +119,7 @@ export class AdmissionsService {
       academicYear: true,
       counsellingSlot: true,
       enquiry: true,
+      duplicateOf: { select: { id: true, applicationNumber: true, fullName: true, email: true, phone: true, status: true } },
       documents: { orderBy: { createdAt: 'asc' as const } },
       qualifications: { orderBy: { createdAt: 'asc' as const } },
       offers: { orderBy: { createdAt: 'asc' as const } },
@@ -533,6 +551,17 @@ export class AdmissionsService {
         data: { convertedToApplicationId: application.id, convertedAt: new Date(), updatedBy: userId },
       });
     }
+    const duplicateOf = await this.findDuplicateCandidate(application);
+    if (duplicateOf) {
+      await (this.tenantPrisma.client as any).admissionApplication.update({
+        where: { id: application.id },
+        data: { duplicateOfId: duplicateOf },
+      });
+      await this.logActivity(application.id, ADMISSION_EVENTS.DUPLICATE_DETECTED, 'Possible duplicate application', userId, `Matched existing application ${duplicateOf}`);
+      await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_DUPLICATE_DETECTED, 'AdmissionApplication', application.id, {
+        after: { duplicateOfId: duplicateOf },
+      });
+    }
     await this.logActivity(application.id, ADMISSION_EVENTS.APPLICATION_CREATED, 'Application created', userId);
     await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_APPLICATION_CREATED, 'AdmissionApplication', application.id, {
       after: { applicationNumber, fullName },
@@ -598,6 +627,8 @@ export class AdmissionsService {
       before: { status: 'INITIATED' },
       after: { status: application.status },
     });
+    await this.syncAdmissionWorkflow(tenantId, userId, applicationId, 'SUBMIT');
+    await this.notifyStageChange(tenantId, app, 'Application submitted', `Application ${applicationId} was submitted and is pending review.`);
     return this.getApplication(applicationId, tenantId, userId);
   }
 
@@ -627,6 +658,7 @@ export class AdmissionsService {
       before: { status: app.status },
       after: { status: application.status, reason: reason ?? null },
     });
+    await this.syncAdmissionWorkflow(tenantId, userId, applicationId, 'CANCEL');
     return this.getApplication(applicationId, tenantId, userId);
   }
 
@@ -1433,14 +1465,47 @@ export class AdmissionsService {
       }
     }
 
+    const configuredFields = await (this.tenantPrisma.client as Client).admissionFormField.findMany({
+      where: { sessionId, isActive: true },
+      orderBy: { sequenceOrder: 'asc' },
+    });
+    const hasConfiguredFields = configuredFields.length > 0;
+    const fields = hasConfiguredFields
+      ? configuredFields.map((field) => ({
+          key: field.code,
+          label: field.label,
+          type: this.mapFieldType(field.fieldType),
+          required: field.required,
+          options: (field.options as string[] | null) ?? undefined,
+        }))
+      : ADMISSION_FORM_FIELDS;
+
     return {
       sessionId,
-      fields: ADMISSION_FORM_FIELDS,
+      fields,
+      configurable: hasConfiguredFields,
       documentChecklist: requiredDocuments,
       applicationFeeCents,
       admissionFeeCents,
       sessionOpen: session.status === 'OPEN',
     };
+  }
+
+  /** Maps a configurable AdmissionFieldType to the form-shape type the web form understands. */
+  private mapFieldType(type: string): string {
+    switch (type) {
+      case 'NUMBER':
+        return 'NUMBER';
+      case 'DATE':
+        return 'DATE';
+      case 'SELECT':
+      case 'RADIO':
+        return 'SELECT';
+      case 'CHECKBOX':
+        return 'MULTISELECT';
+      default:
+        return 'TEXT';
+    }
   }
 
   // ── Dashboard / reports / exports ─────────────────────────────────────────
@@ -1693,6 +1758,628 @@ export class AdmissionsService {
       count: report.entries.length,
       filename: `merit-list-${sessionId}.csv`,
     };
+  }
+
+  // ── Configurable form fields ──────────────────────────────────────────────
+
+  async listFormFields(tenantId: string, userId: string, sessionId: string) {
+    await this.assertRef({ model: 'admissionSession', id: sessionId, label: 'Admission session' });
+    return (this.tenantPrisma.client as Client).admissionFormField.findMany({
+      where: { sessionId },
+      orderBy: { sequenceOrder: 'asc' },
+    });
+  }
+
+  async setFormFields(tenantId: string, userId: string, sessionId: string, dto: SetAdmissionFormFieldsDto) {
+    await this.assertRef({ model: 'admissionSession', id: sessionId, label: 'Admission session' });
+    const codes = dto.fields.map((f) => f.code.trim()).filter(Boolean);
+    if (new Set(codes).size !== codes.length) {
+      throw new BadRequestException('Field codes must be unique.');
+    }
+    if (codes.length === 0) throw new BadRequestException('Provide at least one form field.');
+
+    await this.tenantPrisma.client.$transaction([
+      (this.tenantPrisma.client as any).admissionFormField.deleteMany({ where: { sessionId } }),
+      (this.tenantPrisma.client as any).admissionFormField.createMany({
+        data: dto.fields.map((f, i) => ({
+          tenantId,
+          sessionId,
+          code: f.code.trim(),
+          label: f.label.trim(),
+          fieldType: f.fieldType,
+          placeholder: f.placeholder ?? null,
+          required: f.required ?? false,
+          options: (f.options?.length ? f.options : undefined) as any,
+          helpText: f.helpText ?? null,
+          sequenceOrder: f.sequenceOrder ?? i,
+          isActive: f.isActive ?? true,
+          createdBy: userId,
+          updatedBy: userId,
+        })),
+      }),
+    ]);
+    await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_FORM_FIELDS_UPDATED, 'AdmissionSession', sessionId, {
+      after: { fieldCodes: codes },
+    });
+    return this.listFormFields(tenantId, userId, sessionId);
+  }
+
+  // ── Eligibility rules ─────────────────────────────────────────────────────
+
+  async listEligibilityRules(tenantId: string, userId: string, programId?: string) {
+    return (this.tenantPrisma.client as Client).admissionEligibilityRule.findMany({
+      where: programId ? { programId } : {},
+      orderBy: [{ program: { session: { createdAt: 'desc' } } }, { sequenceOrder: 'asc' }],
+      include: { program: { select: { id: true, program: { select: { id: true, code: true, name: true } }, session: { select: { id: true, code: true, name: true } } } } },
+    });
+  }
+
+  async createEligibilityRule(tenantId: string, userId: string, dto: CreateAdmissionEligibilityRuleDto) {
+    await this.assertRef({ model: 'admissionProgramOffer', id: dto.programId, label: 'Admission program' });
+    const rule = await (this.tenantPrisma.client as any).admissionEligibilityRule.create({
+      data: {
+        tenantId,
+        programId: dto.programId,
+        name: dto.name.trim(),
+        description: dto.description ?? null,
+        ruleType: dto.ruleType,
+        config: (dto.config ?? null) as any,
+        appliesToCategory: dto.appliesToCategory ?? null,
+        sequenceOrder: dto.sequenceOrder ?? 0,
+        isActive: dto.isActive ?? true,
+        createdBy: userId,
+        updatedBy: userId,
+      },
+    });
+    await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_ELIGIBILITY_RULE_CREATED, 'AdmissionEligibilityRule', rule.id, {
+      after: { programId: dto.programId, name: rule.name, ruleType: rule.ruleType },
+    });
+    return rule;
+  }
+
+  async updateEligibilityRule(tenantId: string, userId: string, ruleId: string, dto: UpdateAdmissionEligibilityRuleDto) {
+    const before = await (this.tenantPrisma.client as Client).admissionEligibilityRule.findFirst({ where: { id: ruleId } });
+    if (!before) throw new NotFoundException('Eligibility rule not found.');
+    const data: Record<string, any> = { ...dto, updatedBy: userId };
+    if (dto.description !== undefined) data.description = dto.description;
+    if (dto.config !== undefined) data.config = dto.config as any;
+    if (dto.appliesToCategory !== undefined) data.appliesToCategory = dto.appliesToCategory;
+    const rule = await (this.tenantPrisma.client as any).admissionEligibilityRule.update({ where: { id: ruleId }, data });
+    await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_ELIGIBILITY_RULE_UPDATED, 'AdmissionEligibilityRule', ruleId, {
+      before: { name: before.name, ruleType: before.ruleType },
+      after: { name: rule.name, ruleType: rule.ruleType, isActive: rule.isActive },
+    });
+    return rule;
+  }
+
+  async deleteEligibilityRule(tenantId: string, userId: string, ruleId: string) {
+    const before = await (this.tenantPrisma.client as Client).admissionEligibilityRule.findFirst({ where: { id: ruleId } });
+    if (!before) throw new NotFoundException('Eligibility rule not found.');
+    await (this.tenantPrisma.client as any).admissionEligibilityRule.delete({ where: { id: ruleId } });
+    await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_ELIGIBILITY_RULE_DELETED, 'AdmissionEligibilityRule', ruleId, {
+      before: { programId: before.programId, name: before.name, ruleType: before.ruleType },
+    });
+    return { id: ruleId, deleted: true };
+  }
+
+  /** Evaluates every active eligibility rule of the application's program against its profile. */
+  async evaluateEligibility(applicationId: string, tenantId: string, userId: string) {
+    const app = await this.assertApplicationInScope(applicationId, tenantId, userId);
+    const rules = await (this.tenantPrisma.client as Client).admissionEligibilityRule.findMany({
+      where: { programId: app.admissionProgramId, isActive: true },
+      orderBy: { sequenceOrder: 'asc' },
+    });
+
+    const profile = this.eligibilityProfile(app);
+    const results = rules.map((rule) => this.evaluateRule(rule as any, profile));
+
+    const applicable = results.filter((r) => r.outcome !== 'SKIPPED');
+    const failed = applicable.filter((r) => r.outcome === 'FAIL');
+    const passed = applicable.filter((r) => r.outcome === 'PASS');
+    const overall = applicable.length === 0 || (applicable.every((r) => r.outcome === 'PASS') && failed.length === 0)
+      ? 'ELIGIBLE'
+      : 'NOT_ELIGIBLE';
+
+    await this.logActivity(applicationId, ADMISSION_EVENTS.ELIGIBILITY_EVALUATED, `Eligibility evaluated: ${overall}`, userId);
+    await this.audit(
+      tenantId,
+      userId,
+      failed.length > 0 ? AUDIT_ACTIONS.ADMISSION_ELIGIBILITY_FAILED : AUDIT_ACTIONS.ADMISSION_ELIGIBILITY_EVALUATED,
+      'AdmissionApplication',
+      applicationId,
+      { after: { overall, applied: applicable.length, passed: passed.length, failed: failed.length } },
+    );
+
+    return {
+      applicationId,
+      programId: app.admissionProgramId,
+      category: app.category,
+      overall,
+      passed: passed.length,
+      failed: failed.length,
+      rules: results.map((r) => ({ ...r, rule: { id: r.rule.id, name: r.rule.name, ruleType: r.rule.ruleType, config: r.rule.config } })),
+    };
+  }
+
+  /** Single-call guard used by the bulk tool — throws with a readable summary when ineligible. */
+  private async assertEligible(applicationId: string, tenantId: string, userId: string) {
+    const result = await this.evaluateEligibility(applicationId, tenantId, userId);
+    if (result.overall !== 'ELIGIBLE') {
+      const failures = result.rules.filter((r) => r.outcome === 'FAIL');
+      throw new BadRequestException(`Application is not eligible for this program: ${failures.map((f) => `${f.rule.name}: ${f.detail}`).join('; ')}.`);
+    }
+  }
+
+  /** Structured applicant profile from an application row — the input to every rule. */
+  private eligibilityProfile(app: any) {
+    const records = (app.qualifications ?? []) as any[];
+    const highest = records.find((r) => (r as any).isHighestQualification) ?? records[0];
+    const percentage = typeof highest?.percentage === 'number' ? highest.percentage : null;
+    const gpa = typeof highest?.gpa === 'number' ? highest.gpa : null;
+    let marksPercentage: number | null = null;
+    if (highest && typeof highest.marksObtained === 'number' && highest.marksOutOf) {
+      marksPercentage = (highest.marksObtained / highest.marksOutOf) * 100;
+    }
+    let age: number | null = null;
+    if (app.dateOfBirth) {
+      const dob = new Date(app.dateOfBirth);
+      const now = new Date();
+      age = Math.floor((now.getTime() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    }
+    return {
+      category: app.category ?? null,
+      gender: app.gender ?? null,
+      ageYears: age,
+      percentage,
+      gpa,
+      marksPercentage,
+    };
+  }
+
+  private evaluateRule(rule: any, profile: any): { rule: any; outcome: 'PASS' | 'FAIL' | 'SKIPPED' | 'MANUAL'; detail: string } {
+    if (rule.appliesToCategory && rule.appliesToCategory !== profile.category) {
+      return { rule, outcome: 'SKIPPED', detail: `Applies only to category "${rule.appliesToCategory}".` };
+    }
+    const config = (rule.config ?? {}) as Record<string, any>;
+    switch (rule.ruleType) {
+      case 'MIN_PERCENTAGE': {
+        const min = Number(config.minPercentage ?? 0);
+        if (profile.percentage === null) return { rule, outcome: 'FAIL', detail: `No percentage on record (requires ≥ ${min}%).` };
+        return profile.percentage >= min
+          ? { rule, outcome: 'PASS', detail: `${profile.percentage}% meets the ${min}% minimum.` }
+          : { rule, outcome: 'FAIL', detail: `${profile.percentage}% is below the ${min}% minimum.` };
+      }
+      case 'MIN_GPA': {
+        const min = Number(config.minGpa ?? 0);
+        if (profile.gpa === null) return { rule, outcome: 'FAIL', detail: `No GPA on record (requires ≥ ${min}).` };
+        return profile.gpa >= min
+          ? { rule, outcome: 'PASS', detail: `GPA ${profile.gpa} meets the ${min} minimum.` }
+          : { rule, outcome: 'FAIL', detail: `GPA ${profile.gpa} is below the ${min} minimum.` };
+      }
+      case 'MIN_MARKS': {
+        const minMarks = Number(config.minMarks ?? 0);
+        const marksOutOf = Number(config.marksOutOf ?? 0);
+        const target = marksOutOf > 0 ? (minMarks / marksOutOf) * 100 : 0;
+        if (profile.marksPercentage === null) return { rule, outcome: 'FAIL', detail: `No marks on record (requires ≥ ${minMarks}/${marksOutOf}).` };
+        return profile.marksPercentage >= target
+          ? { rule, outcome: 'PASS', detail: `${profile.marksPercentage.toFixed(1)}% meets the ${minMarks}/${marksOutOf} minimum.` }
+          : { rule, outcome: 'FAIL', detail: `${profile.marksPercentage.toFixed(1)}% is below the ${minMarks}/${marksOutOf} minimum.` };
+      }
+      case 'MIN_AGE': {
+        const min = Number(config.minAgeYears ?? 0);
+        if (profile.ageYears === null) return { rule, outcome: 'FAIL', detail: 'No date of birth on record.' };
+        return profile.ageYears >= min
+          ? { rule, outcome: 'PASS', detail: `Age ${profile.ageYears} meets the ${min} year minimum.` }
+          : { rule, outcome: 'FAIL', detail: `Age ${profile.ageYears} is below the ${min} year minimum.` };
+      }
+      case 'MAX_AGE': {
+        const max = Number(config.maxAgeYears ?? 0);
+        if (profile.ageYears === null) return { rule, outcome: 'FAIL', detail: 'No date of birth on record.' };
+        return profile.ageYears <= max
+          ? { rule, outcome: 'PASS', detail: `Age ${profile.ageYears} is within the ${max} year maximum.` }
+          : { rule, outcome: 'FAIL', detail: `Age ${profile.ageYears} exceeds the ${max} year maximum.` };
+      }
+      case 'CATEGORY_ALLOWED': {
+        const allowed = (config.allowedCategories ?? []) as string[];
+        if (allowed.length === 0) return { rule, outcome: 'MANUAL', detail: 'No allowed categories configured — manual review required.' };
+        const passed = allowed.some((c) => c.toLowerCase() === (profile.category ?? '').toLowerCase());
+        return passed
+          ? { rule, outcome: 'PASS', detail: `Category "${profile.category}" is permitted.` }
+          : { rule, outcome: 'FAIL', detail: `Category "${profile.category}" is not in the allowed list (${allowed.join(', ')}).` };
+      }
+      case 'CUSTOM':
+        return { rule, outcome: 'MANUAL', detail: 'Custom rule — manual review required.' };
+      default:
+        return { rule, outcome: 'MANUAL', detail: 'Unsupported rule type — manual review required.' };
+    }
+  }
+
+  // ── Duplicate detection ───────────────────────────────────────────────────
+
+  async detectDuplicates(tenantId: string, userId: string, sessionId?: string) {
+    const scope = await this.applicationScope(tenantId, userId);
+    const where: Record<string, any> = { ...(scope ?? {}) };
+    if (sessionId) where.sessionId = sessionId;
+
+    const rows = await (this.tenantPrisma.client as Client).admissionApplication.findMany({
+      where: { ...where, status: { not: 'CANCELLED' } },
+      select: {
+        id: true,
+        applicationNumber: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        dateOfBirth: true,
+        status: true,
+        duplicateOfId: true,
+        category: true,
+        admissionProgram: { select: { program: { select: { id: true, code: true, name: true } } } },
+      },
+    });
+
+    const emailIndex = new Map<string, any[]>();
+    const phoneIndex = new Map<string, any[]>();
+    const identityIndex = new Map<string, any[]>();
+    const flagged: any[] = [];
+
+    for (const row of rows) {
+      if (row.duplicateOfId) flagged.push(row);
+      if (row.email) {
+        const key = row.email.trim().toLowerCase();
+        if (!emailIndex.has(key)) emailIndex.set(key, []);
+        emailIndex.get(key)!.push(row);
+      }
+      if (row.phone) {
+        const key = row.phone.replace(/[^0-9]/g, '');
+        if (key.length >= 6) {
+          if (!phoneIndex.has(key)) phoneIndex.set(key, []);
+          phoneIndex.get(key)!.push(row);
+        }
+      }
+      if (row.fullName && row.dateOfBirth) {
+        const key = `${row.fullName.trim().toLowerCase()}|${new Date(row.dateOfBirth).toISOString().slice(0, 10)}`;
+        if (!identityIndex.has(key)) identityIndex.set(key, []);
+        identityIndex.get(key)!.push(row);
+      }
+    }
+
+    const groups: any[] = [];
+    const seen = new Set<string>();
+    const pushGroup = (matchType: string, members: any[]) => {
+      if (members.length < 2) return;
+      const key = members.map((m) => m.id).sort().join('|');
+      if (seen.has(key)) return;
+      seen.add(key);
+      groups.push({ matchType, members });
+    };
+    for (const members of emailIndex.values()) pushGroup('EMAIL', members);
+    for (const members of phoneIndex.values()) pushGroup('PHONE', members);
+    for (const members of identityIndex.values()) pushGroup('NAME_AND_DOB', members);
+
+    return { sessionId: sessionId ?? null, groups, flagged };
+  }
+
+  async flagDuplicate(applicationId: string, tenantId: string, userId: string, dto: FlagDuplicateDto) {
+    if (dto.duplicateOfId === applicationId) throw new BadRequestException('An application cannot be its own duplicate.');
+    const app = await this.assertApplicationInScope(applicationId, tenantId, userId);
+    const canonical = await (this.tenantPrisma.client as Client).admissionApplication.findFirst({
+      where: { id: dto.duplicateOfId },
+    });
+    if (!canonical) throw new NotFoundException('Canonical application not found.');
+
+    const updated = await (this.tenantPrisma.client as any).admissionApplication.update({
+      where: { id: applicationId },
+      data: { duplicateOfId: canonical.id, updatedBy: userId },
+    });
+    await this.logActivity(applicationId, ADMISSION_EVENTS.DUPLICATE_DETECTED, 'Flagged as duplicate', userId, dto.reason ?? `Duplicate of ${canonical.applicationNumber}`);
+    await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_DUPLICATE_FLAGGED, 'AdmissionApplication', applicationId, {
+      before: { duplicateOfId: app.duplicateOfId ?? null },
+      after: { duplicateOfId: updated.duplicateOfId, reason: dto.reason ?? null },
+    });
+    return this.getApplication(applicationId, tenantId, userId);
+  }
+
+  async clearDuplicate(applicationId: string, tenantId: string, userId: string) {
+    const app = await this.assertApplicationInScope(applicationId, tenantId, userId);
+    if (!app.duplicateOfId) return this.getApplication(applicationId, tenantId, userId);
+    const updated = await (this.tenantPrisma.client as any).admissionApplication.update({
+      where: { id: applicationId },
+      data: { duplicateOfId: null, updatedBy: userId },
+    });
+    await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_DUPLICATE_CLEARED, 'AdmissionApplication', applicationId, {
+      before: { duplicateOfId: app.duplicateOfId },
+      after: { duplicateOfId: updated.duplicateOfId },
+    });
+    return this.getApplication(applicationId, tenantId, userId);
+  }
+
+  /** Finds an existing application that looks like a duplicate of the candidate (same session). */
+  private async findDuplicateCandidate(candidate: any): Promise<string | null> {
+    if (candidate.email) {
+      const found = await (this.tenantPrisma.client as Client).admissionApplication.findFirst({
+        where: { sessionId: candidate.sessionId, email: { equals: candidate.email as string, mode: 'insensitive' } },
+        select: { id: true },
+      });
+      if (found) return found.id;
+    }
+    if (candidate.phone) {
+      const digits = (candidate.phone as string).replace(/[^0-9]/g, '');
+      if (digits.length >= 6) {
+        const found = await (this.tenantPrisma.client as Client).admissionApplication.findMany({
+          where: { sessionId: candidate.sessionId, phone: { not: null } },
+          select: { id: true, phone: true },
+          take: 500,
+        });
+        const match = found.find((r) => (r.phone as string).replace(/[^0-9]/g, '') === digits);
+        if (match) return match.id;
+      }
+    }
+    if (candidate.firstName && candidate.lastName && candidate.dateOfBirth) {
+      const found = await (this.tenantPrisma.client as Client).admissionApplication.findFirst({
+        where: {
+          sessionId: candidate.sessionId,
+          firstName: candidate.firstName,
+          lastName: candidate.lastName,
+          dateOfBirth: new Date(candidate.dateOfBirth),
+        },
+        select: { id: true },
+      });
+      if (found) return found.id;
+    }
+    return null;
+  }
+
+  // ── Bulk operations ───────────────────────────────────────────────────────
+
+  async bulkImport(tenantId: string, userId: string, dto: BulkImportApplicationDto) {
+    if (dto.applications.length === 0) throw new BadRequestException('Provide at least one application to import.');
+    const created: any[] = [];
+    const errors: Array<{ index: number; message: string }> = [];
+
+    for (let i = 0; i < dto.applications.length; i++) {
+      try {
+        const application = await this.createApplication(tenantId, userId, dto.applications[i] as any);
+        created.push({ index: i, applicationId: application.id, applicationNumber: application.applicationNumber });
+      } catch (error) {
+        errors.push({ index: i, message: error instanceof Error ? error.message : 'Import failed.' });
+      }
+    }
+    if (created.length > 0) {
+      await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_BULK_IMPORTED, 'AdmissionApplication', dto.applications[0]!.sessionId, {
+        after: { attempted: dto.applications.length, created: created.length, failed: errors.length },
+      });
+    }
+    return { total: dto.applications.length, created: created.length, failed: errors.length, applications: created, errors };
+  }
+
+  async bulkVerify(tenantId: string, userId: string, dto: BulkVerifyApplicationsDto) {
+    if (dto.applicationIds.length === 0) throw new BadRequestException('Provide at least one application to verify.');
+    const verified: string[] = [];
+    const failed: Array<{ applicationId: string; message: string }> = [];
+
+    for (const applicationId of dto.applicationIds) {
+      try {
+        const application = await this.completeVerification(applicationId, tenantId, userId);
+        if (application.meritScore === null) {
+          await this.scoreApplication(applicationId, tenantId, userId, { auto: true });
+        }
+        verified.push(applicationId);
+      } catch (error) {
+        if ((error as any)?.status === 404) {
+          failed.push({ applicationId, message: 'not found' });
+        } else {
+          failed.push({ applicationId, message: error instanceof Error ? error.message : 'Verification failed.' });
+        }
+      }
+    }
+    await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_BULK_VERIFIED, 'AdmissionApplication', verified[0] ?? dto.applicationIds[0]!, {
+      after: { attempted: dto.applicationIds.length, verified: verified.length, failed: failed.length, remarks: dto.remarks ?? null },
+    });
+    return { total: dto.applicationIds.length, verified: verified.length, failed: failed.length, failedItems: failed };
+  }
+
+  // ── Applicant communication ───────────────────────────────────────────────
+
+  async listMessages(applicationId: string, tenantId: string, userId: string) {
+    await this.assertApplicationInScope(applicationId, tenantId, userId);
+    return (this.tenantPrisma.client as Client).admissionMessage.findMany({
+      where: { applicationId },
+      orderBy: { sentAt: 'desc' },
+    });
+  }
+
+  async sendMessage(applicationId: string, tenantId: string, userId: string, dto: SendAdmissionMessageDto) {
+    const app = await this.assertApplicationInScope(applicationId, tenantId, userId);
+
+    let relatedNotificationId: string | null = null;
+    if (dto.channel === 'IN_APP' && app.createdBy) {
+      try {
+        const notification = await this.notifications.sendSystem(tenantId, {
+          recipientUserId: app.createdBy,
+          channel: 'IN_APP',
+          subject: dto.subject,
+          body: dto.body,
+        });
+        relatedNotificationId = notification.id ?? null;
+        await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_NOTIFICATION_SENT, 'AdmissionApplication', applicationId, {
+          after: { notificationId: relatedNotificationId, channel: dto.channel, subject: dto.subject },
+        });
+      } catch (error) {
+        this.logger.warn(`Failed to notify applicant contact for ${applicationId}: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+
+    const message = await (this.tenantPrisma.client as any).admissionMessage.create({
+      data: {
+        tenantId,
+        applicationId,
+        subject: dto.subject,
+        body: dto.body,
+        channel: dto.channel,
+        sentBy: userId,
+        relatedNotificationId,
+      },
+    });
+    await this.logActivity(applicationId, ADMISSION_EVENTS.COMMUNICATION_SENT, `Message sent via ${dto.channel}: ${dto.subject}`, userId, dto.body, 'AdmissionMessage', message.id);
+    await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_MESSAGE_SENT, 'AdmissionMessage', message.id, {
+      after: { applicationId, channel: dto.channel, subject: dto.subject },
+    });
+    return message;
+  }
+
+  // ── Analytics ─────────────────────────────────────────────────────────────
+
+  async analytics(tenantId: string, userId: string, query: AdmissionAnalyticsQueryDto, sessionId?: string) {
+    const scope = await this.applicationScope(tenantId, userId);
+    const where: Record<string, any> = { ...(scope ?? {}) };
+    if (sessionId) where.sessionId = sessionId;
+    const days = query.days ?? 30;
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const [statusBuckets, programBuckets, timeBuckets, seatRows] = await Promise.all([
+      (this.tenantPrisma.client as Client).admissionApplication.groupBy({ by: ['status'], where, _count: { _all: true } }),
+      (this.tenantPrisma.client as Client).admissionApplication.groupBy({ by: ['admissionProgramId', 'status'], where, _count: { _all: true } }),
+      (this.tenantPrisma.client as Client).admissionApplication.groupBy({
+        by: ['createdAt'],
+        where: { ...where, createdAt: { gte: since } },
+        _count: { _all: true },
+      }),
+      (this.tenantPrisma.client as Client).admissionProgramOffer.aggregate({
+        where: sessionId ? { sessionId } : {},
+        _sum: { seats: true, filledSeats: true },
+      }),
+    ]);
+
+    const byStatus: Record<string, number> = {};
+    for (const b of statusBuckets) byStatus[b.status] = b._count._all;
+    const total = Object.values(byStatus).reduce((s, n) => s + n, 0);
+    const funnel = ['INITIATED', 'SUBMITTED', 'UNDER_VERIFICATION', 'DOCUMENTS_VERIFIED', 'MERIT_LISTED', 'COUNSELLING_SCHEDULED', 'COUNSELLED', 'SELECTED', 'OFFERED', 'OFFER_ACCEPTED', 'FEE_PAID', 'ENROLLED']
+      .map((stage) => ({
+        stage,
+        count: byStatus[stage] ?? 0,
+        conversionRate: total > 0 ? (((byStatus[stage] ?? 0) / total) * 100).toFixed(1) + '%' : '0%',
+      }));
+
+    const byDay: Record<string, number> = {};
+    for (const b of timeBuckets) {
+      const key = new Date(b.createdAt).toISOString().slice(0, 10);
+      byDay[key] = (byDay[key] ?? 0) + b._count._all;
+    }
+    const dates: string[] = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(since.getTime() + i * 24 * 60 * 60 * 1000);
+      dates.push(d.toISOString().slice(0, 10));
+    }
+    const timeSeries = dates.map((date) => ({ date, applications: byDay[date] ?? 0 }));
+
+    const programIds = [...new Set(programBuckets.map((b) => b.admissionProgramId))];
+    const programs = await (this.tenantPrisma.client as Client).admissionProgramOffer.findMany({
+      where: { id: { in: programIds } },
+      include: { program: { select: { id: true, code: true, name: true } } },
+    });
+    const programMeta = new Map(programs.map((p) => [p.id, p]));
+    const perProgram = programIds.map((pid) => {
+      const meta = programMeta.get(pid);
+      const rows = programBuckets.filter((b) => b.admissionProgramId === pid);
+      const apps = rows.reduce((s, b) => s + b._count._all, 0);
+      const enrolled = rows.find((b) => b.status === 'ENROLLED')?._count._all ?? 0;
+      return {
+        programId: pid,
+        programName: meta?.program.name ?? meta?.program.code ?? 'Unknown',
+        seats: meta?.seats ?? 0,
+        filledSeats: meta?.filledSeats ?? 0,
+        applications: apps,
+        enrolled,
+        conversionRate: apps > 0 ? ((enrolled / apps) * 100).toFixed(1) + '%' : '0%',
+      };
+    });
+
+    await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_ANALYTICS_VIEWED, 'AdmissionApplication', sessionId ?? '__tenant__', {
+      after: { days, sessionId: sessionId ?? null },
+    });
+
+    return {
+      sessionId: sessionId ?? null,
+      days,
+      total,
+      funnel,
+      timeSeries,
+      seats: { total: seatRows._sum.seats ?? 0, filled: seatRows._sum.filledSeats ?? 0 },
+      perProgram,
+    };
+  }
+
+  // ── Workflow + notification integration ───────────────────────────────────
+
+  /** entityType this module drives through the workflow engine. */
+  private static readonly WORKFLOW_ENTITY_TYPE = 'AdmissionApplication';
+
+  /**
+   * On submit, lazily provisions the default admissions workflow definition (if the tenant has
+   * not configured one) and starts the instance — which auto-advances through the single NONE
+   * approve step to APPROVED, mirroring "submitted" in the engine. On cancel, tries to cancel a
+   * still-in-progress instance. Never throws into the caller: admission flows must not break
+   * because workflow/notification infrastructure is unavailable.
+   */
+  private async syncAdmissionWorkflow(tenantId: string, userId: string, applicationId: string, action: 'SUBMIT' | 'CANCEL') {
+    try {
+      if (action === 'CANCEL') {
+        const instance = await this.workflowEngine.findInstance(tenantId, AdmissionsService.WORKFLOW_ENTITY_TYPE, applicationId);
+        if (instance && instance.status === 'IN_PROGRESS') {
+          await this.workflowEngine.cancel(tenantId, instance.id, userId);
+        }
+        return;
+      }
+      const existing = await this.workflowDefinitions.getActiveDefinitionForEntityType(tenantId, AdmissionsService.WORKFLOW_ENTITY_TYPE);
+      if (!existing) {
+        await this.workflowDefinitions.createDefinition(
+          tenantId,
+          {
+            code: 'ADMISSION_APPLICATION_V1',
+            name: 'Admission Application',
+            description: 'Default pipeline for admission applications — submission auto-approves into the admissions workflow.',
+            entityType: AdmissionsService.WORKFLOW_ENTITY_TYPE,
+            states: [
+              { code: 'SUBMITTED', name: 'Application submitted', category: 'INITIAL' },
+              { code: 'APPROVED', name: 'Application approved', category: 'APPROVED' },
+            ],
+            transitions: [
+              {
+                code: 'SUBMIT',
+                name: 'Submit application',
+                fromStateCode: 'SUBMITTED',
+                toStateCode: 'APPROVED',
+                action: 'SUBMIT',
+                approvalMode: 'NONE',
+              },
+            ],
+          },
+          userId,
+        );
+      }
+      await this.workflowEngine.startInstance(
+        tenantId,
+        { entityType: AdmissionsService.WORKFLOW_ENTITY_TYPE, entityId: applicationId, context: { applicationId } },
+        userId,
+      );
+    } catch (error) {
+      this.logger.warn(`Admission workflow sync skipped for ${applicationId}: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+
+  /** Best-effort in-app notification to the staff member who raised the application. */
+  private async notifyStageChange(tenantId: string, app: any, subject: string, body?: string) {
+    if (!app?.createdBy) return;
+    try {
+      await this.notifications.sendSystem(tenantId, {
+        recipientUserId: app.createdBy,
+        channel: 'IN_APP',
+        subject,
+        body: body ?? `${app.fullName ?? 'Applicant'} — ${subject}.`,
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to notify ${app.createdBy} about ${subject}: ${error instanceof Error ? error.message : error}`);
+    }
   }
 
   // ── Shared helpers ────────────────────────────────────────────────────────

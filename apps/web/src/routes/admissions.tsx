@@ -4,6 +4,7 @@ import { useAuth } from '../features/auth/auth-context';
 import { apiFetch } from '../lib/http';
 import { ApplicationsTab } from './admissions-applications';
 import { ReportsTab } from './admissions-reports';
+import { InsightsTab } from './admissions-insights';
 
 export const VIEW_PERMISSION = 'admissions.view';
 const CREATE_PERMISSION = 'admissions.create';
@@ -215,7 +216,7 @@ export function AdmissionsPage() {
   const canExport = permissions.includes(EXPORT_PERMISSION);
   const canManage = permissions.includes(MANAGE_PERMISSION);
 
-  const [tab, setTab] = useState<'dashboard' | 'applications' | 'reports'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'applications' | 'reports' | 'insights'>('dashboard');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -237,6 +238,7 @@ export function AdmissionsPage() {
           <Button variant="secondary" onClick={() => setTab('dashboard')}>Dashboard</Button>
           <Button variant="secondary" onClick={() => setTab('applications')}>Applications</Button>
           <Button variant="secondary" onClick={() => setTab('reports')}>Reports</Button>
+          <Button variant="secondary" onClick={() => setTab('insights')}>Insights</Button>
         </div>
       </div>
 
@@ -257,6 +259,7 @@ export function AdmissionsPage() {
         />
       )}
       {tab === 'reports' && <ReportsTab canExport={canExport} onError={setError} onNotice={setNotice} />}
+      {tab === 'insights' && <InsightsTab onError={setError} onNotice={setNotice} />}
     </div>
   );
 }

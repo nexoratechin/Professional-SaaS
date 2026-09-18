@@ -69,8 +69,11 @@ export const ADMISSION_EVENTS = {
   OFFER_ISSUED: 'offer.issued',
   OFFER_ACCEPTED: 'offer.accepted',
   OFFER_DECLINED: 'offer.declined',
-  FEE_PAID: 'fee.paid',
-  ENROLLED: 'application.enrolled',
+  FEE_PAID:                 'fee.paid',
+  ENROLLED:                 'application.enrolled',
+  DUPLICATE_DETECTED:       'duplicate.detected',
+  ELIGIBILITY_EVALUATED:    'eligibility.evaluated',
+  COMMUNICATION_SENT:       'communication.sent',
 } as const;
 
 export const ADMISSION_APPLICATION_EXPORT_COLUMNS = [

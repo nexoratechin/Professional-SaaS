@@ -419,6 +419,9 @@ model Tenant {
   admissionOffers             AdmissionOffer[]
   admissionFeePayments        AdmissionFeePayment[]
   admissionActivities         AdmissionActivity[]
+  admissionFormFields         AdmissionFormField[]
+  admissionEligibilityRules   AdmissionEligibilityRule[]
+  admissionMessages           AdmissionMessage[]
 
   @@index([status])
   @@map("tenants")
@@ -2663,6 +2666,7 @@ model AdmissionSession {
   enquiries   AdmissionEnquiry[]
   applications AdmissionApplication[]
   counsellingSlots AdmissionCounsellingSlot[]
+  formFields  AdmissionFormField[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -2695,6 +2699,7 @@ model AdmissionProgramOffer {
   updatedAt           DateTime             @updatedAt @map("updated_at")
 
   applications AdmissionApplication[]
+  eligibilityRules AdmissionEligibilityRule[]
 
   @@unique([tenantId, sessionId, programId])
   @@index([tenantId])
@@ -2781,6 +2786,13 @@ model AdmissionApplication {
 
   meritScore           Float?
   meritRank            Int?                      @map("merit_rank")
+  /// Breakdown of the merit computation (component name → points) so reviewers can see and
+  /// dispute exactly how a score was derived. Non-null once meritScored.
+  scoreBreakdown       Json?                     @map("score_breakdown")
+  /// When this application matches an existing one (email/phone/name+dob), it’s flagged as a
+  /// duplicate; points to the canonical application of record.
+  duplicateOfId        String?                   @map("duplicate_of_id") @db.Uuid
+  duplicateOf          AdmissionApplication?     @relation("AdmissionApplicationDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
 
   counsellingSlotId    String?                   @map("counselling_slot_id") @db.Uuid
   counsellingSlot      AdmissionCounsellingSlot? @relation(fields: [counsellingSlotId], references: [id], onDelete: SetNull)
@@ -2803,6 +2815,8 @@ model AdmissionApplication {
   offers        AdmissionOffer[]
   payments      AdmissionFeePayment[]
   activities    AdmissionActivity[]
+  duplicates    AdmissionApplication[] @relation("AdmissionApplicationDuplicates")
+  messages      AdmissionMessage[]
 
   @@unique([tenantId, applicationNumber])
   @@index([tenantId])
@@ -2812,6 +2826,7 @@ model AdmissionApplication {
   @@index([campusId])
   @@index([academicYearId])
   @@index([meritScore])
+  @@index([duplicateOfId])
   @@map("admission_applications")
 }
 
@@ -2974,4 +2989,113 @@ model AdmissionActivity {
   @@index([applicationId])
   @@index([applicationId, occurredAt])
   @@map("admission_activities")
+}
+
+/// Input type for a configurable admission form field for a session. Replaces/supplements the
+/// default ADMISSION_FORM_FIELDS so each institution can shape its application form without code.
+model AdmissionFormField {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String               @map("tenant_id") @db.Uuid
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId      String               @map("session_id") @db.Uuid
+  session        AdmissionSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  code           String
+  label          String
+  fieldType      AdmissionFieldType   @map("field_type")
+  placeholder    String?
+  required       Boolean              @default(false)
+  /// Select/radio option list (string values). Emitted in the form JSON sent to applicants.
+  options        Json?
+  helpText       String?              @map("help_text")
+  sequenceOrder  Int                  @default(0) @map("sequence_order")
+  isActive       Boolean              @default(true) @map("is_active")
+  createdBy      String?              @map("created_by") @db.Uuid
+  updatedBy      String?              @map("updated_by") @db.Uuid
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  @@unique([tenantId, sessionId, code])
+  @@index([tenantId])
+  @@index([sessionId])
+  @@map("admission_form_fields")
+}
+
+/// One eligibility predicate evaluated against an application (program-scoped). A rule can
+/// target an applicant category and carries a typed config; all active rules must pass before
+/// an application is eligible for a program (advisory at submission, enforced at scoring).
+model AdmissionEligibilityRule {
+  id               String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                       @map("tenant_id") @db.Uuid
+  tenant           Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  programId        String                       @map("program_id") @db.Uuid
+  program          AdmissionProgramOffer        @relation(fields: [programId], references: [id], onDelete: Cascade)
+  name             String
+  description      String?
+  ruleType         AdmissionEligibilityRuleType @map("rule_type")
+  /// Typed rule configuration, e.g. { minPercentage: 60 }, { minGpa: 6.5 }, { minMarks: 75, marksOutOf: 100 },
+  /// { minAgeYears: 16 }, { allowedCategories: ['General'] }, or custom { each: { id: 'X', expression: '...' } }.
+  config           Json?
+  appliesToCategory String?                     @map("applies_to_category")
+  sequenceOrder    Int                          @default(0) @map("sequence_order")
+  isActive         Boolean                      @default(true) @map("is_active")
+  createdBy        String?                      @map("created_by") @db.Uuid
+  updatedBy        String?                      @map("updated_by") @db.Uuid
+  createdAt        DateTime                     @default(now()) @map("created_at")
+  updatedAt        DateTime                     @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([programId])
+  @@index([tenantId, isActive])
+  @@map("admission_eligibility_rules")
+}
+
+/// Outbound communication to an applicant (or their guardian) recorded on the application
+/// thread. Mirrors StudentCommunication; each send also enqueues a Notification.
+model AdmissionMessage {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId    String               @map("application_id") @db.Uuid
+  application      AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  subject          String
+  body             String
+  channel          AdmissionMessageChannel
+  sentBy           String?              @map("sent_by") @db.Uuid
+  sentAt           DateTime             @default(now()) @map("sent_at")
+  relatedNotificationId String?         @map("related_notification_id") @db.Uuid
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([applicationId])
+  @@index([applicationId, sentAt])
+  @@map("admission_messages")
+}
+
+enum AdmissionFieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  DATE
+  EMAIL
+  PHONE
+  SELECT
+  RADIO
+  CHECKBOX
+}
+
+enum AdmissionEligibilityRuleType {
+  MIN_PERCENTAGE
+  MIN_GPA
+  MIN_MARKS
+  MIN_AGE
+  MAX_AGE
+  CATEGORY_ALLOWED
+  CUSTOM
+}
+
+enum AdmissionMessageChannel {
+  EMAIL
+  SMS
+  IN_APP
 }
