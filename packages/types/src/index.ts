@@ -2,6 +2,7 @@
  * class-validator/NestJS decorators here, so this package stays usable from the frontend. */
 
 export * from './jobs';
+export * from './students';
 
 export interface TenantDto {
   id: string;

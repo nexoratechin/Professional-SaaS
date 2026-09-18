@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { AuthProvider } from './features/auth/auth-context';
 import { PlatformAuthProvider } from './features/platform-auth/platform-auth-context';
 import { AdvancedAnalyticsPage } from './routes/analytics';
@@ -20,8 +20,16 @@ import { PlatformTenantDetailPage } from './routes/platform/platform-tenant-deta
 import { PlatformTenantNewPage } from './routes/platform/platform-tenant-new';
 import { PlatformTenantsPage } from './routes/platform/platform-tenants';
 import { ProtectedRoute } from './routes/protected-route';
+import { StudentProfilePage } from './routes/student-profile';
+import { StudentsPage } from './routes/students';
 import { TenantConfigurationPage } from './routes/tenant-configuration';
 import { OrganizationPage } from './routes/organization';
+
+function ProfileRoute() {
+  const { id } = useParams<{ id: string }>();
+  if (!id) return <Navigate to="/students" replace />;
+  return <StudentProfilePage studentId={id} />;
+}
 
 /** Two entirely separate route trees, each wrapped in its OWN auth provider — the tenant realm
  * (AuthProvider) never renders inside the platform realm's tree and vice versa. This is the
@@ -116,6 +124,22 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <OrganizationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/students"
+          element={
+            <ProtectedRoute>
+              <StudentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/students/:id"
+          element={
+            <ProtectedRoute>
+              <ProfileRoute />
             </ProtectedRoute>
           }
         />

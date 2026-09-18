@@ -390,6 +390,25 @@ model Tenant {
   payments                    Payment[]
   supportTickets              SupportTicket[]
   entitlements                Entitlement[]
+  students                    Student[]
+  guardians                   Guardian[]
+  studentDocuments            StudentDocument[]
+  studentAdmissions           StudentAdmission[]
+  studentAcademicRecords      StudentAcademicRecord[]
+  studentEnrollments          StudentEnrollment[]
+  studentAttendance           StudentAttendance[]
+  studentFees                 StudentFee[]
+  studentPayments             StudentPayment[]
+  studentExams                StudentExam[]
+  studentResults              StudentResult[]
+  studentCertificates         StudentCertificate[]
+  studentLibraryLoans         StudentLibraryLoan[]
+  studentHostelBookings       StudentHostelBooking[]
+  studentTransportPasses      StudentTransportPass[]
+  studentHolds                StudentHold[]
+  studentStatusHistory        StudentStatusHistory[]
+  studentCommunications       StudentCommunication[]
+  studentActivities           StudentActivity[]
 
   @@index([status])
   @@map("tenants")
@@ -1226,6 +1245,7 @@ model Campus {
   buildings      Building[]
   rooms          Room[]
   roleScopeUsers UserRole[]
+  students       Student[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1279,6 +1299,10 @@ model Program {
   roleScopeUsers UserRole[]
   sections       Section[]
   batches        Batch[]
+  students       Student[]
+  enrollments    StudentEnrollment[]
+  admissions     StudentAdmission[]
+  exams          StudentExam[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1305,6 +1329,9 @@ model AcademicYear {
   terms    Term[]
   sections Section[] @relation("AcademicYearSections")
   batches  Batch[]   @relation("AcademicYearBatches")
+  students Student[]
+  enrollments StudentEnrollment[]
+  admissions StudentAdmission[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1335,6 +1362,12 @@ model Term {
   @@index([tenantId])
   @@index([academicYearId])
   @@index([tenantId, deletedAt])
+
+  studentEnrollments StudentEnrollment[]
+  studentFees        StudentFee[]
+  studentExams       StudentExam[]
+  attendance         StudentAttendance[]
+
   @@map("terms")
 }
 
@@ -1419,6 +1452,10 @@ model Batch {
   @@index([programId])
   @@index([academicYearId])
   @@index([tenantId, deletedAt])
+
+  students           Student[]
+  studentEnrollments StudentEnrollment[]
+
   @@map("batches")
 }
 
@@ -1447,7 +1484,202 @@ model Section {
   @@index([programId])
   @@index([academicYearId])
   @@index([tenantId, deletedAt])
+
+  students          Student[]
+  studentEnrollments StudentEnrollment[]
+  studentExams      StudentExam[]
+
   @@map("sections")
+}
+
+// ---------------------------------------------------------------------------
+// Student 360 (Phase 2) — the full student domain: profile, guardians, documents,
+// admissions/academic/enrollment history, attendance, fees/payments, exams/results,
+// certificates, library, hostel, transport, holds, status history, communications, and an
+// append-only activity timeline. Every model is tenant-owned (required tenantId) and anchors
+// to the Foundation/Organization master data (Campus, Program, AcademicYear, Term, Section,
+// Batch). Sub-resources are children of Student with onDelete: Cascade so a student's record
+// canvas is compositionally owned; reference models use Restrict/SetNull per convention.
+// String-denormalized "history" models (attendanceType, mode, course/head/route names, etc.)
+// follow the codebase's free-form-string philosophy: business modules plug into the tenant's
+// configuration engine instead of hardcoding enum taxonomies.
+// ---------------------------------------------------------------------------
+
+enum StudentStatus {
+  APPLICANT
+  ADMITTED
+  PROVISIONAL
+  ENROLLED
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  WITHDRAWN
+  GRADUATED
+  ALUMNI
+}
+
+enum StudentGender {
+  MALE
+  FEMALE
+  OTHER
+  NOT_SPECIFIED
+}
+
+enum BloodGroup {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+  UNKNOWN
+}
+
+enum GuardianKind {
+  FATHER
+  MOTHER
+  GUARDIAN
+  OTHER
+}
+
+enum GuardianRole {
+  PRIMARY
+  SECONDARY
+  EMERGENCY
+}
+
+enum StudentDocumentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum AdmissionStatus {
+  APPLIED
+  DOCUMENTS_VERIFIED
+  OFFERED
+  ACCEPTED
+  ENROLLED
+  CANCELLED
+  REJECTED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  WITHDRAWN
+  ON_HOLD
+  SUSPENDED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  LEAVE
+}
+
+enum FeeStatus {
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  WAIVED
+  REFUNDED
+}
+
+enum ExamType {
+  MID_TERM
+  END_TERM
+  UNIT_TEST
+  PRACTICAL
+  VIVA
+  ANNUAL
+  SUPPLEMENTARY
+  OTHER
+}
+
+enum ExamStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ResultOutcome {
+  PASS
+  FAIL
+  PASS_WITH_GRACE
+  INCOMPLETE
+}
+
+enum CertificateType {
+  BONAFIDE
+  PROVISIONAL
+  MIGRATION
+  TRANSCRIPT
+  TRANSFER_CERTIFICATE
+  OTHER
+}
+
+enum CertificateStatus {
+  REQUESTED
+  GENERATED
+  APPROVED
+  ISSUED
+  REJECTED
+}
+
+enum LibraryLoanStatus {
+  ISSUED
+  RETURNED
+  OVERDUE
+  LOST
+}
+
+enum HostelBookingStatus {
+  REQUESTED
+  ALLOCATED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+}
+
+enum TransportPassStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+}
+
+enum StudentHoldType {
+  ACADEMIC
+  FINANCIAL
+  ADMINISTRATIVE
+  DISCIPLINARY
+  MEDICAL
+  OTHER
+}
+
+enum StudentHoldStatus {
+  ACTIVE
+  RESOLVED
+}
+
+enum CommunicationType {
+  CALL
+  EMAIL
+  SMS
+  WHATSAPP
+  MEETING
+  LETTER
+  OTHER
+}
+
+enum CommunicationDirection {
+  INBOUND
+  OUTBOUND
 }
 
 // ---------------------------------------------------------------------------
@@ -1714,4 +1946,625 @@ model WorkflowApprovalTask {
   @@index([status, dueAt])
   @@index([assignedUserId, status])
   @@map("workflow_approval_tasks")
+}
+
+// ---------------------------------------------------------------------------
+// Student 360 models (see the header block above for the design notes).
+// ---------------------------------------------------------------------------
+
+/// Core identity + profile row for Student 360. fullName is denormalized from
+/// first/middle/last names by the students module service (kept denormalized so lists,
+/// exports, print-outs, and the timeline don't re-join three columns every time). A student
+/// can later link to a User portal account via userId (OWN-scope self-service), but the
+/// record exists independently of the login account.
+model Student {
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String        @map("tenant_id") @db.Uuid
+  tenant                Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId              String        @map("campus_id") @db.Uuid
+  campus                Campus        @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  userId                String?       @map("user_id") @db.Uuid
+  admissionNumber       String        @map("admission_number")
+  rollNumber            String?       @map("roll_number")
+  registrationNumber    String?       @map("registration_number")
+  firstName             String        @map("first_name")
+  middleName            String?       @map("middle_name")
+  lastName              String        @map("last_name")
+  fullName              String        @map("full_name")
+  gender                StudentGender @default(NOT_SPECIFIED)
+  bloodGroup            BloodGroup    @default(UNKNOWN) @map("blood_group")
+  dateOfBirth           DateTime?     @map("date_of_birth")
+  nationality           String?       @default("Indian")
+  category              String?
+  /// Current contact information — quick access on the profile/cards. Full communication
+  /// history lives in StudentCommunication; guardians live in Guardian.
+  email                 String?
+  alternateEmail        String?       @map("alternate_email")
+  primaryPhone          String?       @map("primary_phone")
+  alternatePhone        String?       @map("alternate_phone")
+  currentAddressLine1   String?       @map("current_address_line_1")
+  currentAddressLine2   String?       @map("current_address_line_2")
+  city                  String?
+  state                 String?
+  postalCode            String?       @map("postal_code")
+  country               String?       @default("India")
+  permanentAddressLine1 String?       @map("permanent_address_line_1")
+  permanentAddressLine2 String?       @map("permanent_address_line_2")
+  permanentCity         String?       @map("permanent_city")
+  permanentState        String?       @map("permanent_state")
+  permanentPostalCode   String?       @map("permanent_postal_code")
+  permanentCountry      String?       @default("India") @map("permanent_country")
+  profilePhotoKey       String?       @map("profile_photo_key")
+  status                StudentStatus @default(APPLICANT)
+  /// Current placement snapshot — an at-a-glance "where is this student now". The full,
+  /// year-by-year picture lives in StudentEnrollment.
+  programId             String?       @map("program_id") @db.Uuid
+  program               Program?      @relation(fields: [programId], references: [id], onDelete: SetNull)
+  batchId               String?       @map("batch_id") @db.Uuid
+  batch                 Batch?        @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  sectionId             String?       @map("section_id") @db.Uuid
+  section               Section?      @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  academicYearId        String?       @map("academic_year_id") @db.Uuid
+  academicYear          AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  admittedOn            DateTime?     @map("admitted_on")
+  yearOfAdmission       Int?          @map("year_of_admission")
+  createdBy             String?       @map("created_by") @db.Uuid
+  updatedBy             String?       @map("updated_by") @db.Uuid
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  /// Soft delete: unlike master data, a student's timeline/history is what other rows point
+  /// at, so hard-deleting would orphan it. Archiving (deletedAt) is the removal path; status
+  /// transitions are the "state" path.
+  deletedAt             DateTime?     @map("deleted_at")
+
+  guardians        Guardian[]
+  documents        StudentDocument[]
+  admissions       StudentAdmission[]
+  academicRecords  StudentAcademicRecord[]
+  enrollments      StudentEnrollment[]
+  attendance       StudentAttendance[]
+  fees             StudentFee[]
+  payments         StudentPayment[]
+  exams            StudentExam[]
+  results          StudentResult[]
+  certificates     StudentCertificate[]
+  libraryLoans     StudentLibraryLoan[]
+  hostelBookings   StudentHostelBooking[]
+  transportPasses  StudentTransportPass[]
+  holds            StudentHold[]
+  statusHistory    StudentStatusHistory[]
+  communications   StudentCommunication[]
+  activities       StudentActivity[]
+
+  @@unique([tenantId, admissionNumber])
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+  @@index([campusId])
+  @@index([programId])
+  @@index([batchId])
+  @@index([sectionId])
+  @@index([tenantId, status])
+  @@map("students")
+}
+
+/// A student's guardian / family contact / emergency contact. The kind/role taxonomy is an
+/// enum because these are well-bounded product concepts; everything else (occupation,
+/// address) is free text.
+model Guardian {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String        @map("tenant_id") @db.Uuid
+  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId         String        @map("student_id") @db.Uuid
+  student           Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  name              String
+  kind              GuardianKind
+  role              GuardianRole  @default(PRIMARY)
+  phone             String?
+  email             String?
+  occupation        String?
+  monthlyIncomeCents Int?         @map("monthly_income_cents")
+  address           String?
+  createdBy         String?       @map("created_by") @db.Uuid
+  updatedBy         String?       @map("updated_by") @db.Uuid
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@map("guardians")
+}
+
+/// Scanned/uploaded student documents (marksheets, ID proof, photos, certificates). Storage
+/// key follows the same tenant-prefixed convention as the control-plane Document model;
+/// verification is an explicit first-class step so the records office can vet each file.
+model StudentDocument {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId        String               @map("student_id") @db.Uuid
+  student          Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  /// e.g. ID_PROOF / ACADEMIC / ADDRESS_PROOF / PHOTO / OTHER — free-form so the tenant's
+  /// admissions document checklist (TenantConfiguration) drives what categories exist.
+  category         String
+  documentName     String               @map("document_name")
+  storageKey       String?              @map("storage_key")
+  originalFilename String?              @map("original_filename")
+  mimeType         String?              @map("mime_type")
+  sizeBytes        Int?                 @map("size_bytes")
+  status           StudentDocumentStatus @default(PENDING)
+  verifiedAt       DateTime?            @map("verified_at")
+  verifiedBy       String?              @map("verified_by") @db.Uuid
+  remarks          String?
+  uploadedBy       String?              @map("uploaded_by") @db.Uuid
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([tenantId, status])
+  @@map("student_documents")
+}
+
+/// Admission history — every admission/application round this student went through (can be
+/// more than one: applied, got an offer, deferred, re-admitted). mode is a free-form string
+/// (MERIT / MANAGEMENT / LATERAL / DIRECT) so tenant policies don't require a schema change.
+model StudentAdmission {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String          @map("tenant_id") @db.Uuid
+  tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId          String          @map("student_id") @db.Uuid
+  student            Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  applicationNumber  String          @map("application_number")
+  programId          String          @map("program_id") @db.Uuid
+  program            Program         @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYearId     String?         @map("academic_year_id") @db.Uuid
+  academicYear       AcademicYear?   @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  appliedAt          DateTime        @map("applied_at")
+  status             AdmissionStatus @default(APPLIED)
+  mode               String?
+  offerLetterKey     String?         @map("offer_letter_key")
+  admissionFeeCents  Int?            @map("admission_fee_cents")
+  remarks            String?
+  createdBy          String?         @map("created_by") @db.Uuid
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  @@unique([tenantId, applicationNumber])
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([programId])
+  @@map("student_admissions")
+}
+
+/// Academic (prior-education) history — institutions/certificates the student earned before
+/// (or alongside) the current program: higher-secondary board marksheet, prior degree, etc.
+model StudentAcademicRecord {
+  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String               @map("tenant_id") @db.Uuid
+  tenant                 Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId              String               @map("student_id") @db.Uuid
+  student                Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  institution            String
+  board                  String?
+  degree                 String?
+  yearOfPassing          Int?                 @map("year_of_passing")
+  percentage             Float?
+  gpa                    Float?
+  grade                  String?
+  marksObtained          Int?                 @map("marks_obtained")
+  marksOutOf             Int?                 @map("marks_out_of")
+  rank                   String?
+  isHighestQualification Boolean              @default(false) @map("is_highest_qualification")
+  verificationStatus     StudentDocumentStatus @default(PENDING) @map("verification_status")
+  remarks                String?
+  createdBy              String?              @map("created_by") @db.Uuid
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@map("student_academic_records")
+}
+
+/// Enrollment history — one row per academic year the student was enrolled in a program
+/// (with the section/batch they sat in that year). This is the "which cohort, which year"
+/// picture; the admission record captures the application side.
+model StudentEnrollment {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId      String           @map("student_id") @db.Uuid
+  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYearId String           @map("academic_year_id") @db.Uuid
+  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  termId         String?          @map("term_id") @db.Uuid
+  term           Term?            @relation(fields: [termId], references: [id], onDelete: SetNull)
+  programId      String           @map("program_id") @db.Uuid
+  program        Program          @relation(fields: [programId], references: [id], onDelete: Restrict)
+  sectionId      String?          @map("section_id") @db.Uuid
+  section        Section?         @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  batchId        String?          @map("batch_id") @db.Uuid
+  batch          Batch?           @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  rollNumber     String?          @map("roll_number")
+  semester       Int?
+  status         EnrollmentStatus @default(ACTIVE)
+  enrolledAt     DateTime?        @map("enrolled_at")
+  completedAt    DateTime?        @map("completed_at")
+  remarks        String?
+  createdBy      String?          @map("created_by") @db.Uuid
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@unique([tenantId, studentId, academicYearId, programId])
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([academicYearId])
+  @@index([tenantId, status])
+  @@map("student_enrollments")
+}
+
+/// Per-student attendance ledger day/class records. attendanceType is free-form (CLASS / DAY /
+/// PERIOD) so the timetable module's shape can drive it without a migration.
+model StudentAttendance {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String           @map("tenant_id") @db.Uuid
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId     String           @map("student_id") @db.Uuid
+  student       Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date          DateTime         @map("date")
+  attendanceType String          @default("CLASS") @map("attendance_type")
+  termId        String?          @map("term_id") @db.Uuid
+  term          Term?            @relation(fields: [termId], references: [id], onDelete: SetNull)
+  subjectCode   String?          @map("subject_code")
+  subjectName   String?          @map("subject_name")
+  status        AttendanceStatus @default(PRESENT)
+  markedByUserId String?         @map("marked_by_user_id") @db.Uuid
+  remarks       String?
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([studentId, date])
+  @@index([tenantId, status])
+  @@map("student_attendance")
+}
+
+/// A fee demand line on a student's ledger. status is recomputed by the students module on
+/// every create/update/payment from amountCents vs paidCents+waivedCents; OVERDUE is derived
+/// at read time when dueDate has passed and the line isn't yet PAID.
+model StudentFee {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId   String    @map("student_id") @db.Uuid
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId      String?   @map("term_id") @db.Uuid
+  term        Term?     @relation(fields: [termId], references: [id], onDelete: SetNull)
+  headCode    String    @map("head_code")
+  headName    String    @map("head_name")
+  amountCents Int       @map("amount_cents")
+  paidCents   Int       @default(0) @map("paid_cents")
+  waivedCents Int       @default(0) @map("waived_cents")
+  status      FeeStatus @default(ISSUED)
+  dueDate     DateTime? @map("due_date")
+  remarks     String?
+  createdBy   String?   @map("created_by") @db.Uuid
+  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  payments StudentPayment[]
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([tenantId, status])
+  @@index([studentId, status])
+  @@map("student_fees")
+}
+
+/// Payments recorded against a student's fee ledger. reuses the global PaymentMethod and
+/// PaymentStatus enums rather than inventing a parallel taxonomy; recordedByUserId is the
+/// tenant staff member who logged the receipt.
+model StudentPayment {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId       String        @map("student_id") @db.Uuid
+  student         Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentFeeId    String?       @map("student_fee_id") @db.Uuid
+  studentFee      StudentFee?   @relation(fields: [studentFeeId], references: [id], onDelete: Cascade)
+  receiptNumber   String        @map("receipt_number")
+  amountCents     Int           @map("amount_cents")
+  currency        String        @default("INR")
+  paymentDate     DateTime      @map("payment_date")
+  method          PaymentMethod
+  status          PaymentStatus @default(SUCCEEDED)
+  referenceNumber String?       @map("reference_number")
+  recordedByUserId String?      @map("recorded_by_user_id") @db.Uuid
+  remarks         String?
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@unique([tenantId, receiptNumber])
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([studentFeeId])
+  @@map("student_payments")
+}
+
+/// An exam session this student sits (registered for). Kept student-tethered so the 360 tab
+/// shows "their exams"; results hang off it but survive an exam deletion via SET NULL.
+model StudentExam {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String     @map("tenant_id") @db.Uuid
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId  String     @map("student_id") @db.Uuid
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  name       String
+  examType   ExamType   @map("exam_type")
+  termId     String?    @map("term_id") @db.Uuid
+  term       Term?      @relation(fields: [termId], references: [id], onDelete: SetNull)
+  programId  String?    @map("program_id") @db.Uuid
+  program    Program?   @relation(fields: [programId], references: [id], onDelete: SetNull)
+  sectionId  String?    @map("section_id") @db.Uuid
+  section    Section?   @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  startDate  DateTime?  @map("start_date")
+  endDate    DateTime?  @map("end_date")
+  status     ExamStatus @default(SCHEDULED)
+  createdBy  String?    @map("created_by") @db.Uuid
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  results StudentResult[]
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([programId])
+  @@map("student_exams")
+}
+
+/// One subject's result within an exam (or standalone). Outcome drives the pass/fail view;
+/// percentage/grade are optional so either grading style (numeric or letter) fits.
+model StudentResult {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String        @map("tenant_id") @db.Uuid
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId   String        @map("student_id") @db.Uuid
+  student     Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  examId      String?       @map("exam_id") @db.Uuid
+  exam        StudentExam?  @relation(fields: [examId], references: [id], onDelete: SetNull)
+  subjectCode String        @map("subject_code")
+  subjectName String        @map("subject_name")
+  maxMarks    Int           @map("max_marks")
+  obtainedMarks Int?        @map("obtained_marks")
+  grade       String?
+  percentage  Float?
+  outcome     ResultOutcome @default(INCOMPLETE)
+  publishedAt DateTime?     @map("published_at")
+  publishedBy String?       @map("published_by") @db.Uuid
+  remarks     String?
+  createdBy   String?       @map("created_by") @db.Uuid
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([examId])
+  @@map("student_results")
+}
+
+/// Certificate / transcript requests and their issuance lifecycle (request → generate →
+/// approve → issue).
+model StudentCertificate {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String             @map("tenant_id") @db.Uuid
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId         String             @map("student_id") @db.Uuid
+  student           Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  certificateType   CertificateType    @map("certificate_type")
+  certificateNumber String?            @map("certificate_number")
+  title             String?
+  requestDate       DateTime           @map("request_date")
+  status            CertificateStatus  @default(REQUESTED)
+  generatedAt       DateTime?          @map("generated_at")
+  generatedByUserId String?            @map("generated_by_user_id") @db.Uuid
+  approvedAt        DateTime?          @map("approved_at")
+  approvedByUserId  String?            @map("approved_by_user_id") @db.Uuid
+  issuedAt          DateTime?          @map("issued_at")
+  issuedByUserId    String?            @map("issued_by_user_id") @db.Uuid
+  storageKey        String?            @map("storage_key")
+  remarks           String?
+  createdBy         String?            @map("created_by") @db.Uuid
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  @@unique([tenantId, certificateNumber])
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([tenantId, status])
+  @@map("student_certificates")
+}
+
+/// Library loans for this student (items are free-form strings — the dedicated library
+/// catalog module is a later phase and will attach its own catalog item ids here).
+model StudentLibraryLoan {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String            @map("tenant_id") @db.Uuid
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId   String            @map("student_id") @db.Uuid
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  itemTitle   String            @map("item_title")
+  itemAuthor  String?           @map("item_author")
+  itemCode    String?           @map("item_code")
+  itemType    String?           @map("item_type")
+  borrowedAt  DateTime          @map("borrowed_at")
+  dueDate     DateTime?         @map("due_date")
+  returnedAt  DateTime?         @map("returned_at")
+  status      LibraryLoanStatus @default(ISSUED)
+  fineCents   Int               @default(0) @map("fine_cents")
+  remarks     String?
+  createdBy   String?           @map("created_by") @db.Uuid
+  updatedBy   String?           @map("updated_by") @db.Uuid
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([tenantId, status])
+  @@map("student_library_loans")
+}
+
+/// Hostel allocation/booking for this student across their stay.
+model StudentHostelBooking {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String              @map("tenant_id") @db.Uuid
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId       String              @map("student_id") @db.Uuid
+  student         Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  hostelName      String              @map("hostel_name")
+  roomNumber      String              @map("room_number")
+  bedNumber       String?             @map("bed_number")
+  allocationDate  DateTime?           @map("allocation_date")
+  checkInDate     DateTime?           @map("check_in_date")
+  checkOutDate    DateTime?           @map("check_out_date")
+  status          HostelBookingStatus @default(REQUESTED)
+  monthlyRentCents Int?               @map("monthly_rent_cents")
+  remarks         String?
+  createdBy       String?             @map("created_by") @db.Uuid
+  updatedBy       String?             @map("updated_by") @db.Uuid
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([tenantId, status])
+  @@map("student_hostel_bookings")
+}
+
+/// Transport pass / route allocation for this student.
+model StudentTransportPass {
+  id            String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String               @map("tenant_id") @db.Uuid
+  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId     String               @map("student_id") @db.Uuid
+  student       Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  routeCode     String?              @map("route_code")
+  routeName     String               @map("route_name")
+  pickupPoint   String?              @map("pickup_point")
+  dropPoint     String?              @map("drop_point")
+  vehicleNumber String?              @map("vehicle_number")
+  periodStart   DateTime             @map("period_start")
+  periodEnd     DateTime?            @map("period_end")
+  status        TransportPassStatus  @default(ACTIVE)
+  amountCents   Int?                 @map("amount_cents")
+  remarks       String?
+  createdBy     String?              @map("created_by") @db.Uuid
+  updatedBy     String?              @map("updated_by") @db.Uuid
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([tenantId, status])
+  @@map("student_transport_passes")
+}
+
+/// A hold/flag on the student's record (academic/financial/administrative/etc.) — e.g.
+/// blocks a transcript request until a fee is resolved. Holds are lifted, never deleted.
+model StudentHold {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId        String           @map("student_id") @db.Uuid
+  student          Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type             StudentHoldType
+  reason           String
+  placedOn         DateTime         @map("placed_on")
+  placedByUserId   String?          @map("placed_by_user_id") @db.Uuid
+  status           StudentHoldStatus @default(ACTIVE)
+  liftedOn         DateTime?        @map("lifted_on")
+  liftedByUserId   String?          @map("lifted_by_user_id") @db.Uuid
+  remarks          String?
+  createdBy        String?          @map("created_by") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([tenantId, status])
+  @@map("student_holds")
+}
+
+/// Append-only status transition journal for a student. The first row for a student has a null
+/// fromStatus (created into its initial state).
+model StudentStatusHistory {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String         @map("tenant_id") @db.Uuid
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId        String         @map("student_id") @db.Uuid
+  student          Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fromStatus       StudentStatus? @map("from_status")
+  toStatus         StudentStatus  @map("to_status")
+  reason           String?
+  changedByUserId  String?        @map("changed_by_user_id") @db.Uuid
+  changedAt        DateTime       @default(now()) @map("changed_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([studentId, changedAt])
+  @@map("student_status_history")
+}
+
+/// Communication history with the student / their guardians (calls, emails, SMS, meetings…).
+model StudentCommunication {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId        String               @map("student_id") @db.Uuid
+  student          Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type             CommunicationType
+  direction        CommunicationDirection @default(OUTBOUND)
+  subject          String?
+  body             String
+  sentAt           DateTime             @map("sent_at")
+  recipientType    String               @default("STUDENT") @map("recipient_type")
+  recipientName    String?              @map("recipient_name")
+  recipientPhone   String?              @map("recipient_phone")
+  recipientEmail   String?              @map("recipient_email")
+  conductedByUserId String?             @map("conducted_by_user_id") @db.Uuid
+  remarks          String?
+  createdBy        String?              @map("created_by") @db.Uuid
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([studentId, sentAt])
+  @@map("student_communications")
+}
+
+/// Append-only activity timeline for Student 360. eventType is a free-form string (e.g.
+/// student.created / student.status_changed / fee.payment_recorded / hold.placed) so modules
+/// can log events without a schema change; entityType/entityId point at the related row
+/// (payment, hold, certificate…). The timeline endpoint unions these with status-history rows.
+model StudentActivity {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId   String    @map("student_id") @db.Uuid
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  eventType   String    @map("event_type")
+  title       String
+  description String?
+  entityType  String?   @map("entity_type")
+  entityId    String?   @map("entity_id") @db.Uuid
+  occurredAt  DateTime  @default(now()) @map("occurred_at")
+  actorUserId String?   @map("actor_user_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([studentId, occurredAt])
+  @@map("student_activities")
 }
