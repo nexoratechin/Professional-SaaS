@@ -119,6 +119,16 @@ class AttendanceSectionDto {
   @IsOptional()
   @IsString()
   ruleDescription?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  gracePeriodMinutes?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  correctionWindowHours?: number;
 }
 
 class FeeHeadDto {

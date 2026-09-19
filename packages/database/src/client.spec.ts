@@ -58,6 +58,9 @@ describe('tenant-guard model classification (from Prisma DMMF)', () => {
     'TimetableConflict',
     'TimetableSubstitution',
     'TimetableHistory',
+    'AttendanceSession',
+    'AttendanceCorrectionRequest',
+    'FacultyAttendance',
   ];
 
   const notTenantScoped = [

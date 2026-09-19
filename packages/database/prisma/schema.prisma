@@ -349,99 +349,102 @@ model Tenant {
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
-  subscriptions               Subscription[]
-  subscriptionItems           SubscriptionItem[]
-  featureOverrides            TenantFeatureFlag[]
-  usageEvents                 UsageEvent[]
-  users                       User[]
-  roles                       Role[]
-  rolePermissions             RolePermission[]
-  userRoles                   UserRole[]
-  sessions                    Session[]
-  loginEvents                 LoginEvent[]
-  auditLogs                   PlatformAuditLog[]
-  campuses                    Campus[]
-  departments                 Department[]
-  programs                    Program[]
-  academicYears               AcademicYear[]
-  terms                       Term[]
-  rooms                       Room[]
-  buildings                   Building[]
-  sections                    Section[]
-  batches                     Batch[]
-  notifications               Notification[]
-  documents                   Document[]
-  passwordResetTokens         PasswordResetToken[]
-  emailVerificationTokens     EmailVerificationToken[]
-  mfaBackupCodes              MfaBackupCode[]
-  trustedDevices              TrustedDevice[]
-  passwordHistory             PasswordHistory[]
-  securityEvents              SecurityEvent[]
-  securitySettings            TenantSecuritySettings?
-  configuration               TenantConfiguration?
-  workflowDefinitions         WorkflowDefinition[]
-  workflowStates              WorkflowState[]
-  workflowTransitions         WorkflowTransition[]
-  workflowTransitionApprovers WorkflowTransitionApprover[]
-  workflowInstances           WorkflowInstance[]
-  workflowApprovalTasks       WorkflowApprovalTask[]
-  invoices                    Invoice[]
-  invoiceLineItems            InvoiceLineItem[]
-  payments                    Payment[]
-  supportTickets              SupportTicket[]
-  entitlements                Entitlement[]
-  students                    Student[]
-  guardians                   Guardian[]
-  studentDocuments            StudentDocument[]
-  studentAdmissions           StudentAdmission[]
-  studentAcademicRecords      StudentAcademicRecord[]
-  studentEnrollments          StudentEnrollment[]
-  studentAttendance           StudentAttendance[]
-  studentFees                 StudentFee[]
-  studentPayments             StudentPayment[]
-  studentExams                StudentExam[]
-  studentResults              StudentResult[]
-  studentCertificates         StudentCertificate[]
-  studentLibraryLoans         StudentLibraryLoan[]
-  studentHostelBookings       StudentHostelBooking[]
-  studentTransportPasses      StudentTransportPass[]
-  studentHolds                StudentHold[]
-  studentStatusHistory        StudentStatusHistory[]
-  studentCommunications       StudentCommunication[]
-  studentActivities           StudentActivity[]
-  admissionSessions           AdmissionSession[]
-  admissionPrograms           AdmissionProgramOffer[]
-  admissionEnquiries          AdmissionEnquiry[]
-  admissionApplications       AdmissionApplication[]
-  admissionDocuments          AdmissionDocument[]
-  admissionQualifications     AdmissionQualification[]
-  admissionCounsellingSlots   AdmissionCounsellingSlot[]
-  admissionOffers             AdmissionOffer[]
-  admissionFeePayments        AdmissionFeePayment[]
-  admissionActivities         AdmissionActivity[]
-  admissionFormFields         AdmissionFormField[]
-  admissionEligibilityRules   AdmissionEligibilityRule[]
-  admissionMessages           AdmissionMessage[]
-  courses                     Course[]
-  coursePrerequisites         CoursePrerequisite[]
-  curricula                   Curriculum[]
-  curriculumVersions          CurriculumVersion[]
-  curriculumCourses           CurriculumCourse[]
-  courseOfferings             CourseOffering[]
-  courseOfferingFaculty       CourseOfferingFaculty[]
-  courseRegistrations         CourseRegistration[]
-  academicAdvisingRecords     AcademicAdvisingRecord[]
-  academicProgressionRecords  AcademicProgressionRecord[]
-  courseBacklogs              CourseBacklog[]
-  academicCalendarEvents      AcademicCalendarEvent[]
-  timetables                  Timetable[]
-  timetablePeriods            TimetablePeriod[]
-  timetableEntries            TimetableEntry[]
-  timetableHolidays           TimetableHoliday[]
-  facultyAvailability         FacultyAvailability[]
-  timetableConflicts          TimetableConflict[]
-  timetableSubstitutions      TimetableSubstitution[]
-  timetableHistory            TimetableHistory[]
+  subscriptions                Subscription[]
+  subscriptionItems            SubscriptionItem[]
+  featureOverrides             TenantFeatureFlag[]
+  usageEvents                  UsageEvent[]
+  users                        User[]
+  roles                        Role[]
+  rolePermissions              RolePermission[]
+  userRoles                    UserRole[]
+  sessions                     Session[]
+  loginEvents                  LoginEvent[]
+  auditLogs                    PlatformAuditLog[]
+  campuses                     Campus[]
+  departments                  Department[]
+  programs                     Program[]
+  academicYears                AcademicYear[]
+  terms                        Term[]
+  rooms                        Room[]
+  buildings                    Building[]
+  sections                     Section[]
+  batches                      Batch[]
+  notifications                Notification[]
+  documents                    Document[]
+  passwordResetTokens          PasswordResetToken[]
+  emailVerificationTokens      EmailVerificationToken[]
+  mfaBackupCodes               MfaBackupCode[]
+  trustedDevices               TrustedDevice[]
+  passwordHistory              PasswordHistory[]
+  securityEvents               SecurityEvent[]
+  securitySettings             TenantSecuritySettings?
+  configuration                TenantConfiguration?
+  workflowDefinitions          WorkflowDefinition[]
+  workflowStates               WorkflowState[]
+  workflowTransitions          WorkflowTransition[]
+  workflowTransitionApprovers  WorkflowTransitionApprover[]
+  workflowInstances            WorkflowInstance[]
+  workflowApprovalTasks        WorkflowApprovalTask[]
+  invoices                     Invoice[]
+  invoiceLineItems             InvoiceLineItem[]
+  payments                     Payment[]
+  supportTickets               SupportTicket[]
+  entitlements                 Entitlement[]
+  students                     Student[]
+  guardians                    Guardian[]
+  studentDocuments             StudentDocument[]
+  studentAdmissions            StudentAdmission[]
+  studentAcademicRecords       StudentAcademicRecord[]
+  studentEnrollments           StudentEnrollment[]
+  studentAttendance            StudentAttendance[]
+  studentFees                  StudentFee[]
+  studentPayments              StudentPayment[]
+  studentExams                 StudentExam[]
+  studentResults               StudentResult[]
+  studentCertificates          StudentCertificate[]
+  studentLibraryLoans          StudentLibraryLoan[]
+  studentHostelBookings        StudentHostelBooking[]
+  studentTransportPasses       StudentTransportPass[]
+  studentHolds                 StudentHold[]
+  studentStatusHistory         StudentStatusHistory[]
+  studentCommunications        StudentCommunication[]
+  studentActivities            StudentActivity[]
+  admissionSessions            AdmissionSession[]
+  admissionPrograms            AdmissionProgramOffer[]
+  admissionEnquiries           AdmissionEnquiry[]
+  admissionApplications        AdmissionApplication[]
+  admissionDocuments           AdmissionDocument[]
+  admissionQualifications      AdmissionQualification[]
+  admissionCounsellingSlots    AdmissionCounsellingSlot[]
+  admissionOffers              AdmissionOffer[]
+  admissionFeePayments         AdmissionFeePayment[]
+  admissionActivities          AdmissionActivity[]
+  admissionFormFields          AdmissionFormField[]
+  admissionEligibilityRules    AdmissionEligibilityRule[]
+  admissionMessages            AdmissionMessage[]
+  courses                      Course[]
+  coursePrerequisites          CoursePrerequisite[]
+  curricula                    Curriculum[]
+  curriculumVersions           CurriculumVersion[]
+  curriculumCourses            CurriculumCourse[]
+  courseOfferings              CourseOffering[]
+  courseOfferingFaculty        CourseOfferingFaculty[]
+  courseRegistrations          CourseRegistration[]
+  academicAdvisingRecords      AcademicAdvisingRecord[]
+  academicProgressionRecords   AcademicProgressionRecord[]
+  courseBacklogs               CourseBacklog[]
+  academicCalendarEvents       AcademicCalendarEvent[]
+  timetables                   Timetable[]
+  timetablePeriods             TimetablePeriod[]
+  timetableEntries             TimetableEntry[]
+  timetableHolidays            TimetableHoliday[]
+  facultyAvailability          FacultyAvailability[]
+  timetableConflicts           TimetableConflict[]
+  timetableSubstitutions       TimetableSubstitution[]
+  timetableHistory             TimetableHistory[]
+  attendanceSessions           AttendanceSession[]
+  attendanceCorrectionRequests AttendanceCorrectionRequest[]
+  facultyAttendance            FacultyAttendance[]
 
   @@index([status])
   @@map("tenants")
@@ -912,12 +915,15 @@ model User {
   trustedDevices          TrustedDevice[]
   passwordHistory         PasswordHistory[]
   securityEvents          SecurityEvent[]
-  facultyAssignments      CourseOfferingFaculty[]  @relation("FacultyAssignedCourseOfferings")
-  advisingRecords         AcademicAdvisingRecord[] @relation("AdvisorAdvisingRecords")
-  timetableEntries        TimetableEntry[]         @relation("FacultyTimetableEntries")
-  publishedTimetables     Timetable[]              @relation("TimetablePublisher")
-  availabilityBlocks      FacultyAvailability[]    @relation("FacultyAvailabilityBlocks")
-  substitutions           TimetableSubstitution[]  @relation("SubstituteTimetableEntries")
+  facultyAssignments      CourseOfferingFaculty[]       @relation("FacultyAssignedCourseOfferings")
+  advisingRecords         AcademicAdvisingRecord[]      @relation("AdvisorAdvisingRecords")
+  timetableEntries        TimetableEntry[]              @relation("FacultyTimetableEntries")
+  publishedTimetables     Timetable[]                   @relation("TimetablePublisher")
+  availabilityBlocks      FacultyAvailability[]         @relation("FacultyAvailabilityBlocks")
+  substitutions           TimetableSubstitution[]       @relation("SubstituteTimetableEntries")
+  facultyAttendance       FacultyAttendance[]           @relation("FacultyAttendanceLogs")
+  correctionRequests      AttendanceCorrectionRequest[] @relation("AttendanceCorrectionRequesters")
+  correctionDecisions     AttendanceCorrectionRequest[] @relation("AttendanceCorrectionDeciders")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1422,6 +1428,7 @@ model Term {
   academicCalendarEvents  AcademicCalendarEvent[]
   courseBacklogs          CourseBacklog[]
   timetables              Timetable[]              @relation("TermTimetables")
+  attendanceSessions      AttendanceSession[]      @relation("TermAttendanceSessions")
 
   @@unique([academicYearId, code])
   @@index([tenantId])
@@ -1546,6 +1553,7 @@ model Section {
   studentExams       StudentExam[]
   courseOfferings    CourseOffering[]
   timetableEntries   TimetableEntry[]    @relation("SectionTimetableEntries")
+  attendanceSessions AttendanceSession[] @relation("SectionAttendanceSessions")
 
   @@unique([tenantId, programId, code])
   @@index([tenantId])
@@ -1642,6 +1650,20 @@ enum AttendanceStatus {
   ABSENT
   LATE
   LEAVE
+}
+
+/// Lifecycle of an attendance session (a single held class/day/period to be marked).
+enum AttendanceSessionStatus {
+  OPEN
+  CLOSED
+}
+
+/// Decision state of an attendance correction request. APPROVED mutates the underlying
+/// StudentAttendance row(s) transactionally.
+enum AttendanceCorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum FeeStatus {
@@ -2103,6 +2125,7 @@ model Student {
   advisingRecords       AcademicAdvisingRecord[]
   progressionRecords    AcademicProgressionRecord[]
   backlogs              CourseBacklog[]
+  attendanceCorrections AttendanceCorrectionRequest[] @relation("AttendanceCorrectionStudents")
 
   @@unique([tenantId, admissionNumber])
   @@index([tenantId])
@@ -2272,30 +2295,150 @@ model StudentEnrollment {
 }
 
 /// Per-student attendance ledger day/class records. attendanceType is free-form (CLASS / DAY /
-/// PERIOD) so the timetable module's shape can drive it without a migration.
+/// PERIOD) so the timetable module's shape can drive it without a migration. When the record is
+/// written from an AttendanceSession, sessionId links it back to that session (unique per
+/// student+session so bulk marking upserts cleanly); markMethod records the capture channel
+/// (MANUAL / QR / BIOMETRIC) surfaced from the attendance entitlements.
 model StudentAttendance {
-  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String           @map("tenant_id") @db.Uuid
-  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId      String           @map("student_id") @db.Uuid
-  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  date           DateTime         @map("date")
-  attendanceType String           @default("CLASS") @map("attendance_type")
-  termId         String?          @map("term_id") @db.Uuid
-  term           Term?            @relation(fields: [termId], references: [id], onDelete: SetNull)
-  subjectCode    String?          @map("subject_code")
-  subjectName    String?          @map("subject_name")
-  status         AttendanceStatus @default(PRESENT)
-  markedByUserId String?          @map("marked_by_user_id") @db.Uuid
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String             @map("tenant_id") @db.Uuid
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId      String             @map("student_id") @db.Uuid
+  student        Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  sessionId      String?            @map("session_id") @db.Uuid
+  session        AttendanceSession? @relation("SessionAttendanceRecords", fields: [sessionId], references: [id], onDelete: SetNull)
+  date           DateTime           @map("date")
+  attendanceType String             @default("CLASS") @map("attendance_type")
+  termId         String?            @map("term_id") @db.Uuid
+  term           Term?              @relation(fields: [termId], references: [id], onDelete: SetNull)
+  subjectCode    String?            @map("subject_code")
+  subjectName    String?            @map("subject_name")
+  status         AttendanceStatus   @default(PRESENT)
+  markMethod     String             @default("MANUAL") @map("mark_method")
+  signInAt       DateTime?          @map("sign_in_at")
+  markedByUserId String?            @map("marked_by_user_id") @db.Uuid
   remarks        String?
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
 
+  @@unique([tenantId, sessionId, studentId])
   @@index([tenantId])
   @@index([studentId])
   @@index([studentId, date])
   @@index([tenantId, status])
+  @@index([tenantId, sessionId])
   @@map("student_attendance")
+}
+
+/// A single held attendance session — one class/day/period to be marked for a roster. Anchors
+/// on the term/courseOffering/section (any combination) plus a date and optional time window,
+/// and may snapshot the timetable entry it was raised from. Lifecycle OPEN → CLOSED (explicit);
+/// CLOSED sessions with records are the "classes held" denominator for percentage/shortage
+/// reporting.
+model AttendanceSession {
+  id               String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                  @map("tenant_id") @db.Uuid
+  tenant           Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  termId           String?                 @map("term_id") @db.Uuid
+  term             Term?                   @relation("TermAttendanceSessions", fields: [termId], references: [id], onDelete: SetNull)
+  courseOfferingId String?                 @map("course_offering_id") @db.Uuid
+  courseOffering   CourseOffering?         @relation("OfferingAttendanceSessions", fields: [courseOfferingId], references: [id], onDelete: SetNull)
+  sectionId        String?                 @map("section_id") @db.Uuid
+  section          Section?                @relation("SectionAttendanceSessions", fields: [sectionId], references: [id], onDelete: SetNull)
+  timetableEntryId String?                 @map("timetable_entry_id") @db.Uuid
+  timetableEntry   TimetableEntry?         @relation("EntryAttendanceSessions", fields: [timetableEntryId], references: [id], onDelete: SetNull)
+  date             DateTime                @map("date")
+  startTime        String?                 @map("start_time")
+  endTime          String?                 @map("end_time")
+  attendanceType   String                  @default("CLASS") @map("attendance_type")
+  subjectCode      String?                 @map("subject_code")
+  subjectName      String?                 @map("subject_name")
+  title            String?
+  notes            String?
+  status           AttendanceSessionStatus @default(OPEN)
+  markedByUserId   String?                 @map("marked_by_user_id") @db.Uuid
+  createdBy        String?                 @map("created_by") @db.Uuid
+  updatedBy        String?                 @map("updated_by") @db.Uuid
+  openedAt         DateTime                @default(now()) @map("opened_at")
+  closedAt         DateTime?               @map("closed_at")
+  closedById       String?                 @map("closed_by_id") @db.Uuid
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+  deletedAt        DateTime?               @map("deleted_at")
+
+  records      StudentAttendance[]           @relation("SessionAttendanceRecords")
+  corrections  AttendanceCorrectionRequest[] @relation("SessionAttendanceCorrections")
+  facultyMarks FacultyAttendance[]           @relation("SessionFacultyAttendance")
+
+  @@index([tenantId])
+  @@index([tenantId, date])
+  @@index([tenantId, termId])
+  @@index([tenantId, courseOfferingId])
+  @@index([tenantId, sectionId, date])
+  @@index([tenantId, status])
+  @@index([tenantId, timetableEntryId])
+  @@index([tenantId, deletedAt])
+  @@map("attendance_sessions")
+}
+
+/// A student (or, with manage permission, any actor) requests a status correction on an
+/// attendance record. APPROVED applies the change to the underlying StudentAttendance row
+/// inside the same transaction; the request itself is the immutable audit trail.
+model AttendanceCorrectionRequest {
+  id                 String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String                     @map("tenant_id") @db.Uuid
+  tenant             Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId          String                     @map("student_id") @db.Uuid
+  student            Student                    @relation("AttendanceCorrectionStudents", fields: [studentId], references: [id], onDelete: Cascade)
+  sessionId          String?                    @map("session_id") @db.Uuid
+  session            AttendanceSession?         @relation("SessionAttendanceCorrections", fields: [sessionId], references: [id], onDelete: SetNull)
+  attendanceRecordId String?                    @map("attendance_record_id") @db.Uuid
+  fromStatus         AttendanceStatus           @map("from_status")
+  toStatus           AttendanceStatus           @map("to_status")
+  reason             String
+  remarks            String?
+  status             AttendanceCorrectionStatus @default(PENDING)
+  requestedBy        User?                      @relation("AttendanceCorrectionRequesters", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  requestedByUserId  String?                    @map("requested_by_user_id") @db.Uuid
+  decidedBy          User?                      @relation("AttendanceCorrectionDeciders", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  decidedByUserId    String?                    @map("decided_by_user_id") @db.Uuid
+  decidedAt          DateTime?                  @map("decided_at")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, studentId])
+  @@index([tenantId, sessionId])
+  @@map("attendance_correction_requests")
+}
+
+/// Faculty/staff attendance — one row per user per day with optional check-in/out times. status
+/// reuses AttendanceStatus so the taxonomy stays a single enum; sessionId links the mark to a
+/// marked attendance session when captured that way.
+model FacultyAttendance {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String             @map("tenant_id") @db.Uuid
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId         String             @map("user_id") @db.Uuid
+  user           User               @relation("FacultyAttendanceLogs", fields: [userId], references: [id], onDelete: Restrict)
+  date           DateTime           @map("date")
+  checkInAt      DateTime?          @map("check_in_at")
+  checkOutAt     DateTime?          @map("check_out_at")
+  status         AttendanceStatus   @default(PRESENT)
+  sessionId      String?            @map("session_id") @db.Uuid
+  session        AttendanceSession? @relation("SessionFacultyAttendance", fields: [sessionId], references: [id], onDelete: SetNull)
+  markMethod     String             @default("MANUAL") @map("mark_method")
+  remarks        String?
+  markedByUserId String?            @map("marked_by_user_id") @db.Uuid
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userId, date])
+  @@index([tenantId])
+  @@index([tenantId, userId])
+  @@index([tenantId, date])
+  @@map("faculty_attendance")
 }
 
 /// A fee demand line on a student's ledger. status is recomputed by the students module on
@@ -3410,9 +3553,10 @@ model CourseOffering {
   updatedAt         DateTime             @updatedAt @map("updated_at")
   deletedAt         DateTime?            @map("deleted_at")
 
-  faculty          CourseOfferingFaculty[]
-  registrations    CourseRegistration[]
-  timetableEntries TimetableEntry[]        @relation("OfferingTimetableEntries")
+  faculty            CourseOfferingFaculty[]
+  registrations      CourseRegistration[]
+  timetableEntries   TimetableEntry[]        @relation("OfferingTimetableEntries")
+  attendanceSessions AttendanceSession[]     @relation("OfferingAttendanceSessions")
 
   @@unique([tenantId, code])
   @@index([tenantId, termId])
@@ -3746,7 +3890,8 @@ model TimetableEntry {
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
-  substitutions TimetableSubstitution[] @relation("EntrySubstitutions")
+  substitutions      TimetableSubstitution[] @relation("EntrySubstitutions")
+  attendanceSessions AttendanceSession[]     @relation("EntryAttendanceSessions")
 
   @@index([tenantId, timetableId])
   @@index([tenantId, timetableId, dayOfWeek])

@@ -21,6 +21,7 @@ import { SaasModule } from './modules/saas/saas.module';
 import { SupportModule } from './modules/support/support.module';
 import { StudentsModule } from './modules/students/students.module';
 import { TimetableModule } from './modules/timetable/timetable.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 import { TenantConfigurationModule } from './modules/tenant-configuration/tenant-configuration.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
@@ -48,6 +49,7 @@ import { WorkflowModule } from './modules/workflow/workflow.module';
     StudentsModule,
     AcademicsModule,
     TimetableModule,
+    AttendanceModule,
     AdmissionsModule,
     BillingModule,
     SupportModule,

@@ -172,6 +172,8 @@ export function TenantConfigurationPage() {
             <h2 style={{ fontSize: '1rem', marginBottom: 8 }}>Attendance</h2>
             {numberField('attendance', 'thresholdPercent', attendance.thresholdPercent as number, { min: 0, max: 100 })}
             {boolField('attendance', 'requiredPerSubject', attendance.requiredPerSubject as boolean)}
+            {numberField('attendance', 'gracePeriodMinutes', attendance.gracePeriodMinutes as number, { min: 0 })}
+            {numberField('attendance', 'correctionWindowHours', attendance.correctionWindowHours as number, { min: 1 })}
             {textField('attendance', 'ruleDescription', attendance.ruleDescription as string)}
             {canManage && <Button onClick={() => void saveSection('attendance')} disabled={busy}>Save attendance</Button>}
           </Card>

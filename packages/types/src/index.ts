@@ -318,6 +318,10 @@ export interface TenantConfigAttendance {
   thresholdPercent: number;
   requiredPerSubject: boolean;
   ruleDescription: string | null;
+  /** Minutes after the session window before a mark is considered LATE. */
+  gracePeriodMinutes?: number;
+  /** Hours after a session within which correction requests may be raised. */
+  correctionWindowHours?: number;
 }
 
 export interface TenantConfigFees {
