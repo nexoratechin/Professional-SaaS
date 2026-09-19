@@ -445,6 +445,9 @@ model Tenant {
   attendanceSessions           AttendanceSession[]
   attendanceCorrectionRequests AttendanceCorrectionRequest[]
   facultyAttendance            FacultyAttendance[]
+  attendanceDevices            AttendanceDevice[]
+  attendanceDeviceUsers        AttendanceDeviceUser[]
+  attendanceDeviceLogs         AttendanceDeviceLog[]
 
   @@index([status])
   @@map("tenants")
@@ -924,6 +927,8 @@ model User {
   facultyAttendance       FacultyAttendance[]           @relation("FacultyAttendanceLogs")
   correctionRequests      AttendanceCorrectionRequest[] @relation("AttendanceCorrectionRequesters")
   correctionDecisions     AttendanceCorrectionRequest[] @relation("AttendanceCorrectionDeciders")
+  deviceMappings          AttendanceDeviceUser[]        @relation("UserDeviceMappings")
+  deviceLogs              AttendanceDeviceLog[]         @relation("UserDeviceLogs")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1458,7 +1463,8 @@ model Room {
   updatedAt    DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
-  timetableEntries TimetableEntry[] @relation("RoomTimetableEntries")
+  timetableEntries  TimetableEntry[]   @relation("RoomTimetableEntries")
+  attendanceDevices AttendanceDevice[]
 
   @@unique([campusId, code])
   @@index([tenantId])
@@ -2126,6 +2132,8 @@ model Student {
   progressionRecords    AcademicProgressionRecord[]
   backlogs              CourseBacklog[]
   attendanceCorrections AttendanceCorrectionRequest[] @relation("AttendanceCorrectionStudents")
+  deviceMappings        AttendanceDeviceUser[]        @relation("StudentDeviceMappings")
+  deviceLogs            AttendanceDeviceLog[]         @relation("StudentDeviceLogs")
 
   @@unique([tenantId, admissionNumber])
   @@index([tenantId])
@@ -2369,6 +2377,7 @@ model AttendanceSession {
   records      StudentAttendance[]           @relation("SessionAttendanceRecords")
   corrections  AttendanceCorrectionRequest[] @relation("SessionAttendanceCorrections")
   facultyMarks FacultyAttendance[]           @relation("SessionFacultyAttendance")
+  deviceLogs   AttendanceDeviceLog[]         @relation("SessionDeviceLogs")
 
   @@index([tenantId])
   @@index([tenantId, date])
@@ -2439,6 +2448,136 @@ model FacultyAttendance {
   @@index([tenantId, userId])
   @@index([tenantId, date])
   @@map("faculty_attendance")
+}
+
+/// A registered attendance capture device (QR kiosk, biometric/RFID reader, mobile app, or an
+/// HTTP/API gateway). The model is deliberately VENDOR-NEUTRAL: vendor, model and protocol are
+/// free-form strings and every vendor talks to the ERP through the same normalized event
+/// pipeline (AttendanceDeviceLog). Specific vendor wire-protocols slot in as registered adapters
+/// (see attendance-devices service / device-adapters) keyed by protocol+vendor — the ERP never
+/// depends on a specific biometric vendor. Secrets (device push token, vendor comm key) are kept
+/// AES-256-GCM encrypted at rest (DEVICE_SECRET_KEY), mirroring the mfa secret cipher pattern.
+model AttendanceDevice {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code               String
+  name               String
+  /// Capture channel: QR | BIOMETRIC | RFID | MOBILE | API. Drives which granular entitlement
+  /// (attendance.qr / attendance.biometric / attendance.basic) the device needs to be usable.
+  deviceType         String    @map("device_type")
+  /// Vendor identifier (e.g. 'ZKTeco', 'BioMetricAttend', 'Generic'). Free-form on purpose so a
+  /// new vendor never needs a schema change — only a registered adapter.
+  vendor             String    @default("Generic")
+  model              String?
+  /// Wire protocol for pulling/pushing events: HTTP_PULL (server polls an URL), HTTP_PUSH
+  /// (device posts into the ingest endpoint, HMAC-signed), TCP, MQTT (adapters), MANUAL.
+  protocol           String    @default("HTTP_PUSH")
+  ipAddress          String?   @map("ip_address")
+  port               Int?
+  endpointUrl        String?   @map("endpoint_url")
+  serialNumber       String?   @map("serial_number")
+  location           String?
+  roomId             String?   @map("room_id") @db.Uuid
+  room               Room?     @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  /// Encrypted device-side push token (HMAC secret for the ingest endpoint / HTTP auth).
+  authTokenEncrypted String?   @map("auth_token_encrypted")
+  /// Encrypted vendor-to-device communication key (e.g. ZKTeco comm key) for PULL adapters.
+  commKeyEncrypted   String?   @map("comm_key_encrypted")
+  status             String    @default("ACTIVE")
+  lastSeenAt         DateTime? @map("last_seen_at")
+  lastSyncAt         DateTime? @map("last_sync_at")
+  lastSyncStatus     String?   @map("last_sync_status")
+  lastSyncMessage    String?   @map("last_sync_message")
+  createdBy          String?   @map("created_by") @db.Uuid
+  updatedBy          String?   @map("updated_by") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  mappings AttendanceDeviceUser[] @relation("DeviceMappings")
+  logs     AttendanceDeviceLog[]  @relation("DeviceLogs")
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, deviceType])
+  @@index([tenantId, deletedAt])
+  @@map("attendance_devices")
+}
+
+/// Mapping between a device-side person identifier (fingerprint template id, RFID/card number,
+/// mobile registration id) and an ERP person — a Student or a User (staff/faculty). Kept per
+/// device so the same external id can mean different people on different devices.
+model AttendanceDeviceUser {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  deviceId         String           @map("device_id") @db.Uuid
+  device           AttendanceDevice @relation("DeviceMappings", fields: [deviceId], references: [id], onDelete: Cascade)
+  externalPersonId String           @map("external_person_id")
+  mappedType       String           @map("mapped_type")
+  studentId        String?          @map("student_id") @db.Uuid
+  student          Student?         @relation("StudentDeviceMappings", fields: [studentId], references: [id], onDelete: SetNull)
+  userId           String?          @map("user_id") @db.Uuid
+  user             User?            @relation("UserDeviceMappings", fields: [userId], references: [id], onDelete: SetNull)
+  label            String?
+  isActive         Boolean          @default(true) @map("is_active")
+  createdBy        String?          @map("created_by") @db.Uuid
+  updatedBy        String?          @map("updated_by") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@unique([tenantId, deviceId, externalPersonId])
+  @@unique([tenantId, deviceId, studentId])
+  @@unique([tenantId, deviceId, userId])
+  @@index([tenantId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, userId])
+  @@map("attendance_device_users")
+}
+
+/// Raw normalized event received from an attendance device — the single ingest+reconciliation
+/// pipeline for QR / biometric / RFID / API integrations. Every incoming event becomes exactly
+/// one row here (unique dedupeKey enforced at the DB), then the processor resolves the device
+/// person mapping and applies the mark to the matching open attendance session (student) or
+/// daily faculty log (staff) — or marks the event UNMAPPED/REJECTED for reconciliation.
+model AttendanceDeviceLog {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String             @map("tenant_id") @db.Uuid
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  deviceId         String             @map("device_id") @db.Uuid
+  device           AttendanceDevice   @relation("DeviceLogs", fields: [deviceId], references: [id], onDelete: Cascade)
+  eventType        String             @map("event_type")
+  externalPersonId String?            @map("external_person_id")
+  studentId        String?            @map("student_id") @db.Uuid
+  student          Student?           @relation("StudentDeviceLogs", fields: [studentId], references: [id], onDelete: SetNull)
+  userId           String?            @map("user_id") @db.Uuid
+  user             User?              @relation("UserDeviceLogs", fields: [userId], references: [id], onDelete: SetNull)
+  capturedAt       DateTime           @map("captured_at")
+  receivedAt       DateTime           @default(now()) @map("received_at")
+  ingestSource     String             @default("API") @map("ingest_source")
+  /// Deterministic identity hash (deviceId|externalPersonId|eventType|capturedAt) — the DB-level
+  /// unique index on (tenantId, dedupeKey) is the hard duplicate-prevention boundary.
+  dedupeKey        String?            @map("dedupe_key")
+  rawPayload       Json               @map("raw_payload")
+  status           String             @default("QUEUED")
+  processingNote   String?            @map("processing_note")
+  sessionId        String?            @map("session_id") @db.Uuid
+  session          AttendanceSession? @relation("SessionDeviceLogs", fields: [sessionId], references: [id], onDelete: SetNull)
+  /// Points at the applied StudentAttendance or FacultyAttendance row id (opaque).
+  appliedRecordId  String?            @map("applied_record_id")
+  processedAt      DateTime?          @map("processed_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId])
+  @@index([tenantId, deviceId])
+  @@index([tenantId, status])
+  @@index([tenantId, capturedAt])
+  @@index([tenantId, sessionId])
+  @@map("attendance_device_logs")
 }
 
 /// A fee demand line on a student's ledger. status is recomputed by the students module on

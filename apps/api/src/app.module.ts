@@ -75,6 +75,7 @@ export class AppModule implements NestModule {
         { path: 'plans/(.*)', method: RequestMethod.ALL },
         { path: 'feature-flags', method: RequestMethod.ALL },
         { path: 'feature-flags/(.*)', method: RequestMethod.ALL },
+        { path: 'attendance/devices/ingest/(.*)', method: RequestMethod.ALL },
         { path: 'subscriptions', method: RequestMethod.ALL },
         { path: 'subscriptions/(.*)', method: RequestMethod.ALL },
         { path: 'subscription-items/(.*)', method: RequestMethod.ALL },

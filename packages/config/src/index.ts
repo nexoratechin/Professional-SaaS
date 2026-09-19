@@ -25,6 +25,13 @@ export const apiEnvSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'MFA_ENCRYPTION_KEY must be 64 hex characters (32 bytes)'),
 
+  /** AES-256-GCM key (64 hex chars = 32 bytes) encrypting attendance device secrets (push token,
+   * vendor comm key) at rest — generate with `openssl rand -hex 32`. Reversible (not hashed)
+   * because device HMAC verification / pull adapters need the raw secret. */
+  DEVICE_SECRET_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'DEVICE_SECRET_KEY must be 64 hex characters (32 bytes)'),
+
   S3_ENDPOINT: z.string().min(1),
   S3_REGION: z.string().default('us-east-1'),
   S3_ACCESS_KEY: z.string().min(1),

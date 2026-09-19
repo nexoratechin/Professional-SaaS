@@ -129,6 +129,24 @@ class AttendanceSectionDto {
   @IsNumber()
   @Min(1)
   correctionWindowHours?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  deviceIngestEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  deviceSyncEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  autoApplyDeviceMarks?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(3600)
+  ingestMaxSkewSeconds?: number;
 }
 
 class FeeHeadDto {

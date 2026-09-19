@@ -1,7 +1,9 @@
 /**
- * Attendance page — full attendance management for a tenant. Four tabs:
+ * Attendance page — full attendance management for a tenant. Five tabs:
  *  * Sessions — create/open/close attendance sessions and bulk mark the roster.
  *  * Corrections — student/staff correction requests with an approve/reject workflow.
+ *  * Devices — device registry (QR/biometric/RFID/mobile), device↔person mappings, the normalized
+ *    device-event log, manual ingest, pull sync and reconciliation.
  *  * Faculty — daily staff/faculty attendance logs (own or up-scope).
  *  * Reports — per-student percentage, shortage list, and subject-wise summary.
  * Row-level scope is enforced by the API (attendance.view/create/update/manage), so the UI only
@@ -17,7 +19,15 @@ import {
   ATTENDANCE_STATUSES,
   ATTENDANCE_TYPES,
   CORRECTION_STATUSES,
+  AttendanceDeviceRow,
   CorrectionRow,
+  DEVICE_LOG_STATUSES,
+  DEVICE_PROTOCOLS,
+  DEVICE_STATUSES,
+  DEVICE_TYPES,
+  DeviceCounts,
+  DeviceLogRow,
+  DeviceMappingRow,
   FacultyRow,
   PercentageResp,
   RosterRow,
@@ -63,11 +73,19 @@ const statusBadge: Record<string, React.CSSProperties> = {
   ABSENT: { color: '#b91c1c', background: '#fef2f2' },
   LATE: { color: '#b45309', background: '#fef3c7' },
   LEAVE: { color: '#7c3aed', background: '#f5f3ff' },
+  ACTIVE: { color: '#15803d', background: '#f0fdf4' },
+  INACTIVE: { color: '#6b7280', background: '#f3f4f6' },
+  SUSPENDED: { color: '#b91c1c', background: '#fef2f2' },
+  APPLIED: { color: '#15803d', background: '#f0fdf4' },
+  DUPLICATE: { color: '#6b7280', background: '#f3f4f6' },
+  UNMAPPED: { color: '#b45309', background: '#fef3c7' },
+  QUEUED: { color: '#1d4ed8', background: '#eff6ff' },
+  ERROR: { color: '#b91c1c', background: '#fef2f2' },
 };
 
 export function AttendancePage() {
   const { permissions } = useAuth();
-  const [tab, setTab] = useState<'sessions' | 'corrections' | 'faculty' | 'reports'>('sessions');
+  const [tab, setTab] = useState<'sessions' | 'corrections' | 'devices' | 'faculty' | 'reports'>('sessions');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -83,6 +101,7 @@ export function AttendancePage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button variant="secondary" onClick={() => setTab('sessions')}>Sessions</Button>
           <Button variant="secondary" onClick={() => setTab('corrections')}>Corrections</Button>
+          <Button variant="secondary" onClick={() => setTab('devices')}>Devices</Button>
           <Button variant="secondary" onClick={() => setTab('faculty')}>Faculty</Button>
           <Button variant="secondary" onClick={() => setTab('reports')}>Reports</Button>
         </div>
@@ -104,6 +123,16 @@ export function AttendancePage() {
       )}
       {tab === 'corrections' && (
         <CorrectionsTab canUpdate={canUpdate} reload={reload} onError={setError} onNotice={setNotice} />
+      )}
+      {tab === 'devices' && (
+        <DevicesTab
+          canUpdate={canUpdate}
+          canManage={canManage}
+          reload={reload}
+          onReload={() => setReload((r) => r + 1)}
+          onError={setError}
+          onNotice={setNotice}
+        />
       )}
       {tab === 'faculty' && (
         <FacultyTab canCreate={canCreate} canUpdate={canUpdate} reload={reload} onError={setError} onNotice={setNotice} />
@@ -647,6 +676,508 @@ function CorrectionsTab({
         </div>
       )}
     </Card>
+  );
+}
+
+// ── Devices ─────────────────────────────────────────────────────────────────
+
+/** Manages the tenant device registry (QR/biometric/RFID/mobile readers), per-device person
+ * mappings, the normalized device-event log, manual ingest, pull sync and reconciliation. */
+function DevicesTab({
+  canUpdate,
+  canManage,
+  reload,
+  onReload,
+  onError,
+  onNotice,
+}: {
+  canUpdate: boolean;
+  canManage: boolean;
+  reload: number;
+  onReload: () => void;
+  onError: (msg: string) => void;
+  onNotice: (msg: string) => void;
+}) {
+  const lookups = useAttendanceLookups();
+  const [devices, setDevices] = useState<AttendanceDeviceRow[]>([]);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Create-device form
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [deviceType, setDeviceType] = useState('QR');
+  const [vendor, setVendor] = useState('');
+  const [model, setModel] = useState('');
+  const [protocol, setProtocol] = useState('HTTP_PUSH');
+  const [ipAddress, setIpAddress] = useState('');
+  const [port, setPort] = useState('');
+  const [endpointUrl, setEndpointUrl] = useState('');
+  const [location, setLocation] = useState('');
+  const [authToken, setAuthToken] = useState('');
+  const [commKey, setCommKey] = useState('');
+
+  // Selected device → mappings + manual ingest
+  const [selected, setSelected] = useState<AttendanceDeviceRow | null>(null);
+  const [mappings, setMappings] = useState<DeviceMappingRow[]>([]);
+  const [mapStudentId, setMapStudentId] = useState('');
+  const [mapUserId, setMapUserId] = useState('');
+  const [mapPersonId, setMapPersonId] = useState('');
+  const [mapLabel, setMapLabel] = useState('');
+  const [students, setStudents] = useState<StudentSummaryDto[]>([]);
+
+  // Device-event log
+  const [logs, setLogs] = useState<DeviceLogRow[]>([]);
+  const [logDeviceId, setLogDeviceId] = useState('');
+  const [logStatus, setLogStatus] = useState('');
+
+  const allDevices = useMemo(
+    () => devices.filter((d) => (statusFilter ? d.status === statusFilter : true) && (typeFilter ? d.deviceType === typeFilter : true)),
+    [devices, statusFilter, typeFilter],
+  );
+
+  const loadDevices = useCallback(async () => {
+    try {
+      const res = await apiFetch<{ data: AttendanceDeviceRow[]; total: number }>('/attendance/devices?skip=0&take=100');
+      setDevices(res.data);
+    } catch (err) {
+      onError(loadError(err, 'Failed to load attendance devices.'));
+    }
+  }, [onError]);
+
+  const loadLogs = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ skip: '0', take: '100' });
+      if (logDeviceId) params.set('deviceId', logDeviceId);
+      if (logStatus) params.set('status', logStatus);
+      const res = await apiFetch<{ data: DeviceLogRow[]; total: number }>(`/attendance/device-logs?${params.toString()}`);
+      setLogs(res.data);
+    } catch (err) {
+      onError(loadError(err, 'Failed to load device event logs.'));
+    }
+  }, [logDeviceId, logStatus, onError]);
+
+  useEffect(() => {
+    void loadDevices();
+  }, [loadDevices, reload]);
+
+  useEffect(() => {
+    void loadLogs();
+  }, [loadLogs, reload]);
+
+  useEffect(() => {
+    if (!selected) return;
+    apiFetch<{ data: DeviceMappingRow[] }>(`/attendance/devices/${selected.id}/mappings`)
+      .then((res) => setMappings(res.data))
+      .catch(() => setMappings([]));
+  }, [selected]);
+
+  useEffect(() => {
+    apiFetch<{ data: StudentSummaryDto[]; total: number }>('/students?skip=0&take=500')
+      .then((res) => setStudents(res.data))
+      .catch(() => setStudents([]));
+  }, []);
+
+  const createDevice = async () => {
+    setSaving(true);
+    try {
+      const created = await apiFetch<{ device: AttendanceDeviceRow; authTokenOnce?: string; commKeyOnce?: string }>('/attendance/devices', {
+        method: 'POST',
+        body: JSON.stringify({
+          code,
+          name,
+          deviceType,
+          vendor: vendor || null,
+          model: model || null,
+          protocol,
+          ipAddress: ipAddress || null,
+          port: port ? Number(port) : null,
+          endpointUrl: endpointUrl || null,
+          location: location || null,
+          authToken: authToken || undefined,
+          commKey: commKey || undefined,
+        }),
+      });
+      setShowForm(false);
+      onNotice(
+        `Device "${created.device.code}" created.` +
+          (created.authTokenOnce ? ` Keep the push token: ${created.authTokenOnce}` : ''),
+      );
+      onReload();
+      setCode('');
+      setName('');
+      setVendor('');
+      setModel('');
+      setIpAddress('');
+      setPort('');
+      setEndpointUrl('');
+      setLocation('');
+      setAuthToken('');
+      setCommKey('');
+    } catch (err) {
+      onError(loadError(err, 'Failed to create device.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeDevice = async (id: string) => {
+    if (!window.confirm('Deactivate this device? Its event history is kept.')) return;
+    try {
+      await apiFetch(`/attendance/devices/${id}`, { method: 'DELETE' });
+      onNotice('Device deactivated.');
+      if (selected?.id === id) setSelected(null);
+      onReload();
+    } catch (err) {
+      onError(loadError(err, 'Failed to deactivate device.'));
+    }
+  };
+
+  const syncDevice = async (id: string) => {
+    try {
+      const res = await apiFetch<{ counts: DeviceCounts }>(`/attendance/devices/${id}/sync`, { method: 'POST', body: '{}' });
+      onNotice(`Synced: ${res.counts.received} received, ${res.counts.applied} applied, ${res.counts.duplicate} duplicates.`);
+      onReload();
+    } catch (err) {
+      onError(loadError(err, 'Failed to sync device.'));
+    }
+  };
+
+  const reconcile = async () => {
+    try {
+      const res = await apiFetch<{ counts: DeviceCounts }>('/attendance/reconcile', { method: 'POST', body: '{}' });
+      onNotice(
+        `Reconciled: ${res.counts.received} logs, ${res.counts.applied} applied, ${res.counts.unmapped} unmapped, ${res.counts.error} errors.`,
+      );
+      onReload();
+    } catch (err) {
+      onError(loadError(err, 'Failed to reconcile.'));
+    }
+  };
+
+  const ingestRow = async () => {
+    if (!selected || !mapPersonId) {
+      onError('Choose a device (panel) and an event person id.');
+      return;
+    }
+    try {
+      const res = await apiFetch<{ counts: DeviceCounts }>(`/attendance/devices/${selected.id}/ingest`, {
+        method: 'POST',
+        body: JSON.stringify({
+          events: [
+            {
+              externalPersonId: mapPersonId,
+              capturedAt: new Date().toISOString(),
+              eventType: 'IN',
+            },
+          ],
+        }),
+      });
+      onNotice(`Ingested: ${res.counts.applied} applied, ${res.counts.duplicate} duplicate.`);
+      await loadLogs();
+      onReload();
+    } catch (err) {
+      onError(loadError(err, 'Failed to ingest device event.'));
+    }
+  };
+
+  const upsertMapping = async () => {
+    if (!selected) return;
+    if (!mapPersonId || (!mapStudentId && !mapUserId)) {
+      onError('Provide a person id and pick a student or user.');
+      return;
+    }
+    try {
+      await apiFetch(`/attendance/devices/${selected.id}/mappings`, {
+        method: 'POST',
+        body: JSON.stringify({
+          externalPersonId: mapPersonId,
+          mappedType: mapStudentId ? 'STUDENT' : 'USER',
+          studentId: mapStudentId || undefined,
+          userId: mapUserId || undefined,
+          label: mapLabel || null,
+        }),
+      });
+      onNotice('Mapping saved.');
+      if (selected) {
+        const res = await apiFetch<{ data: DeviceMappingRow[] }>(`/attendance/devices/${selected.id}/mappings`);
+        setMappings(res.data);
+      }
+    } catch (err) {
+      onError(loadError(err, 'Failed to save mapping.'));
+    }
+  };
+
+  const removeMapping = async (id: string) => {
+    try {
+      await apiFetch(`/attendance/devices/mappings/${id}`, { method: 'DELETE' });
+      if (selected) {
+        const res = await apiFetch<{ data: DeviceMappingRow[] }>(`/attendance/devices/${selected.id}/mappings`);
+        setMappings(res.data);
+      }
+    } catch (err) {
+      onError(loadError(err, 'Failed to remove mapping.'));
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <Card>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={selectStyle}>
+            <option value="">All statuses</option>
+            {DEVICE_STATUSES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={selectStyle}>
+            <option value="">All types</option>
+            {DEVICE_TYPES.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          {canManage && <Button onClick={() => setShowForm((s) => !s)}>{showForm ? 'Cancel' : 'Register device'}</Button>}
+          {canManage && <Button variant="secondary" onClick={() => void reconcile()}>Reconcile logs</Button>}
+        </div>
+        <p style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: 8 }}>
+          Back-up a device returns one-time provisioning secrets only on create.
+        </p>
+
+        {showForm && (
+          <div style={{ marginTop: 16, background: '#f9fafb', padding: 16, borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Input placeholder="Device code (unique)" value={code} onChange={(e) => setCode(e.target.value)} style={{ width: 170 }} />
+              <Input placeholder="Display name" value={name} onChange={(e) => setName(e.target.value)} style={{ width: 200 }} />
+              <select value={deviceType} onChange={(e) => setDeviceType(e.target.value)} style={selectStyle}>
+                {DEVICE_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <select value={protocol} onChange={(e) => setProtocol(e.target.value)} style={selectStyle}>
+                {DEVICE_PROTOCOLS.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Input placeholder="Vendor" value={vendor} onChange={(e) => setVendor(e.target.value)} style={{ width: 150 }} />
+              <Input placeholder="Model" value={model} onChange={(e) => setModel(e.target.value)} style={{ width: 150 }} />
+              <Input placeholder="IP" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} style={{ width: 130 }} />
+              <Input placeholder="Port" type="number" value={port} onChange={(e) => setPort(e.target.value)} style={{ width: 80 }} />
+              <Input placeholder="Endpoint URL" value={endpointUrl} onChange={(e) => setEndpointUrl(e.target.value)} style={{ width: 220 }} />
+              <Input placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: 150 }} />
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Input placeholder="Push token (optional)" value={authToken} onChange={(e) => setAuthToken(e.target.value)} style={{ width: 240 }} />
+              <Input placeholder="Vendor comm key (optional)" value={commKey} onChange={(e) => setCommKey(e.target.value)} style={{ width: 240 }} />
+              <Button onClick={() => void createDevice()} disabled={saving || !code.trim()}>
+                {saving ? 'Registering…' : 'Register device'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {allDevices.length === 0 && <p style={{ color: '#9ca3af', marginTop: 12 }}>No devices registered.</p>}
+        {allDevices.length > 0 && (
+          <div style={{ overflowX: 'auto', marginTop: 12 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Code</th>
+                  <th style={thStyle}>Name</th>
+                  <th style={thStyle}>Type</th>
+                  <th style={thStyle}>Protocol</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Last seen</th>
+                  <th style={thStyle}>Maps / logs</th>
+                  <th style={thStyle}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {allDevices.map((d) => (
+                  <tr key={d.id}>
+                    <td style={tdStyle}>
+                      <button
+                        onClick={() => setSelected((s) => (s?.id === d.id ? null : d))}
+                        style={{ background: 'none', border: 'none', color: '#1d4ed8', cursor: 'pointer', fontSize: '0.875rem', padding: 0 }}
+                      >
+                        {d.code}
+                      </button>
+                    </td>
+                    <td style={tdStyle}>{d.name}</td>
+                    <td style={tdStyle}>{d.deviceType}{d.vendor ? ` · ${d.vendor}` : ''}</td>
+                    <td style={tdStyle}>{d.protocol}</td>
+                    <td style={tdStyle}>
+                      <span style={{ borderRadius: 999, padding: '0.1rem 0.5rem', ...statusBadge[d.status] }}>{d.status}</span>
+                    </td>
+                    <td style={tdStyle}>{d.lastSeenAt ? fmtDate(d.lastSeenAt) : '—'}</td>
+                    <td style={tdStyle}>{d._count?.mappings ?? 0} / {d._count?.logs ?? 0}</td>
+                    <td style={tdStyle}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {canManage && (
+                          <Button variant="secondary" onClick={() => setLogDeviceId(d.id)}>Logs</Button>
+                        )}
+                        {canManage && (
+                          <Button variant="secondary" onClick={() => void syncDevice(d.id)}>Sync</Button>
+                        )}
+                        {canManage && (
+                          <Button variant="secondary" onClick={() => void removeDevice(d.id)}>Retire</Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {selected && (
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <h2 style={{ fontSize: '1rem', margin: 0 }}>
+              {selected.code} — {selected.name} ({
+                selected.location ?? selected.room?.code ?? 'no location'
+              })
+            </h2>
+            <Button variant="secondary" onClick={() => setSelected(null)}>Close panel</Button>
+          </div>
+
+          {canUpdate && (
+            <div style={{ marginTop: 12, background: '#f9fafb', padding: 12, borderRadius: 8, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Input placeholder="External person id (e.g. FP-0001)" value={mapPersonId} onChange={(e) => setMapPersonId(e.target.value)} style={{ width: 180 }} />
+              <select value={mapStudentId ? 's' : mapUserId ? 'u' : ''} onChange={(e) => {
+                setMapStudentId('');
+                setMapUserId('');
+                if (e.target.value === 's' && students[0]) setMapStudentId(students[0].id);
+                if (e.target.value === 'u' && (lookups?.faculty[0]?.id)) setMapUserId(lookups.faculty[0].id);
+              }} style={selectStyle}>
+                <option value="">Map to…</option>
+                <option value="s">Student</option>
+                <option value="u">User / staff</option>
+              </select>
+              {mapStudentId && (
+                <select value={mapStudentId} onChange={(e) => setMapStudentId(e.target.value)} style={selectStyle}>
+                  {students.map((st) => (
+                    <option key={st.id} value={st.id}>{st.fullName} ({st.rollNumber ?? st.admissionNumber})</option>
+                  ))}
+                </select>
+              )}
+              {mapUserId && (
+                <select value={mapUserId} onChange={(e) => setMapUserId(e.target.value)} style={selectStyle}>
+                  {(lookups?.faculty ?? []).map((u) => (
+                    <option key={u.id} value={u.id}>{u.fullName} ({u.email})</option>
+                  ))}
+                </select>
+              )}
+              <Input placeholder="Label (optional)" value={mapLabel} onChange={(e) => setMapLabel(e.target.value)} style={{ width: 150 }} />
+              <Button onClick={() => void upsertMapping()}>Add mapping</Button>
+              <Button variant="secondary" onClick={() => void ingestRow()}>Quick ingest IN</Button>
+            </div>
+          )}
+
+          {mappings.length === 0 && <p style={{ color: '#9ca3af', marginTop: 12 }}>No person mappings. Device events for unmapped ids stay UNMAPPED.</p>}
+          {mappings.length > 0 && (
+            <div style={{ overflowX: 'auto', marginTop: 12 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>External id</th>
+                    <th style={thStyle}>Maps to</th>
+                    <th style={thStyle}>Label</th>
+                    <th style={thStyle}>Active</th>
+                    <th style={thStyle}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mappings.map((m) => (
+                    <tr key={m.id}>
+                      <td style={tdStyle}>{m.externalPersonId}</td>
+                      <td style={tdStyle}>
+                        {m.mappedType === 'STUDENT'
+                          ? `${m.student?.fullName ?? 'Student'} (${m.student?.rollNumber ?? m.student?.admissionNumber ?? '—'})`
+                          : `${m.user?.fullName ?? 'User'} (${m.user?.email ?? '—'})`}
+                      </td>
+                      <td style={tdStyle}>{m.label ?? '—'}</td>
+                      <td style={tdStyle}>{m.isActive ? 'Yes' : 'No'}</td>
+                      <td style={tdStyle}>
+                        {canUpdate && (
+                          <Button variant="secondary" onClick={() => void removeMapping(m.id)}>Remove</Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p style={{ fontSize: '0.8rem', color: '#9ca3af', marginTop: 8 }}>
+            Push endpoint: POST /attendance/devices/ingest/{selected.code}/events with Authorization: Bearer &lt;push token&gt;
+          </p>
+        </Card>
+      )}
+
+      <Card>
+        <h2 style={{ fontSize: '1rem', margin: 0 }}>Device event log</h2>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 12 }}>
+          <select value={logDeviceId} onChange={(e) => setLogDeviceId(e.target.value)} style={selectStyle}>
+            <option value="">All devices</option>
+            {devices.map((d) => (
+              <option key={d.id} value={d.id}>{d.code} — {d.name}</option>
+            ))}
+          </select>
+          <select value={logStatus} onChange={(e) => setLogStatus(e.target.value)} style={selectStyle}>
+            <option value="">All statuses</option>
+            {DEVICE_LOG_STATUSES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+        {logs.length === 0 && <p style={{ color: '#9ca3af', marginTop: 12 }}>No device events recorded.</p>}
+        {logs.length > 0 && (
+          <div style={{ overflowX: 'auto', marginTop: 12 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Device</th>
+                  <th style={thStyle}>Person</th>
+                  <th style={thStyle}>Type</th>
+                  <th style={thStyle}>Captured</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Session</th>
+                  <th style={thStyle}>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log) => (
+                  <tr key={log.id}>
+                    <td style={tdStyle}>{log.device.code}</td>
+                    <td style={tdStyle}>
+                      {log.student
+                        ? `${log.student.fullName} (${log.student.rollNumber ?? '—'})`
+                        : log.user
+                          ? log.user.fullName
+                          : log.externalPersonId ?? '—'}
+                    </td>
+                    <td style={tdStyle}>{log.eventType}</td>
+                    <td style={tdStyle}>{fmtDate(log.capturedAt)} {new Date(log.capturedAt).toISOString().slice(11, 16)}</td>
+                    <td style={tdStyle}>
+                      <span style={{ borderRadius: 999, padding: '0.1rem 0.5rem', ...statusBadge[log.status] }}>{log.status}</span>
+                    </td>
+                    <td style={tdStyle}>{log.session ? `${log.session.subjectCode ?? 'Session'} · ${fmtDate(log.session.date)}` : '—'}</td>
+                    <td style={tdStyle}>{log.processingNote ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }
 

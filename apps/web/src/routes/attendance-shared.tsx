@@ -12,6 +12,11 @@ export const SESSION_STATUSES = ['OPEN', 'CLOSED'] as const;
 export const CORRECTION_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const;
 export const ATTENDANCE_TYPES = ['CLASS', 'LAB', 'TUTORIAL', 'EXAM', 'ASSEMBLY', 'OTHER'] as const;
 export const ATTENDANCE_MARK_METHODS = ['MANUAL', 'QR', 'BIOMETRIC'] as const;
+export const DEVICE_TYPES = ['QR', 'BIOMETRIC', 'RFID', 'MOBILE', 'API'] as const;
+export const DEVICE_PROTOCOLS = ['HTTP_PUSH', 'HTTP_PULL', 'TCP', 'MQTT', 'MANUAL'] as const;
+export const DEVICE_STATUSES = ['ACTIVE', 'INACTIVE', 'SUSPENDED'] as const;
+export const DEVICE_EVENT_TYPES = ['IN', 'OUT', 'SCAN'] as const;
+export const DEVICE_LOG_STATUSES = ['QUEUED', 'APPLIED', 'DUPLICATE', 'UNMAPPED', 'REJECTED', 'ERROR'] as const;
 
 export interface IdName {
   id: string;
@@ -161,6 +166,68 @@ export interface SummaryRow {
   percentage: number;
   requiredPercent: number;
   status: string;
+}
+
+export interface AttendanceDeviceRow {
+  id: string;
+  code: string;
+  name: string;
+  deviceType: string;
+  vendor: string | null;
+  model: string | null;
+  protocol: string;
+  ipAddress: string | null;
+  port: number | null;
+  endpointUrl: string | null;
+  serialNumber: string | null;
+  location: string | null;
+  status: string;
+  roomId: string | null;
+  lastSeenAt: string | null;
+  lastSyncAt: string | null;
+  lastSyncStatus: string | null;
+  lastSyncMessage: string | null;
+  createdAt: string;
+  room: { id: string; name: string | null; code: string | null } | null;
+  _count?: { mappings: number; logs: number };
+}
+
+export interface DeviceMappingRow {
+  id: string;
+  deviceId: string;
+  externalPersonId: string;
+  mappedType: 'STUDENT' | 'USER';
+  studentId: string | null;
+  userId: string | null;
+  label: string | null;
+  isActive: boolean;
+  student: { id: string; fullName: string; rollNumber: string | null; admissionNumber: string } | null;
+  user: { id: string; fullName: string; email: string | null } | null;
+}
+
+export interface DeviceLogRow {
+  id: string;
+  deviceId: string;
+  eventType: string;
+  externalPersonId: string | null;
+  capturedAt: string;
+  ingestSource: string;
+  status: string;
+  processingNote: string | null;
+  processedAt: string | null;
+  device: { id: string; code: string; name: string; deviceType: string };
+  student: { id: string; fullName: string; rollNumber: string | null } | null;
+  user: { id: string; fullName: string; email: string | null } | null;
+  session: { id: string; title: string | null; subjectCode: string | null; subjectName: string | null; date: string } | null;
+}
+
+export interface DeviceCounts {
+  received: number;
+  applied: number;
+  duplicate: number;
+  unmapped: number;
+  rejected: number;
+  error: number;
 }
 
 export function loadError(err: unknown, fallback: string): string {

@@ -322,6 +322,14 @@ export interface TenantConfigAttendance {
   gracePeriodMinutes?: number;
   /** Hours after a session within which correction requests may be raised. */
   correctionWindowHours?: number;
+  /** Master switch for the device-ingest endpoint (HMAC-signed pushes from devices). */
+  deviceIngestEnabled?: boolean;
+  /** Master switch for scheduled/on-demand pulls from device adapters (HTTP_PULL). */
+  deviceSyncEnabled?: boolean;
+  /** Whether QUEUED device events auto-apply marks to matching sessions (false = queue only). */
+  autoApplyDeviceMarks?: boolean;
+  /** Max allowed clock skew (seconds) between a device push timestamp and server time. */
+  ingestMaxSkewSeconds?: number;
 }
 
 export interface TenantConfigFees {
