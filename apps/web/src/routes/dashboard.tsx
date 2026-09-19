@@ -8,6 +8,7 @@ const BILLING_VIEW_PERMISSION = 'tenant.billing.view';
 const CONFIG_VIEW_PERMISSION = 'tenant.config.view';
 const STUDENTS_VIEW_PERMISSION = 'students.view';
 const ADMISSIONS_VIEW_PERMISSION = 'admissions.view';
+const ACADEMICS_VIEW_PERMISSION = 'academics.view';
 const ORG_VIEW_PERMISSIONS = ['campuses.read', 'departments.read', 'programs.read', 'academicYears.read', 'terms.read', 'rooms.read', 'buildings.read', 'sections.read', 'batches.read'];
 
 /** Entitlement-gated navigation section — rendered links are only as trustworthy as the
@@ -49,6 +50,7 @@ export function DashboardPage() {
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           {permissions.includes(STUDENTS_VIEW_PERMISSION) && <Link to="/students">Students</Link>}
           {permissions.includes(ADMISSIONS_VIEW_PERMISSION) && <Link to="/admissions">Admissions</Link>}
+          {permissions.includes(ACADEMICS_VIEW_PERMISSION) && <Link to="/academics">Academics</Link>}
           {permissions.some((p) => ORG_VIEW_PERMISSIONS.includes(p)) && <Link to="/organization">Organization</Link>}
           {permissions.includes(AUDIT_VIEW_PERMISSION) && <Link to="/audit">Audit log</Link>}
           {permissions.includes(BILLING_VIEW_PERMISSION) && <Link to="/billing">Billing</Link>}

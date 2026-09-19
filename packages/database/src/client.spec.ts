@@ -38,6 +38,18 @@ describe('tenant-guard model classification (from Prisma DMMF)', () => {
     'Invoice',
     'InvoiceLineItem',
     'Entitlement',
+    'Course',
+    'CoursePrerequisite',
+    'Curriculum',
+    'CurriculumVersion',
+    'CurriculumCourse',
+    'CourseOffering',
+    'CourseOfferingFaculty',
+    'CourseRegistration',
+    'AcademicAdvisingRecord',
+    'AcademicProgressionRecord',
+    'CourseBacklog',
+    'AcademicCalendarEvent',
   ];
 
   const notTenantScoped = [

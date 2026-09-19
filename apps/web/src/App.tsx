@@ -25,6 +25,7 @@ import { StudentsPage } from './routes/students';
 import { TenantConfigurationPage } from './routes/tenant-configuration';
 import { OrganizationPage } from './routes/organization';
 import { AdmissionsPage } from './routes/admissions';
+import { AcademicsPage } from './routes/academics';
 
 function ProfileRoute() {
   const { id } = useParams<{ id: string }>();
@@ -141,6 +142,14 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <AdmissionsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/academics"
+          element={
+            <ProtectedRoute>
+              <AcademicsPage />
             </ProtectedRoute>
           }
         />

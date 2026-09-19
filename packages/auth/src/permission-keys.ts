@@ -598,6 +598,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     description: 'Takes attendance and enters marks for their own classes; views their department.',
     grants: [
       { key: K.STUDENTS_VIEW, scopeType: S.DEPARTMENT },
+      { key: K.ACADEMICS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.TIMETABLE_VIEW, scopeType: S.OWN },
       { key: K.ATTENDANCE_VIEW, scopeType: S.OWN },
       { key: K.ATTENDANCE_CREATE, scopeType: S.OWN },
@@ -685,6 +686,9 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     description: 'Self-service access to their own academic, attendance, exam, and fee records.',
     grants: [
       { key: K.STUDENTS_VIEW, scopeType: S.OWN },
+      { key: K.ACADEMICS_VIEW, scopeType: S.OWN },
+      { key: K.ACADEMICS_CREATE, scopeType: S.OWN },
+      { key: K.ACADEMICS_UPDATE, scopeType: S.OWN },
       { key: K.TIMETABLE_VIEW, scopeType: S.OWN },
       { key: K.ATTENDANCE_VIEW, scopeType: S.OWN },
       { key: K.EXAMS_VIEW, scopeType: S.OWN },

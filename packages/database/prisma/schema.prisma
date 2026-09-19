@@ -422,6 +422,18 @@ model Tenant {
   admissionFormFields         AdmissionFormField[]
   admissionEligibilityRules   AdmissionEligibilityRule[]
   admissionMessages           AdmissionMessage[]
+  courses                     Course[]
+  coursePrerequisites         CoursePrerequisite[]
+  curricula                   Curriculum[]
+  curriculumVersions          CurriculumVersion[]
+  curriculumCourses           CurriculumCourse[]
+  courseOfferings             CourseOffering[]
+  courseOfferingFaculty       CourseOfferingFaculty[]
+  courseRegistrations         CourseRegistration[]
+  academicAdvisingRecords     AcademicAdvisingRecord[]
+  academicProgressionRecords  AcademicProgressionRecord[]
+  courseBacklogs              CourseBacklog[]
+  academicCalendarEvents      AcademicCalendarEvent[]
 
   @@index([status])
   @@map("tenants")
@@ -892,6 +904,8 @@ model User {
   trustedDevices          TrustedDevice[]
   passwordHistory         PasswordHistory[]
   securityEvents          SecurityEvent[]
+  facultyAssignments      CourseOfferingFaculty[] @relation("FacultyAssignedCourseOfferings")
+  advisingRecords         AcademicAdvisingRecord[] @relation("AdvisorAdvisingRecords")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1260,6 +1274,7 @@ model Campus {
   roleScopeUsers UserRole[]
   students       Student[]
   admissionApplications AdmissionApplication[]
+  courseOfferings CourseOffering[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1285,6 +1300,7 @@ model Department {
 
   programs       Program[]
   roleScopeUsers UserRole[]
+  courses        Course[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1320,6 +1336,9 @@ model Program {
   admissionPrograms AdmissionProgramOffer[]
   admissionEnquiries AdmissionEnquiry[]
   admissionCounsellingSlots AdmissionCounsellingSlot[]
+  curricula       Curriculum[]
+  courseOfferings CourseOffering[]
+  academicProgressionRecords AcademicProgressionRecord[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1351,6 +1370,9 @@ model AcademicYear {
   admissions StudentAdmission[]
   admissionSessions AdmissionSession[]
   admissionApplications AdmissionApplication[]
+  courseOfferings CourseOffering[]
+  academicCalendarEvents AcademicCalendarEvent[]
+  academicProgressionRecords AcademicProgressionRecord[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1386,6 +1408,11 @@ model Term {
   studentFees        StudentFee[]
   studentExams       StudentExam[]
   attendance         StudentAttendance[]
+  courseOfferings        CourseOffering[]
+  courseRegistrations    CourseRegistration[]
+  academicAdvisingRecords AcademicAdvisingRecord[] @relation("TermAdvisingRecords")
+  academicCalendarEvents AcademicCalendarEvent[]
+  courseBacklogs         CourseBacklog[]
 
   @@map("terms")
 }
@@ -1474,6 +1501,8 @@ model Batch {
 
   students           Student[]
   studentEnrollments StudentEnrollment[]
+  courseOfferings        CourseOffering[]
+  academicProgressionRecords AcademicProgressionRecord[]
 
   @@map("batches")
 }
@@ -1507,6 +1536,7 @@ model Section {
   students          Student[]
   studentEnrollments StudentEnrollment[]
   studentExams      StudentExam[]
+  courseOfferings   CourseOffering[]
 
   @@map("sections")
 }
@@ -2055,6 +2085,10 @@ model Student {
   communications   StudentCommunication[]
   activities       StudentActivity[]
   admissionApplications AdmissionApplication[]
+  courseRegistrations    CourseRegistration[]
+  advisingRecords        AcademicAdvisingRecord[]
+  progressionRecords     AcademicProgressionRecord[]
+  backlogs               CourseBacklog[]
 
   @@unique([tenantId, admissionNumber])
   @@index([tenantId])
@@ -3098,4 +3132,463 @@ enum AdmissionMessageChannel {
   EMAIL
   SMS
   IN_APP
+}
+
+// ---------------------------------------------------------------------------
+// Academics (Phase 4) — course catalog, curricula & curriculum versions, course
+// offerings (with faculty assignment), student course registration, academic
+// advising, academic progression / promotion / backlogs, and the academic
+// calendar. Reuses Foundation/Organization master data (Program, AcademicYear,
+// Term — the semester anchor, Campus, Department, Section, Batch) and Student
+// 360 (Student, StudentEnrollment). Faculty are User rows (HR module not built
+// yet), so offerings/advising reference userId. Business rules (prerequisite
+// satisfaction, registration windows/capacity/waitlist, promotion thresholds)
+// are enforced in the Academics API service layer.
+// ---------------------------------------------------------------------------
+
+enum CourseType {
+  CORE
+  ELECTIVE
+  OPEN_ELECTIVE
+  LABORATORY
+  PROJECT
+  INTERNSHIP
+  MINOR
+  OTHER
+}
+
+enum CurriculumVersionStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum CourseOfferingStatus {
+  PLANNED
+  ACTIVE
+  CLOSED
+  CANCELLED
+  COMPLETED
+}
+
+enum FacultyAssignmentRole {
+  PRIMARY
+  CO_TEACHER
+  ASSISTANT
+}
+
+enum CourseRegistrationStatus {
+  REGISTERED
+  CONFIRMED
+  WAITLISTED
+  WITHDRAWN
+  DROPPED
+  COMPLETED
+}
+
+enum AdvisingPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum AdvisingStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CANCELLED
+}
+
+enum ProgressionStatus {
+  CONTINUING
+  PROMOTED
+  REAPPEARING
+  DETAINED
+  GRADUATED
+  WITHDRAWN
+}
+
+enum BacklogStatus {
+  OPEN
+  CLEARED
+  EXEMPTED
+}
+
+/// Core course catalog entry. Owned by a tenant; optionally anchored to the
+/// department that owns the course. Soft-deleted (archive) rather than hard
+/// removed because curricula/offerings/history reference courses.
+model Course {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String      @map("tenant_id") @db.Uuid
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  departmentId String?     @map("department_id") @db.Uuid
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  code         String
+  name         String
+  description  String?
+  creditHours  Int         @default(3) @map("credit_hours")
+  courseType   CourseType  @default(CORE) @map("course_type")
+  /// Open taxonomy (GRADING / PASS_FAIL / SELF_STUDY) so tenant policies drive
+  /// the grading scheme without a schema change.
+  gradingBasis String?     @map("grading_basis")
+  isActive     Boolean     @default(true) @map("is_active")
+  createdBy    String?     @map("created_by") @db.Uuid
+  updatedBy    String?     @map("updated_by") @db.Uuid
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  deletedAt    DateTime?   @map("deleted_at")
+
+  prerequisites      CoursePrerequisite[] @relation("CoursePrerequisiteCourse")
+  requiredBy         CoursePrerequisite[] @relation("CoursePrerequisiteRequired")
+  curriculumCourses  CurriculumCourse[]
+  courseOfferings    CourseOffering[]
+  backlogs           CourseBacklog[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, deletedAt])
+  @@index([departmentId])
+  @@map("courses")
+}
+
+/// Pre-requisite edge between two courses. A course may list multiple required
+/// courses; the rule is satisfied when the student cleared each required course
+/// (optionally with minGrade). Enforced at registration time by the service.
+model CoursePrerequisite {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  courseId         String   @map("course_id") @db.Uuid
+  course           Course   @relation("CoursePrerequisiteCourse", fields: [courseId], references: [id], onDelete: Restrict)
+  requiredCourseId String   @map("required_course_id") @db.Uuid
+  requiredCourse   Course   @relation("CoursePrerequisiteRequired", fields: [requiredCourseId], references: [id], onDelete: Restrict)
+  /// Optional minimum grade required in the prerequisite (e.g. "B").
+  minGrade         String?  @map("min_grade")
+  description      String?
+  createdBy        String?  @map("created_by") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, courseId, requiredCourseId])
+  @@index([tenantId])
+  @@index([requiredCourseId])
+  @@map("course_prerequisites")
+}
+
+/// A named curriculum for a program (e.g. "B.Tech CSE 2026"). Versions below.
+model Curriculum {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  programId   String    @map("program_id") @db.Uuid
+  program     Program   @relation(fields: [programId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  description String?
+  isActive    Boolean   @default(true) @map("is_active")
+  createdBy   String?   @map("created_by") @db.Uuid
+  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  versions CurriculumVersion[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, programId])
+  @@index([tenantId, deletedAt])
+  @@map("curricula")
+}
+
+/// A revision of a curriculum's course map. Only one non-archived version is
+/// CURRENT (isCurrent) at a time; the course map lives in CurriculumCourse so a
+/// version keeps a complete snapshot.
+model CurriculumVersion {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String                  @map("tenant_id") @db.Uuid
+  tenant          Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  curriculumId    String                  @map("curriculum_id") @db.Uuid
+  curriculum      Curriculum              @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  versionNumber   Int                     @map("version_number")
+  name            String?
+  description     String?
+  status          CurriculumVersionStatus @default(DRAFT)
+  effectiveFrom   DateTime?               @map("effective_from")
+  effectiveTo     DateTime?               @map("effective_to")
+  minTotalCredits Int?                    @map("min_total_credits")
+  isCurrent       Boolean                 @default(false) @map("is_current")
+  createdBy       String?                 @map("created_by") @db.Uuid
+  updatedBy       String?                 @map("updated_by") @db.Uuid
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+
+  courses CurriculumCourse[]
+
+  @@unique([tenantId, curriculumId, versionNumber])
+  @@index([tenantId, curriculumId])
+  @@index([tenantId, status])
+  @@map("curriculum_versions")
+}
+
+/// Course membership in a CurriculumVersion: which course is taught in which
+/// semester, whether it is compulsory, and any credit override that modifies the
+/// course's default creditHours within this version.
+model CurriculumCourse {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  curriculumVersionId String    @map("curriculum_version_id") @db.Uuid
+  curriculumVersion   CurriculumVersion @relation(fields: [curriculumVersionId], references: [id], onDelete: Cascade)
+  courseId            String    @map("course_id") @db.Uuid
+  course              Course    @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  /// 1-based semester slot in the program (matches the curriculum's semester grid).
+  semester            Int
+  /// Open taxonomy (CORE / ELECTIVE / OPEN_ELECTIVE ...) aligned to CourseType.
+  category            String?
+  isCompulsory        Boolean   @default(true) @map("is_compulsory")
+  sequence            Int       @default(0)
+  minGrade            String?   @map("min_grade")
+  creditOverride      Int?      @map("credit_override")
+  createdBy           String?   @map("created_by") @db.Uuid
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, curriculumVersionId, courseId])
+  @@index([tenantId, curriculumVersionId, semester])
+  @@index([tenantId, courseId])
+  @@map("curriculum_courses")
+}
+
+/// A concrete run of a course in a term for a section/batch (e.g. CS101 2026-1
+/// Section A). Registers seats and windows; faculty assignment is separate
+/// (CourseOfferingFaculty) so multiple instructors can share an offering.
+model CourseOffering {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String               @map("tenant_id") @db.Uuid
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  courseId          String               @map("course_id") @db.Uuid
+  course            Course               @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  termId            String               @map("term_id") @db.Uuid
+  term              Term                 @relation(fields: [termId], references: [id], onDelete: Restrict)
+  academicYearId    String               @map("academic_year_id") @db.Uuid
+  academicYear      AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  programId         String               @map("program_id") @db.Uuid
+  program           Program              @relation(fields: [programId], references: [id], onDelete: Restrict)
+  sectionId         String?              @map("section_id") @db.Uuid
+  section           Section?             @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  batchId           String?              @map("batch_id") @db.Uuid
+  batch             Batch?               @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  campusId          String?              @map("campus_id") @db.Uuid
+  campus            Campus?              @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  code              String
+  /// Credit override for this offering; falls back to course creditHours.
+  creditHours       Int?                 @map("credit_hours")
+  status            CourseOfferingStatus @default(PLANNED)
+  mode              String?
+  capacity          Int?
+  waitlistCapacity  Int?                 @default(0) @map("waitlist_capacity")
+  enrollmentStartAt DateTime?            @map("enrollment_start_at")
+  enrollmentEndAt   DateTime?            @map("enrollment_end_at")
+  schedule          Json?
+  createdBy         String?              @map("created_by") @db.Uuid
+  updatedBy         String?              @map("updated_by") @db.Uuid
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  deletedAt         DateTime?            @map("deleted_at")
+
+  faculty       CourseOfferingFaculty[]
+  registrations CourseRegistration[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, termId])
+  @@index([tenantId, courseId])
+  @@index([tenantId, programId])
+  @@index([tenantId, sectionId])
+  @@index([tenantId, batchId])
+  @@index([tenantId, status])
+  @@index([tenantId, deletedAt])
+  @@map("course_offerings")
+}
+
+/// Faculty assignment to a course offering. Faculty are User rows (HR module not
+/// built yet); assignments are additive so multiple instructors can coordinate.
+model CourseOfferingFaculty {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  courseOfferingId  String                @map("course_offering_id") @db.Uuid
+  courseOffering    CourseOffering        @relation(fields: [courseOfferingId], references: [id], onDelete: Cascade)
+  userId            String                @map("user_id") @db.Uuid
+  user              User                  @relation("FacultyAssignedCourseOfferings", fields: [userId], references: [id], onDelete: Restrict)
+  role              FacultyAssignmentRole @default(CO_TEACHER)
+  allocationPercent Int?                  @map("allocation_percent")
+  isActive          Boolean               @default(true) @map("is_active")
+  createdBy         String?               @map("created_by") @db.Uuid
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  @@unique([tenantId, courseOfferingId, userId])
+  @@index([tenantId, userId])
+  @@map("course_offering_faculty")
+}
+
+/// A student's registration in a course offering for a term. Capacity/waitlist
+/// handling and prerequisite validation happen in the service layer.
+model CourseRegistration {
+  id               String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                  @map("tenant_id") @db.Uuid
+  tenant           Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId        String                  @map("student_id") @db.Uuid
+  student          Student                 @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  courseOfferingId String                  @map("course_offering_id") @db.Uuid
+  courseOffering   CourseOffering          @relation(fields: [courseOfferingId], references: [id], onDelete: Restrict)
+  termId           String                  @map("term_id") @db.Uuid
+  term             Term                    @relation(fields: [termId], references: [id], onDelete: Restrict)
+  status           CourseRegistrationStatus @default(REGISTERED)
+  waitlistPosition Int?                    @map("waitlist_position")
+  enrolledAt       DateTime                @default(now()) @map("enrolled_at")
+  approvedByUserId String?                 @map("approved_by_user_id") @db.Uuid
+  dropReason       String?                 @map("drop_reason")
+  completedAt      DateTime?               @map("completed_at")
+  createdBy        String?                 @map("created_by") @db.Uuid
+  updatedBy        String?                 @map("updated_by") @db.Uuid
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  backlogs         CourseBacklog[] @relation("BacklogRegistration")
+  backlogClearedIn CourseBacklog[] @relation("BacklogClearedRegistration")
+
+  @@unique([tenantId, studentId, courseOfferingId])
+  @@index([tenantId, status])
+  @@index([tenantId, studentId, termId])
+  @@map("course_registrations")
+}
+
+/// Academic advising / counselling session with a student. sessionType is free-form
+/// (ACADEMIC / COURSE_PLANNING / BACKLOG / CAREER / OTHER); resolution is explicit.
+model AcademicAdvisingRecord {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String          @map("tenant_id") @db.Uuid
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId     String          @map("student_id") @db.Uuid
+  student       Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  advisorUserId String          @map("advisor_user_id") @db.Uuid
+  advisor       User            @relation("AdvisorAdvisingRecords", fields: [advisorUserId], references: [id], onDelete: Restrict)
+  termId        String?         @map("term_id") @db.Uuid
+  term          Term?           @relation("TermAdvisingRecords", fields: [termId], references: [id], onDelete: SetNull)
+  sessionType   String          @default("ACADEMIC") @map("session_type")
+  summary       String
+  details       String?
+  actionItems   String?         @map("action_items")
+  priority      AdvisingPriority @default(NORMAL)
+  status        AdvisingStatus  @default(OPEN)
+  followUpAt    DateTime?       @map("follow_up_at")
+  resolvedAt    DateTime?       @map("resolved_at")
+  createdBy     String?         @map("created_by") @db.Uuid
+  updatedBy     String?         @map("updated_by") @db.Uuid
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@index([tenantId, advisorUserId])
+  @@index([tenantId, status])
+  @@map("academic_advising_records")
+}
+
+/// Year/term snapshot of a student's progression through their program: the
+/// semester horizon, earned/required credits, backlog counts, and a promotion
+/// decision. Append-only history that the promotion process writes.
+model AcademicProgressionRecord {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId      String           @map("student_id") @db.Uuid
+  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  programId      String           @map("program_id") @db.Uuid
+  program        Program          @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYearId String           @map("academic_year_id") @db.Uuid
+  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  batchId        String?          @map("batch_id") @db.Uuid
+  batch          Batch?           @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  fromSemester   Int              @map("from_semester")
+  toSemester     Int              @map("to_semester")
+  status         ProgressionStatus
+  creditsEarned  Int?             @map("credits_earned")
+  creditsRequired Int?            @map("credits_required")
+  gpaScore       Float?           @map("gpa_score")
+  backlogOpen    Int              @default(0) @map("backlog_open")
+  backlogCleared Int              @default(0) @map("backlog_cleared")
+  decisionBy     String?          @map("decision_by") @db.Uuid
+  decidedAt      DateTime?        @map("decided_at")
+  remarks        String?
+  createdBy      String?          @map("created_by") @db.Uuid
+  updatedBy      String?          @map("updated_by") @db.Uuid
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@index([tenantId, academicYearId])
+  @@index([tenantId, status])
+  @@map("academic_progression_records")
+}
+
+/// A failed (backlog) course a student must clear to be promoted. Clearing is an
+/// explicit transition that the progression/promotion flow applies to a later
+/// successful registration.
+model CourseBacklog {
+  id                      String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String              @map("tenant_id") @db.Uuid
+  tenant                  Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId               String              @map("student_id") @db.Uuid
+  student                 Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId                String              @map("course_id") @db.Uuid
+  course                  Course              @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  registrationId          String?             @map("registration_id") @db.Uuid
+  registration            CourseRegistration? @relation("BacklogRegistration", fields: [registrationId], references: [id], onDelete: SetNull)
+  termId                  String              @map("term_id") @db.Uuid
+  term                    Term                @relation(fields: [termId], references: [id], onDelete: Restrict)
+  status                  BacklogStatus       @default(OPEN)
+  clearedAt               DateTime?           @map("cleared_at")
+  clearedInRegistrationId String?             @map("cleared_in_registration_id") @db.Uuid
+  clearedInRegistration   CourseRegistration? @relation("BacklogClearedRegistration", fields: [clearedInRegistrationId], references: [id], onDelete: SetNull)
+  remarks                 String?
+  createdBy               String?             @map("created_by") @db.Uuid
+  updatedBy               String?             @map("updated_by") @db.Uuid
+  createdAt               DateTime            @default(now()) @map("created_at")
+  updatedAt               DateTime            @updatedAt @map("updated_at")
+
+  @@unique([tenantId, studentId, courseId, termId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, status])
+  @@map("course_backlogs")
+}
+
+/// Academic calendar / event announcements. eventType and appliesTo are free-form
+/// taxonomy (REGISTRATION / FEE / EXAM / HOLIDAY / EVENT; GLOBAL / PROGRAM /
+/// DEPARTMENT) so tenants drive their own categories. Publishing is opt-in.
+model AcademicCalendarEvent {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String       @map("tenant_id") @db.Uuid
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  academicYearId String       @map("academic_year_id") @db.Uuid
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  termId         String?      @map("term_id") @db.Uuid
+  term           Term?        @relation(fields: [termId], references: [id], onDelete: SetNull)
+  eventType      String       @default("EVENT") @map("event_type")
+  title          String
+  description    String?
+  startAt        DateTime     @map("start_at")
+  endAt          DateTime     @map("end_at")
+  appliesTo      String?      @default("GLOBAL") @map("applies_to")
+  color          String?
+  isPublished    Boolean      @default(false) @map("is_published")
+  createdBy      String?      @map("created_by") @db.Uuid
+  updatedBy      String?      @map("updated_by") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([tenantId, academicYearId])
+  @@index([tenantId, eventType])
+  @@index([tenantId, isPublished])
+  @@map("academic_calendar_events")
 }
