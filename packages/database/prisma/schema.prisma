@@ -378,7 +378,7 @@ model Tenant {
   passwordHistory             PasswordHistory[]
   securityEvents              SecurityEvent[]
   securitySettings            TenantSecuritySettings?
-  configuration              TenantConfiguration?
+  configuration               TenantConfiguration?
   workflowDefinitions         WorkflowDefinition[]
   workflowStates              WorkflowState[]
   workflowTransitions         WorkflowTransition[]
@@ -434,6 +434,14 @@ model Tenant {
   academicProgressionRecords  AcademicProgressionRecord[]
   courseBacklogs              CourseBacklog[]
   academicCalendarEvents      AcademicCalendarEvent[]
+  timetables                  Timetable[]
+  timetablePeriods            TimetablePeriod[]
+  timetableEntries            TimetableEntry[]
+  timetableHolidays           TimetableHoliday[]
+  facultyAvailability         FacultyAvailability[]
+  timetableConflicts          TimetableConflict[]
+  timetableSubstitutions      TimetableSubstitution[]
+  timetableHistory            TimetableHistory[]
 
   @@index([status])
   @@map("tenants")
@@ -542,15 +550,15 @@ model PlanFeatureFlag {
 /// that no boolean FeatureFlag models today. No tenantId — like Plan/PlanFeatureFlag this is
 /// pure catalog data, only ever read/written through PlatformPrismaService.
 model PlanModule {
-  id            String          @id @default(cuid())
-  planId        String          @map("plan_id")
-  plan          Plan            @relation(fields: [planId], references: [id])
-  moduleKey     String          @map("module_key")
-  name          String
-  type          EntitlementType @default(BOOLEAN)
+  id         String          @id @default(cuid())
+  planId     String          @map("plan_id")
+  plan       Plan            @relation(fields: [planId], references: [id])
+  moduleKey  String          @map("module_key")
+  name       String
+  type       EntitlementType @default(BOOLEAN)
   /// Only meaningful when type = QUANTITY (e.g. limitValue = 5 extra campuses). Null for BOOLEAN.
-  limitValue    Int?            @map("limit_value")
-  createdAt     DateTime        @default(now()) @map("created_at")
+  limitValue Int?            @map("limit_value")
+  createdAt  DateTime        @default(now()) @map("created_at")
 
   @@unique([planId, moduleKey])
   @@map("plan_modules")
@@ -667,26 +675,26 @@ model Invoice {
 /// reached through PlatformPrismaService with explicit tenantId/invoiceId filtering — never the
 /// tenant-guard extension.
 model Payment {
-  id            String        @id @default(cuid())
-  tenantId      String        @map("tenant_id") @db.Uuid
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  subscriptionId String       @map("subscription_id")
-  subscription  Subscription  @relation(fields: [subscriptionId], references: [id])
-  invoiceId     String        @map("invoice_id")
-  invoice       Invoice       @relation(fields: [invoiceId], references: [id])
-  amountCents   Int           @map("amount_cents")
-  currency      String        @default("INR")
-  status        PaymentStatus @default(PENDING)
-  method        PaymentMethod
+  id                      String        @id @default(cuid())
+  tenantId                String        @map("tenant_id") @db.Uuid
+  tenant                  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subscriptionId          String        @map("subscription_id")
+  subscription            Subscription  @relation(fields: [subscriptionId], references: [id])
+  invoiceId               String        @map("invoice_id")
+  invoice                 Invoice       @relation(fields: [invoiceId], references: [id])
+  amountCents             Int           @map("amount_cents")
+  currency                String        @default("INR")
+  status                  PaymentStatus @default(PENDING)
+  method                  PaymentMethod
   /// External gateway transaction id for a real integration (Phase 6+/payments module); null
   /// for manual/offline reconciliation, which is the only mode today.
-  gatewayReference String? @unique @map("gateway_reference")
-  failureReason String?       @map("failure_reason")
-  paidAt        DateTime?     @map("paid_at")
-  refundedAt    DateTime?     @map("refunded_at")
-  createdByPlatformUserId String? @map("created_by_platform_user_id")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  gatewayReference        String?       @unique @map("gateway_reference")
+  failureReason           String?       @map("failure_reason")
+  paidAt                  DateTime?     @map("paid_at")
+  refundedAt              DateTime?     @map("refunded_at")
+  createdByPlatformUserId String?       @map("created_by_platform_user_id")
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([invoiceId])
@@ -904,8 +912,12 @@ model User {
   trustedDevices          TrustedDevice[]
   passwordHistory         PasswordHistory[]
   securityEvents          SecurityEvent[]
-  facultyAssignments      CourseOfferingFaculty[] @relation("FacultyAssignedCourseOfferings")
+  facultyAssignments      CourseOfferingFaculty[]  @relation("FacultyAssignedCourseOfferings")
   advisingRecords         AcademicAdvisingRecord[] @relation("AdvisorAdvisingRecords")
+  timetableEntries        TimetableEntry[]         @relation("FacultyTimetableEntries")
+  publishedTimetables     Timetable[]              @relation("TimetablePublisher")
+  availabilityBlocks      FacultyAvailability[]    @relation("FacultyAvailabilityBlocks")
+  substitutions           TimetableSubstitution[]  @relation("SubstituteTimetableEntries")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1268,13 +1280,14 @@ model Campus {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  departments    Department[]
-  buildings      Building[]
-  rooms          Room[]
-  roleScopeUsers UserRole[]
-  students       Student[]
+  departments           Department[]
+  buildings             Building[]
+  rooms                 Room[]
+  roleScopeUsers        UserRole[]
+  students              Student[]
   admissionApplications AdmissionApplication[]
-  courseOfferings CourseOffering[]
+  courseOfferings       CourseOffering[]
+  timetables            Timetable[]            @relation("CampusTimetables")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1326,18 +1339,18 @@ model Program {
   updatedAt     DateTime    @updatedAt @map("updated_at")
   deletedAt     DateTime?   @map("deleted_at")
 
-  roleScopeUsers UserRole[]
-  sections       Section[]
-  batches        Batch[]
-  students       Student[]
-  enrollments    StudentEnrollment[]
-  admissions     StudentAdmission[]
-  exams          StudentExam[]
-  admissionPrograms AdmissionProgramOffer[]
-  admissionEnquiries AdmissionEnquiry[]
-  admissionCounsellingSlots AdmissionCounsellingSlot[]
-  curricula       Curriculum[]
-  courseOfferings CourseOffering[]
+  roleScopeUsers             UserRole[]
+  sections                   Section[]
+  batches                    Batch[]
+  students                   Student[]
+  enrollments                StudentEnrollment[]
+  admissions                 StudentAdmission[]
+  exams                      StudentExam[]
+  admissionPrograms          AdmissionProgramOffer[]
+  admissionEnquiries         AdmissionEnquiry[]
+  admissionCounsellingSlots  AdmissionCounsellingSlot[]
+  curricula                  Curriculum[]
+  courseOfferings            CourseOffering[]
   academicProgressionRecords AcademicProgressionRecord[]
 
   @@unique([tenantId, code])
@@ -1362,16 +1375,16 @@ model AcademicYear {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  terms    Term[]
-  sections Section[] @relation("AcademicYearSections")
-  batches  Batch[]   @relation("AcademicYearBatches")
-  students Student[]
-  enrollments StudentEnrollment[]
-  admissions StudentAdmission[]
-  admissionSessions AdmissionSession[]
-  admissionApplications AdmissionApplication[]
-  courseOfferings CourseOffering[]
-  academicCalendarEvents AcademicCalendarEvent[]
+  terms                      Term[]
+  sections                   Section[]                   @relation("AcademicYearSections")
+  batches                    Batch[]                     @relation("AcademicYearBatches")
+  students                   Student[]
+  enrollments                StudentEnrollment[]
+  admissions                 StudentAdmission[]
+  admissionSessions          AdmissionSession[]
+  admissionApplications      AdmissionApplication[]
+  courseOfferings            CourseOffering[]
+  academicCalendarEvents     AcademicCalendarEvent[]
   academicProgressionRecords AcademicProgressionRecord[]
 
   @@unique([tenantId, code])
@@ -1399,21 +1412,21 @@ model Term {
   updatedAt      DateTime     @updatedAt @map("updated_at")
   deletedAt      DateTime?    @map("deleted_at")
 
+  studentEnrollments      StudentEnrollment[]
+  studentFees             StudentFee[]
+  studentExams            StudentExam[]
+  attendance              StudentAttendance[]
+  courseOfferings         CourseOffering[]
+  courseRegistrations     CourseRegistration[]
+  academicAdvisingRecords AcademicAdvisingRecord[] @relation("TermAdvisingRecords")
+  academicCalendarEvents  AcademicCalendarEvent[]
+  courseBacklogs          CourseBacklog[]
+  timetables              Timetable[]              @relation("TermTimetables")
+
   @@unique([academicYearId, code])
   @@index([tenantId])
   @@index([academicYearId])
   @@index([tenantId, deletedAt])
-
-  studentEnrollments StudentEnrollment[]
-  studentFees        StudentFee[]
-  studentExams       StudentExam[]
-  attendance         StudentAttendance[]
-  courseOfferings        CourseOffering[]
-  courseRegistrations    CourseRegistration[]
-  academicAdvisingRecords AcademicAdvisingRecord[] @relation("TermAdvisingRecords")
-  academicCalendarEvents AcademicCalendarEvent[]
-  courseBacklogs         CourseBacklog[]
-
   @@map("terms")
 }
 
@@ -1438,6 +1451,8 @@ model Room {
   updatedAt    DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
+  timetableEntries TimetableEntry[] @relation("RoomTimetableEntries")
+
   @@unique([campusId, code])
   @@index([tenantId])
   @@index([campusId])
@@ -1447,19 +1462,19 @@ model Room {
 }
 
 model Building {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String   @map("tenant_id") @db.Uuid
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  campusId    String   @map("campus_id") @db.Uuid
-  campus      Campus   @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId    String    @map("campus_id") @db.Uuid
+  campus      Campus    @relation(fields: [campusId], references: [id], onDelete: Restrict)
   code        String
   name        String
-  addressLine String?  @map("address_line")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdBy   String?  @map("created_by") @db.Uuid
-  updatedBy   String?  @map("updated_by") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  addressLine String?   @map("address_line")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdBy   String?   @map("created_by") @db.Uuid
+  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
   rooms Room[]
@@ -1475,35 +1490,34 @@ model Building {
 /// Batch"). academicYearId is the year the cohort started — optional because the admissions
 /// module (which will actually tick batches forward) is a later pass.
 model Batch {
-  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String        @map("tenant_id") @db.Uuid
-  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  programId         String        @map("program_id") @db.Uuid
-  program           Program       @relation(fields: [programId], references: [id], onDelete: Restrict)
-  academicYearId    String?       @map("academic_year_id") @db.Uuid
-  academicYear      AcademicYear? @relation("AcademicYearBatches", fields: [academicYearId], references: [id], onDelete: SetNull)
-  code              String
-  name              String
-  startDate         DateTime?     @map("start_date")
-  endDate           DateTime?     @map("end_date")
-  isActive          Boolean       @default(true) @map("is_active")
-  createdBy         String?       @map("created_by") @db.Uuid
-  updatedBy         String?       @map("updated_by") @db.Uuid
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
-  deletedAt         DateTime?     @map("deleted_at")
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String        @map("tenant_id") @db.Uuid
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  programId      String        @map("program_id") @db.Uuid
+  program        Program       @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYearId String?       @map("academic_year_id") @db.Uuid
+  academicYear   AcademicYear? @relation("AcademicYearBatches", fields: [academicYearId], references: [id], onDelete: SetNull)
+  code           String
+  name           String
+  startDate      DateTime?     @map("start_date")
+  endDate        DateTime?     @map("end_date")
+  isActive       Boolean       @default(true) @map("is_active")
+  createdBy      String?       @map("created_by") @db.Uuid
+  updatedBy      String?       @map("updated_by") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+
+  students                   Student[]
+  studentEnrollments         StudentEnrollment[]
+  courseOfferings            CourseOffering[]
+  academicProgressionRecords AcademicProgressionRecord[]
 
   @@unique([tenantId, programId, code])
   @@index([tenantId])
   @@index([programId])
   @@index([academicYearId])
   @@index([tenantId, deletedAt])
-
-  students           Student[]
-  studentEnrollments StudentEnrollment[]
-  courseOfferings        CourseOffering[]
-  academicProgressionRecords AcademicProgressionRecord[]
-
   @@map("batches")
 }
 
@@ -1527,17 +1541,17 @@ model Section {
   updatedAt      DateTime      @updatedAt @map("updated_at")
   deletedAt      DateTime?     @map("deleted_at")
 
+  students           Student[]
+  studentEnrollments StudentEnrollment[]
+  studentExams       StudentExam[]
+  courseOfferings    CourseOffering[]
+  timetableEntries   TimetableEntry[]    @relation("SectionTimetableEntries")
+
   @@unique([tenantId, programId, code])
   @@index([tenantId])
   @@index([programId])
   @@index([academicYearId])
   @@index([tenantId, deletedAt])
-
-  students          Student[]
-  studentEnrollments StudentEnrollment[]
-  studentExams      StudentExam[]
-  courseOfferings   CourseOffering[]
-
   @@map("sections")
 }
 
@@ -2066,29 +2080,29 @@ model Student {
   /// transitions are the "state" path.
   deletedAt             DateTime?     @map("deleted_at")
 
-  guardians        Guardian[]
-  documents        StudentDocument[]
-  admissions       StudentAdmission[]
-  academicRecords  StudentAcademicRecord[]
-  enrollments      StudentEnrollment[]
-  attendance       StudentAttendance[]
-  fees             StudentFee[]
-  payments         StudentPayment[]
-  exams            StudentExam[]
-  results          StudentResult[]
-  certificates     StudentCertificate[]
-  libraryLoans     StudentLibraryLoan[]
-  hostelBookings   StudentHostelBooking[]
-  transportPasses  StudentTransportPass[]
-  holds            StudentHold[]
-  statusHistory    StudentStatusHistory[]
-  communications   StudentCommunication[]
-  activities       StudentActivity[]
+  guardians             Guardian[]
+  documents             StudentDocument[]
+  admissions            StudentAdmission[]
+  academicRecords       StudentAcademicRecord[]
+  enrollments           StudentEnrollment[]
+  attendance            StudentAttendance[]
+  fees                  StudentFee[]
+  payments              StudentPayment[]
+  exams                 StudentExam[]
+  results               StudentResult[]
+  certificates          StudentCertificate[]
+  libraryLoans          StudentLibraryLoan[]
+  hostelBookings        StudentHostelBooking[]
+  transportPasses       StudentTransportPass[]
+  holds                 StudentHold[]
+  statusHistory         StudentStatusHistory[]
+  communications        StudentCommunication[]
+  activities            StudentActivity[]
   admissionApplications AdmissionApplication[]
-  courseRegistrations    CourseRegistration[]
-  advisingRecords        AcademicAdvisingRecord[]
-  progressionRecords     AcademicProgressionRecord[]
-  backlogs               CourseBacklog[]
+  courseRegistrations   CourseRegistration[]
+  advisingRecords       AcademicAdvisingRecord[]
+  progressionRecords    AcademicProgressionRecord[]
+  backlogs              CourseBacklog[]
 
   @@unique([tenantId, admissionNumber])
   @@index([tenantId])
@@ -2105,23 +2119,23 @@ model Student {
 /// enum because these are well-bounded product concepts; everything else (occupation,
 /// address) is free text.
 model Guardian {
-  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String        @map("tenant_id") @db.Uuid
-  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId         String        @map("student_id") @db.Uuid
-  student           Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  name              String
-  kind              GuardianKind
-  role              GuardianRole  @default(PRIMARY)
-  phone             String?
-  email             String?
-  occupation        String?
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String       @map("tenant_id") @db.Uuid
+  tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId          String       @map("student_id") @db.Uuid
+  student            Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  name               String
+  kind               GuardianKind
+  role               GuardianRole @default(PRIMARY)
+  phone              String?
+  email              String?
+  occupation         String?
   monthlyIncomeCents Int?         @map("monthly_income_cents")
-  address           String?
-  createdBy         String?       @map("created_by") @db.Uuid
-  updatedBy         String?       @map("updated_by") @db.Uuid
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  address            String?
+  createdBy          String?      @map("created_by") @db.Uuid
+  updatedBy          String?      @map("updated_by") @db.Uuid
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2132,26 +2146,26 @@ model Guardian {
 /// key follows the same tenant-prefixed convention as the control-plane Document model;
 /// verification is an explicit first-class step so the records office can vet each file.
 model StudentDocument {
-  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String               @map("tenant_id") @db.Uuid
-  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId        String               @map("student_id") @db.Uuid
-  student          Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                @map("tenant_id") @db.Uuid
+  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId        String                @map("student_id") @db.Uuid
+  student          Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
   /// e.g. ID_PROOF / ACADEMIC / ADDRESS_PROOF / PHOTO / OTHER — free-form so the tenant's
   /// admissions document checklist (TenantConfiguration) drives what categories exist.
   category         String
-  documentName     String               @map("document_name")
-  storageKey       String?              @map("storage_key")
-  originalFilename String?              @map("original_filename")
-  mimeType         String?              @map("mime_type")
-  sizeBytes        Int?                 @map("size_bytes")
+  documentName     String                @map("document_name")
+  storageKey       String?               @map("storage_key")
+  originalFilename String?               @map("original_filename")
+  mimeType         String?               @map("mime_type")
+  sizeBytes        Int?                  @map("size_bytes")
   status           StudentDocumentStatus @default(PENDING)
-  verifiedAt       DateTime?            @map("verified_at")
-  verifiedBy       String?              @map("verified_by") @db.Uuid
+  verifiedAt       DateTime?             @map("verified_at")
+  verifiedBy       String?               @map("verified_by") @db.Uuid
   remarks          String?
-  uploadedBy       String?              @map("uploaded_by") @db.Uuid
-  createdAt        DateTime             @default(now()) @map("created_at")
-  updatedAt        DateTime             @updatedAt @map("updated_at")
+  uploadedBy       String?               @map("uploaded_by") @db.Uuid
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2163,25 +2177,25 @@ model StudentDocument {
 /// more than one: applied, got an offer, deferred, re-admitted). mode is a free-form string
 /// (MERIT / MANAGEMENT / LATERAL / DIRECT) so tenant policies don't require a schema change.
 model StudentAdmission {
-  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String          @map("tenant_id") @db.Uuid
-  tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId          String          @map("student_id") @db.Uuid
-  student            Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  applicationNumber  String          @map("application_number")
-  programId          String          @map("program_id") @db.Uuid
-  program            Program         @relation(fields: [programId], references: [id], onDelete: Restrict)
-  academicYearId     String?         @map("academic_year_id") @db.Uuid
-  academicYear       AcademicYear?   @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
-  appliedAt          DateTime        @map("applied_at")
-  status             AdmissionStatus @default(APPLIED)
-  mode               String?
-  offerLetterKey     String?         @map("offer_letter_key")
-  admissionFeeCents  Int?            @map("admission_fee_cents")
-  remarks            String?
-  createdBy          String?         @map("created_by") @db.Uuid
-  createdAt          DateTime        @default(now()) @map("created_at")
-  updatedAt          DateTime        @updatedAt @map("updated_at")
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String          @map("tenant_id") @db.Uuid
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId         String          @map("student_id") @db.Uuid
+  student           Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  applicationNumber String          @map("application_number")
+  programId         String          @map("program_id") @db.Uuid
+  program           Program         @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYearId    String?         @map("academic_year_id") @db.Uuid
+  academicYear      AcademicYear?   @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  appliedAt         DateTime        @map("applied_at")
+  status            AdmissionStatus @default(APPLIED)
+  mode              String?
+  offerLetterKey    String?         @map("offer_letter_key")
+  admissionFeeCents Int?            @map("admission_fee_cents")
+  remarks           String?
+  createdBy         String?         @map("created_by") @db.Uuid
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
 
   @@unique([tenantId, applicationNumber])
   @@index([tenantId])
@@ -2193,27 +2207,27 @@ model StudentAdmission {
 /// Academic (prior-education) history — institutions/certificates the student earned before
 /// (or alongside) the current program: higher-secondary board marksheet, prior degree, etc.
 model StudentAcademicRecord {
-  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId               String               @map("tenant_id") @db.Uuid
-  tenant                 Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId              String               @map("student_id") @db.Uuid
-  student                Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String                @map("tenant_id") @db.Uuid
+  tenant                 Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId              String                @map("student_id") @db.Uuid
+  student                Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
   institution            String
   board                  String?
   degree                 String?
-  yearOfPassing          Int?                 @map("year_of_passing")
+  yearOfPassing          Int?                  @map("year_of_passing")
   percentage             Float?
   gpa                    Float?
   grade                  String?
-  marksObtained          Int?                 @map("marks_obtained")
-  marksOutOf             Int?                 @map("marks_out_of")
+  marksObtained          Int?                  @map("marks_obtained")
+  marksOutOf             Int?                  @map("marks_out_of")
   rank                   String?
-  isHighestQualification Boolean              @default(false) @map("is_highest_qualification")
+  isHighestQualification Boolean               @default(false) @map("is_highest_qualification")
   verificationStatus     StudentDocumentStatus @default(PENDING) @map("verification_status")
   remarks                String?
-  createdBy              String?              @map("created_by") @db.Uuid
-  createdAt              DateTime             @default(now()) @map("created_at")
-  updatedAt              DateTime             @updatedAt @map("updated_at")
+  createdBy              String?               @map("created_by") @db.Uuid
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2260,22 +2274,22 @@ model StudentEnrollment {
 /// Per-student attendance ledger day/class records. attendanceType is free-form (CLASS / DAY /
 /// PERIOD) so the timetable module's shape can drive it without a migration.
 model StudentAttendance {
-  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String           @map("tenant_id") @db.Uuid
-  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId     String           @map("student_id") @db.Uuid
-  student       Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  date          DateTime         @map("date")
-  attendanceType String          @default("CLASS") @map("attendance_type")
-  termId        String?          @map("term_id") @db.Uuid
-  term          Term?            @relation(fields: [termId], references: [id], onDelete: SetNull)
-  subjectCode   String?          @map("subject_code")
-  subjectName   String?          @map("subject_name")
-  status        AttendanceStatus @default(PRESENT)
-  markedByUserId String?         @map("marked_by_user_id") @db.Uuid
-  remarks       String?
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId      String           @map("student_id") @db.Uuid
+  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date           DateTime         @map("date")
+  attendanceType String           @default("CLASS") @map("attendance_type")
+  termId         String?          @map("term_id") @db.Uuid
+  term           Term?            @relation(fields: [termId], references: [id], onDelete: SetNull)
+  subjectCode    String?          @map("subject_code")
+  subjectName    String?          @map("subject_name")
+  status         AttendanceStatus @default(PRESENT)
+  markedByUserId String?          @map("marked_by_user_id") @db.Uuid
+  remarks        String?
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2321,24 +2335,24 @@ model StudentFee {
 /// PaymentStatus enums rather than inventing a parallel taxonomy; recordedByUserId is the
 /// tenant staff member who logged the receipt.
 model StudentPayment {
-  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId        String        @map("tenant_id") @db.Uuid
-  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId       String        @map("student_id") @db.Uuid
-  student         Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentFeeId    String?       @map("student_fee_id") @db.Uuid
-  studentFee      StudentFee?   @relation(fields: [studentFeeId], references: [id], onDelete: Cascade)
-  receiptNumber   String        @map("receipt_number")
-  amountCents     Int           @map("amount_cents")
-  currency        String        @default("INR")
-  paymentDate     DateTime      @map("payment_date")
-  method          PaymentMethod
-  status          PaymentStatus @default(SUCCEEDED)
-  referenceNumber String?       @map("reference_number")
-  recordedByUserId String?      @map("recorded_by_user_id") @db.Uuid
-  remarks         String?
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String        @map("tenant_id") @db.Uuid
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId        String        @map("student_id") @db.Uuid
+  student          Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentFeeId     String?       @map("student_fee_id") @db.Uuid
+  studentFee       StudentFee?   @relation(fields: [studentFeeId], references: [id], onDelete: Cascade)
+  receiptNumber    String        @map("receipt_number")
+  amountCents      Int           @map("amount_cents")
+  currency         String        @default("INR")
+  paymentDate      DateTime      @map("payment_date")
+  method           PaymentMethod
+  status           PaymentStatus @default(SUCCEEDED)
+  referenceNumber  String?       @map("reference_number")
+  recordedByUserId String?       @map("recorded_by_user_id") @db.Uuid
+  remarks          String?
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
 
   @@unique([tenantId, receiptNumber])
   @@index([tenantId])
@@ -2350,25 +2364,25 @@ model StudentPayment {
 /// An exam session this student sits (registered for). Kept student-tethered so the 360 tab
 /// shows "their exams"; results hang off it but survive an exam deletion via SET NULL.
 model StudentExam {
-  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String     @map("tenant_id") @db.Uuid
-  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId  String     @map("student_id") @db.Uuid
-  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  name       String
-  examType   ExamType   @map("exam_type")
-  termId     String?    @map("term_id") @db.Uuid
-  term       Term?      @relation(fields: [termId], references: [id], onDelete: SetNull)
-  programId  String?    @map("program_id") @db.Uuid
-  program    Program?   @relation(fields: [programId], references: [id], onDelete: SetNull)
-  sectionId  String?    @map("section_id") @db.Uuid
-  section    Section?   @relation(fields: [sectionId], references: [id], onDelete: SetNull)
-  startDate  DateTime?  @map("start_date")
-  endDate    DateTime?  @map("end_date")
-  status     ExamStatus @default(SCHEDULED)
-  createdBy  String?    @map("created_by") @db.Uuid
-  createdAt  DateTime   @default(now()) @map("created_at")
-  updatedAt  DateTime   @updatedAt @map("updated_at")
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String     @map("tenant_id") @db.Uuid
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId String     @map("student_id") @db.Uuid
+  student   Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  name      String
+  examType  ExamType   @map("exam_type")
+  termId    String?    @map("term_id") @db.Uuid
+  term      Term?      @relation(fields: [termId], references: [id], onDelete: SetNull)
+  programId String?    @map("program_id") @db.Uuid
+  program   Program?   @relation(fields: [programId], references: [id], onDelete: SetNull)
+  sectionId String?    @map("section_id") @db.Uuid
+  section   Section?   @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  startDate DateTime?  @map("start_date")
+  endDate   DateTime?  @map("end_date")
+  status    ExamStatus @default(SCHEDULED)
+  createdBy String?    @map("created_by") @db.Uuid
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
 
   results StudentResult[]
 
@@ -2381,26 +2395,26 @@ model StudentExam {
 /// One subject's result within an exam (or standalone). Outcome drives the pass/fail view;
 /// percentage/grade are optional so either grading style (numeric or letter) fits.
 model StudentResult {
-  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String        @map("tenant_id") @db.Uuid
-  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId   String        @map("student_id") @db.Uuid
-  student     Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  examId      String?       @map("exam_id") @db.Uuid
-  exam        StudentExam?  @relation(fields: [examId], references: [id], onDelete: SetNull)
-  subjectCode String        @map("subject_code")
-  subjectName String        @map("subject_name")
-  maxMarks    Int           @map("max_marks")
-  obtainedMarks Int?        @map("obtained_marks")
-  grade       String?
-  percentage  Float?
-  outcome     ResultOutcome @default(INCOMPLETE)
-  publishedAt DateTime?     @map("published_at")
-  publishedBy String?       @map("published_by") @db.Uuid
-  remarks     String?
-  createdBy   String?       @map("created_by") @db.Uuid
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId     String        @map("student_id") @db.Uuid
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  examId        String?       @map("exam_id") @db.Uuid
+  exam          StudentExam?  @relation(fields: [examId], references: [id], onDelete: SetNull)
+  subjectCode   String        @map("subject_code")
+  subjectName   String        @map("subject_name")
+  maxMarks      Int           @map("max_marks")
+  obtainedMarks Int?          @map("obtained_marks")
+  grade         String?
+  percentage    Float?
+  outcome       ResultOutcome @default(INCOMPLETE)
+  publishedAt   DateTime?     @map("published_at")
+  publishedBy   String?       @map("published_by") @db.Uuid
+  remarks       String?
+  createdBy     String?       @map("created_by") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2411,27 +2425,27 @@ model StudentResult {
 /// Certificate / transcript requests and their issuance lifecycle (request → generate →
 /// approve → issue).
 model StudentCertificate {
-  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String             @map("tenant_id") @db.Uuid
-  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId         String             @map("student_id") @db.Uuid
-  student           Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  certificateType   CertificateType    @map("certificate_type")
-  certificateNumber String?            @map("certificate_number")
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String            @map("tenant_id") @db.Uuid
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId         String            @map("student_id") @db.Uuid
+  student           Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  certificateType   CertificateType   @map("certificate_type")
+  certificateNumber String?           @map("certificate_number")
   title             String?
-  requestDate       DateTime           @map("request_date")
-  status            CertificateStatus  @default(REQUESTED)
-  generatedAt       DateTime?          @map("generated_at")
-  generatedByUserId String?            @map("generated_by_user_id") @db.Uuid
-  approvedAt        DateTime?          @map("approved_at")
-  approvedByUserId  String?            @map("approved_by_user_id") @db.Uuid
-  issuedAt          DateTime?          @map("issued_at")
-  issuedByUserId    String?            @map("issued_by_user_id") @db.Uuid
-  storageKey        String?            @map("storage_key")
+  requestDate       DateTime          @map("request_date")
+  status            CertificateStatus @default(REQUESTED)
+  generatedAt       DateTime?         @map("generated_at")
+  generatedByUserId String?           @map("generated_by_user_id") @db.Uuid
+  approvedAt        DateTime?         @map("approved_at")
+  approvedByUserId  String?           @map("approved_by_user_id") @db.Uuid
+  issuedAt          DateTime?         @map("issued_at")
+  issuedByUserId    String?           @map("issued_by_user_id") @db.Uuid
+  storageKey        String?           @map("storage_key")
   remarks           String?
-  createdBy         String?            @map("created_by") @db.Uuid
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
+  createdBy         String?           @map("created_by") @db.Uuid
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
 
   @@unique([tenantId, certificateNumber])
   @@index([tenantId])
@@ -2443,25 +2457,25 @@ model StudentCertificate {
 /// Library loans for this student (items are free-form strings — the dedicated library
 /// catalog module is a later phase and will attach its own catalog item ids here).
 model StudentLibraryLoan {
-  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String            @map("tenant_id") @db.Uuid
-  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId   String            @map("student_id") @db.Uuid
-  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  itemTitle   String            @map("item_title")
-  itemAuthor  String?           @map("item_author")
-  itemCode    String?           @map("item_code")
-  itemType    String?           @map("item_type")
-  borrowedAt  DateTime          @map("borrowed_at")
-  dueDate     DateTime?         @map("due_date")
-  returnedAt  DateTime?         @map("returned_at")
-  status      LibraryLoanStatus @default(ISSUED)
-  fineCents   Int               @default(0) @map("fine_cents")
-  remarks     String?
-  createdBy   String?           @map("created_by") @db.Uuid
-  updatedBy   String?           @map("updated_by") @db.Uuid
-  createdAt   DateTime          @default(now()) @map("created_at")
-  updatedAt   DateTime          @updatedAt @map("updated_at")
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String            @map("tenant_id") @db.Uuid
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId  String            @map("student_id") @db.Uuid
+  student    Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  itemTitle  String            @map("item_title")
+  itemAuthor String?           @map("item_author")
+  itemCode   String?           @map("item_code")
+  itemType   String?           @map("item_type")
+  borrowedAt DateTime          @map("borrowed_at")
+  dueDate    DateTime?         @map("due_date")
+  returnedAt DateTime?         @map("returned_at")
+  status     LibraryLoanStatus @default(ISSUED)
+  fineCents  Int               @default(0) @map("fine_cents")
+  remarks    String?
+  createdBy  String?           @map("created_by") @db.Uuid
+  updatedBy  String?           @map("updated_by") @db.Uuid
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2471,24 +2485,24 @@ model StudentLibraryLoan {
 
 /// Hostel allocation/booking for this student across their stay.
 model StudentHostelBooking {
-  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId        String              @map("tenant_id") @db.Uuid
-  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId       String              @map("student_id") @db.Uuid
-  student         Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  hostelName      String              @map("hostel_name")
-  roomNumber      String              @map("room_number")
-  bedNumber       String?             @map("bed_number")
-  allocationDate  DateTime?           @map("allocation_date")
-  checkInDate     DateTime?           @map("check_in_date")
-  checkOutDate    DateTime?           @map("check_out_date")
-  status          HostelBookingStatus @default(REQUESTED)
-  monthlyRentCents Int?               @map("monthly_rent_cents")
-  remarks         String?
-  createdBy       String?             @map("created_by") @db.Uuid
-  updatedBy       String?             @map("updated_by") @db.Uuid
-  createdAt       DateTime            @default(now()) @map("created_at")
-  updatedAt       DateTime            @updatedAt @map("updated_at")
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String              @map("tenant_id") @db.Uuid
+  tenant           Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId        String              @map("student_id") @db.Uuid
+  student          Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  hostelName       String              @map("hostel_name")
+  roomNumber       String              @map("room_number")
+  bedNumber        String?             @map("bed_number")
+  allocationDate   DateTime?           @map("allocation_date")
+  checkInDate      DateTime?           @map("check_in_date")
+  checkOutDate     DateTime?           @map("check_out_date")
+  status           HostelBookingStatus @default(REQUESTED)
+  monthlyRentCents Int?                @map("monthly_rent_cents")
+  remarks          String?
+  createdBy        String?             @map("created_by") @db.Uuid
+  updatedBy        String?             @map("updated_by") @db.Uuid
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2498,25 +2512,25 @@ model StudentHostelBooking {
 
 /// Transport pass / route allocation for this student.
 model StudentTransportPass {
-  id            String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String               @map("tenant_id") @db.Uuid
-  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId     String               @map("student_id") @db.Uuid
-  student       Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  routeCode     String?              @map("route_code")
-  routeName     String               @map("route_name")
-  pickupPoint   String?              @map("pickup_point")
-  dropPoint     String?              @map("drop_point")
-  vehicleNumber String?              @map("vehicle_number")
-  periodStart   DateTime             @map("period_start")
-  periodEnd     DateTime?            @map("period_end")
-  status        TransportPassStatus  @default(ACTIVE)
-  amountCents   Int?                 @map("amount_cents")
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId     String              @map("student_id") @db.Uuid
+  student       Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  routeCode     String?             @map("route_code")
+  routeName     String              @map("route_name")
+  pickupPoint   String?             @map("pickup_point")
+  dropPoint     String?             @map("drop_point")
+  vehicleNumber String?             @map("vehicle_number")
+  periodStart   DateTime            @map("period_start")
+  periodEnd     DateTime?           @map("period_end")
+  status        TransportPassStatus @default(ACTIVE)
+  amountCents   Int?                @map("amount_cents")
   remarks       String?
-  createdBy     String?              @map("created_by") @db.Uuid
-  updatedBy     String?              @map("updated_by") @db.Uuid
-  createdAt     DateTime             @default(now()) @map("created_at")
-  updatedAt     DateTime             @updatedAt @map("updated_at")
+  createdBy     String?             @map("created_by") @db.Uuid
+  updatedBy     String?             @map("updated_by") @db.Uuid
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2527,22 +2541,22 @@ model StudentTransportPass {
 /// A hold/flag on the student's record (academic/financial/administrative/etc.) — e.g.
 /// blocks a transcript request until a fee is resolved. Holds are lifted, never deleted.
 model StudentHold {
-  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String           @map("tenant_id") @db.Uuid
-  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId        String           @map("student_id") @db.Uuid
-  student          Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  type             StudentHoldType
-  reason           String
-  placedOn         DateTime         @map("placed_on")
-  placedByUserId   String?          @map("placed_by_user_id") @db.Uuid
-  status           StudentHoldStatus @default(ACTIVE)
-  liftedOn         DateTime?        @map("lifted_on")
-  liftedByUserId   String?          @map("lifted_by_user_id") @db.Uuid
-  remarks          String?
-  createdBy        String?          @map("created_by") @db.Uuid
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String            @map("tenant_id") @db.Uuid
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId      String            @map("student_id") @db.Uuid
+  student        Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type           StudentHoldType
+  reason         String
+  placedOn       DateTime          @map("placed_on")
+  placedByUserId String?           @map("placed_by_user_id") @db.Uuid
+  status         StudentHoldStatus @default(ACTIVE)
+  liftedOn       DateTime?         @map("lifted_on")
+  liftedByUserId String?           @map("lifted_by_user_id") @db.Uuid
+  remarks        String?
+  createdBy      String?           @map("created_by") @db.Uuid
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2553,16 +2567,16 @@ model StudentHold {
 /// Append-only status transition journal for a student. The first row for a student has a null
 /// fromStatus (created into its initial state).
 model StudentStatusHistory {
-  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String         @map("tenant_id") @db.Uuid
-  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId        String         @map("student_id") @db.Uuid
-  student          Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  fromStatus       StudentStatus? @map("from_status")
-  toStatus         StudentStatus  @map("to_status")
-  reason           String?
-  changedByUserId  String?        @map("changed_by_user_id") @db.Uuid
-  changedAt        DateTime       @default(now()) @map("changed_at")
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String         @map("tenant_id") @db.Uuid
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId       String         @map("student_id") @db.Uuid
+  student         Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fromStatus      StudentStatus? @map("from_status")
+  toStatus        StudentStatus  @map("to_status")
+  reason          String?
+  changedByUserId String?        @map("changed_by_user_id") @db.Uuid
+  changedAt       DateTime       @default(now()) @map("changed_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2572,25 +2586,25 @@ model StudentStatusHistory {
 
 /// Communication history with the student / their guardians (calls, emails, SMS, meetings…).
 model StudentCommunication {
-  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String               @map("tenant_id") @db.Uuid
-  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId        String               @map("student_id") @db.Uuid
-  student          Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  type             CommunicationType
-  direction        CommunicationDirection @default(OUTBOUND)
-  subject          String?
-  body             String
-  sentAt           DateTime             @map("sent_at")
-  recipientType    String               @default("STUDENT") @map("recipient_type")
-  recipientName    String?              @map("recipient_name")
-  recipientPhone   String?              @map("recipient_phone")
-  recipientEmail   String?              @map("recipient_email")
-  conductedByUserId String?             @map("conducted_by_user_id") @db.Uuid
-  remarks          String?
-  createdBy        String?              @map("created_by") @db.Uuid
-  createdAt        DateTime             @default(now()) @map("created_at")
-  updatedAt        DateTime             @updatedAt @map("updated_at")
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                 @map("tenant_id") @db.Uuid
+  tenant            Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId         String                 @map("student_id") @db.Uuid
+  student           Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type              CommunicationType
+  direction         CommunicationDirection @default(OUTBOUND)
+  subject           String?
+  body              String
+  sentAt            DateTime               @map("sent_at")
+  recipientType     String                 @default("STUDENT") @map("recipient_type")
+  recipientName     String?                @map("recipient_name")
+  recipientPhone    String?                @map("recipient_phone")
+  recipientEmail    String?                @map("recipient_email")
+  conductedByUserId String?                @map("conducted_by_user_id") @db.Uuid
+  remarks           String?
+  createdBy         String?                @map("created_by") @db.Uuid
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2603,19 +2617,19 @@ model StudentCommunication {
 /// can log events without a schema change; entityType/entityId point at the related row
 /// (payment, hold, certificate…). The timeline endpoint unions these with status-history rows.
 model StudentActivity {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String    @map("tenant_id") @db.Uuid
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId   String    @map("student_id") @db.Uuid
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  eventType   String    @map("event_type")
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId   String   @map("student_id") @db.Uuid
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  eventType   String   @map("event_type")
   title       String
   description String?
-  entityType  String?   @map("entity_type")
-  entityId    String?   @map("entity_id") @db.Uuid
-  occurredAt  DateTime  @default(now()) @map("occurred_at")
-  actorUserId String?   @map("actor_user_id") @db.Uuid
-  createdAt   DateTime  @default(now()) @map("created_at")
+  entityType  String?  @map("entity_type")
+  entityId    String?  @map("entity_id") @db.Uuid
+  occurredAt  DateTime @default(now()) @map("occurred_at")
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([tenantId])
   @@index([studentId])
@@ -2674,33 +2688,33 @@ enum AdmissionOfferStatus {
 /// dates, seat offers per program (AdmissionProgramOffer) and the dynamic document
 /// checklist — so an institution can run parallel sessions (UG merit, lateral, midday).
 model AdmissionSession {
-  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId             String                @map("tenant_id") @db.Uuid
-  tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  code                 String
-  name                 String
-  academicYearId       String                @map("academic_year_id") @db.Uuid
-  academicYear         AcademicYear          @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  startAt              DateTime              @map("start_at")
-  endAt                 DateTime              @map("end_at")
-  applicationFeeCents  Int                   @default(0) @map("application_fee_cents")
-  admissionFeeCents    Int                   @default(0) @map("admission_fee_cents")
-  status               AdmissionSessionStatus @default(OPEN)
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String                 @map("tenant_id") @db.Uuid
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code                String
+  name                String
+  academicYearId      String                 @map("academic_year_id") @db.Uuid
+  academicYear        AcademicYear           @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  startAt             DateTime               @map("start_at")
+  endAt               DateTime               @map("end_at")
+  applicationFeeCents Int                    @default(0) @map("application_fee_cents")
+  admissionFeeCents   Int                    @default(0) @map("admission_fee_cents")
+  status              AdmissionSessionStatus @default(OPEN)
   /// Drag of required document categories (strings) for this session; merged with the
   /// per-program override. Defaults to the module’s DEFAULT_DOCUMENT_CHECKLIST.
-  requiredDocuments    Json?                 @map("required_documents")
-  source               String?               @default("FRONT_DESK")
-  meritPublishedAt     DateTime?             @map("merit_published_at")
-  createdBy            String?               @map("created_by") @db.Uuid
-  updatedBy            String?               @map("updated_by") @db.Uuid
-  createdAt            DateTime              @default(now()) @map("created_at")
-  updatedAt            DateTime              @updatedAt @map("updated_at")
+  requiredDocuments   Json?                  @map("required_documents")
+  source              String?                @default("FRONT_DESK")
+  meritPublishedAt    DateTime?              @map("merit_published_at")
+  createdBy           String?                @map("created_by") @db.Uuid
+  updatedBy           String?                @map("updated_by") @db.Uuid
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
 
-  programs    AdmissionProgramOffer[]
-  enquiries   AdmissionEnquiry[]
-  applications AdmissionApplication[]
+  programs         AdmissionProgramOffer[]
+  enquiries        AdmissionEnquiry[]
+  applications     AdmissionApplication[]
   counsellingSlots AdmissionCounsellingSlot[]
-  formFields  AdmissionFormField[]
+  formFields       AdmissionFormField[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -2713,26 +2727,26 @@ model AdmissionSession {
 /// filledSeats is incremented at offer-allocation and freed on decline/cancel; a seat
 /// can’t be offered past capacity (status flips FULL).
 model AdmissionProgramOffer {
-  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId            String               @map("tenant_id") @db.Uuid
-  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  sessionId           String               @map("session_id") @db.Uuid
-  session             AdmissionSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  programId           String               @map("program_id") @db.Uuid
-  program             Program              @relation(fields: [programId], references: [id], onDelete: Restrict)
-  seats               Int                  @default(0)
-  filledSeats         Int                  @default(0) @map("filled_seats")
-  applicationFeeCents Int                  @default(0) @map("application_fee_cents")
-  admissionFeeCents   Int                  @default(0) @map("admission_fee_cents")
-  tuitionFeeCents     Int                  @default(0) @map("tuition_fee_cents")
-  requiredDocuments   Json?                @map("required_documents")
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String                 @map("tenant_id") @db.Uuid
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId           String                 @map("session_id") @db.Uuid
+  session             AdmissionSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  programId           String                 @map("program_id") @db.Uuid
+  program             Program                @relation(fields: [programId], references: [id], onDelete: Restrict)
+  seats               Int                    @default(0)
+  filledSeats         Int                    @default(0) @map("filled_seats")
+  applicationFeeCents Int                    @default(0) @map("application_fee_cents")
+  admissionFeeCents   Int                    @default(0) @map("admission_fee_cents")
+  tuitionFeeCents     Int                    @default(0) @map("tuition_fee_cents")
+  requiredDocuments   Json?                  @map("required_documents")
   status              AdmissionProgramStatus @default(OPEN)
-  createdBy           String?              @map("created_by") @db.Uuid
-  updatedBy           String?              @map("updated_by") @db.Uuid
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
+  createdBy           String?                @map("created_by") @db.Uuid
+  updatedBy           String?                @map("updated_by") @db.Uuid
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
 
-  applications AdmissionApplication[]
+  applications     AdmissionApplication[]
   eligibilityRules AdmissionEligibilityRule[]
 
   @@unique([tenantId, sessionId, programId])
@@ -2745,25 +2759,25 @@ model AdmissionProgramOffer {
 /// A pre-application contact — website/web form, walk-in, referral… converted once an
 /// actual application is created from it (source of the enquiry funnel report).
 model AdmissionEnquiry {
-  id                        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId                  String             @map("tenant_id") @db.Uuid
-  tenant                    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  sessionId                 String?            @map("session_id") @db.Uuid
-  session                   AdmissionSession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  programId                 String?            @map("program_id") @db.Uuid
-  program                   Program?           @relation(fields: [programId], references: [id], onDelete: SetNull)
-  name                      String
-  email                     String?
-  phone                     String?
-  source                    String             @default("WEBSITE")
-  message                   String?
-  followUpAt                DateTime?          @map("follow_up_at")
-  convertedToApplicationId  String?            @map("converted_to_application_id") @db.Uuid
-  convertedAt               DateTime?          @map("converted_at")
-  createdBy                 String?            @map("created_by") @db.Uuid
-  updatedBy                 String?            @map("updated_by") @db.Uuid
-  createdAt                 DateTime           @default(now()) @map("created_at")
-  updatedAt                 DateTime           @updatedAt @map("updated_at")
+  id                       String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String            @map("tenant_id") @db.Uuid
+  tenant                   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId                String?           @map("session_id") @db.Uuid
+  session                  AdmissionSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  programId                String?           @map("program_id") @db.Uuid
+  program                  Program?          @relation(fields: [programId], references: [id], onDelete: SetNull)
+  name                     String
+  email                    String?
+  phone                    String?
+  source                   String            @default("WEBSITE")
+  message                  String?
+  followUpAt               DateTime?         @map("follow_up_at")
+  convertedToApplicationId String?           @map("converted_to_application_id") @db.Uuid
+  convertedAt              DateTime?         @map("converted_at")
+  createdBy                String?           @map("created_by") @db.Uuid
+  updatedBy                String?           @map("updated_by") @db.Uuid
+  createdAt                DateTime          @default(now()) @map("created_at")
+  updatedAt                DateTime          @updatedAt @map("updated_at")
 
   applications AdmissionApplication[]
 
@@ -2777,80 +2791,80 @@ model AdmissionEnquiry {
 /// by TenantConfiguration or the module defaults). guardian is a single JSON object kept
 /// in sync with the Guardian row created at enrollment.
 model AdmissionApplication {
-  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId             String                    @map("tenant_id") @db.Uuid
-  tenant               Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  applicationNumber    String                    @map("application_number")
-  sessionId            String                    @map("session_id") @db.Uuid
-  session              AdmissionSession          @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  admissionProgramId   String                    @map("admission_program_id") @db.Uuid
-  admissionProgram     AdmissionProgramOffer     @relation(fields: [admissionProgramId], references: [id], onDelete: Restrict)
-  campusId             String                    @map("campus_id") @db.Uuid
-  campus               Campus                    @relation(fields: [campusId], references: [id], onDelete: Restrict)
-  academicYearId       String                    @map("academic_year_id") @db.Uuid
-  academicYear         AcademicYear              @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  enquiryId            String?                   @map("enquiry_id") @db.Uuid
-  enquiry              AdmissionEnquiry?         @relation(fields: [enquiryId], references: [id], onDelete: SetNull)
+  id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String                @map("tenant_id") @db.Uuid
+  tenant             Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationNumber  String                @map("application_number")
+  sessionId          String                @map("session_id") @db.Uuid
+  session            AdmissionSession      @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  admissionProgramId String                @map("admission_program_id") @db.Uuid
+  admissionProgram   AdmissionProgramOffer @relation(fields: [admissionProgramId], references: [id], onDelete: Restrict)
+  campusId           String                @map("campus_id") @db.Uuid
+  campus             Campus                @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  academicYearId     String                @map("academic_year_id") @db.Uuid
+  academicYear       AcademicYear          @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  enquiryId          String?               @map("enquiry_id") @db.Uuid
+  enquiry            AdmissionEnquiry?     @relation(fields: [enquiryId], references: [id], onDelete: SetNull)
 
-  firstName            String                    @map("first_name")
-  middleName           String?                   @map("middle_name")
-  lastName             String                    @map("last_name")
-  fullName             String                    @map("full_name")
-  gender               StudentGender             @default(NOT_SPECIFIED)
-  dateOfBirth          DateTime?                 @map("date_of_birth")
-  email                String?
-  phone                String?
-  category             String?
-  nationality          String?                   @default("Indian")
-  addressLine1         String?                   @map("address_line_1")
-  addressLine2         String?                   @map("address_line_2")
-  city                 String?
-  state                String?
-  postalCode           String?                   @map("postal_code")
-  country              String?                   @default("India")
-  guardian             Json?
+  firstName    String        @map("first_name")
+  middleName   String?       @map("middle_name")
+  lastName     String        @map("last_name")
+  fullName     String        @map("full_name")
+  gender       StudentGender @default(NOT_SPECIFIED)
+  dateOfBirth  DateTime?     @map("date_of_birth")
+  email        String?
+  phone        String?
+  category     String?
+  nationality  String?       @default("Indian")
+  addressLine1 String?       @map("address_line_1")
+  addressLine2 String?       @map("address_line_2")
+  city         String?
+  state        String?
+  postalCode   String?       @map("postal_code")
+  country      String?       @default("India")
+  guardian     Json?
   /// Answers to the dynamic application form (TenantConfiguration-driven / default schema).
-  data                 Json?
-  remarks              String?
+  data         Json?
+  remarks      String?
 
-  status               AdmissionApplicationStatus @default(INITIATED)
-  submittedAt          DateTime?                 @map("submitted_at")
-  submittedBy          String?                   @map("submitted_by") @db.Uuid
-  rejectedReason       String?                   @map("rejected_reason")
+  status         AdmissionApplicationStatus @default(INITIATED)
+  submittedAt    DateTime?                  @map("submitted_at")
+  submittedBy    String?                    @map("submitted_by") @db.Uuid
+  rejectedReason String?                    @map("rejected_reason")
 
-  meritScore           Float?
-  meritRank            Int?                      @map("merit_rank")
+  meritScore     Float?
+  meritRank      Int?                  @map("merit_rank")
   /// Breakdown of the merit computation (component name → points) so reviewers can see and
   /// dispute exactly how a score was derived. Non-null once meritScored.
-  scoreBreakdown       Json?                     @map("score_breakdown")
+  scoreBreakdown Json?                 @map("score_breakdown")
   /// When this application matches an existing one (email/phone/name+dob), it’s flagged as a
   /// duplicate; points to the canonical application of record.
-  duplicateOfId        String?                   @map("duplicate_of_id") @db.Uuid
-  duplicateOf          AdmissionApplication?     @relation("AdmissionApplicationDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicateOfId  String?               @map("duplicate_of_id") @db.Uuid
+  duplicateOf    AdmissionApplication? @relation("AdmissionApplicationDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
 
-  counsellingSlotId    String?                   @map("counselling_slot_id") @db.Uuid
-  counsellingSlot      AdmissionCounsellingSlot? @relation(fields: [counsellingSlotId], references: [id], onDelete: SetNull)
-  counselledAt         DateTime?                 @map("counselled_at")
-  selectedAt           DateTime?                 @map("selected_at")
+  counsellingSlotId String?                   @map("counselling_slot_id") @db.Uuid
+  counsellingSlot   AdmissionCounsellingSlot? @relation(fields: [counsellingSlotId], references: [id], onDelete: SetNull)
+  counselledAt      DateTime?                 @map("counselled_at")
+  selectedAt        DateTime?                 @map("selected_at")
 
-  feePaidAt            DateTime?                 @map("fee_paid_at")
-  feeReceiptNumber     String?                   @map("fee_receipt_number")
-  enrolledStudentId    String?                   @map("enrolled_student_id") @db.Uuid
-  enrolledStudent      Student?                  @relation(fields: [enrolledStudentId], references: [id], onDelete: SetNull)
-  enrolledAt           DateTime?                 @map("enrolled_at")
+  feePaidAt         DateTime? @map("fee_paid_at")
+  feeReceiptNumber  String?   @map("fee_receipt_number")
+  enrolledStudentId String?   @map("enrolled_student_id") @db.Uuid
+  enrolledStudent   Student?  @relation(fields: [enrolledStudentId], references: [id], onDelete: SetNull)
+  enrolledAt        DateTime? @map("enrolled_at")
 
-  createdBy            String?                   @map("created_by") @db.Uuid
-  updatedBy            String?                   @map("updated_by") @db.Uuid
-  createdAt            DateTime                  @default(now()) @map("created_at")
-  updatedAt            DateTime                  @updatedAt @map("updated_at")
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  documents     AdmissionDocument[]
+  documents      AdmissionDocument[]
   qualifications AdmissionQualification[]
-  offers        AdmissionOffer[]
-  payments      AdmissionFeePayment[]
-  activities    AdmissionActivity[]
-  duplicates    AdmissionApplication[] @relation("AdmissionApplicationDuplicates")
-  messages      AdmissionMessage[]
+  offers         AdmissionOffer[]
+  payments       AdmissionFeePayment[]
+  activities     AdmissionActivity[]
+  duplicates     AdmissionApplication[]   @relation("AdmissionApplicationDuplicates")
+  messages       AdmissionMessage[]
 
   @@unique([tenantId, applicationNumber])
   @@index([tenantId])
@@ -2867,24 +2881,24 @@ model AdmissionApplication {
 /// Applicant document (scanned/uploaded before the student exists). Mirrors StudentDocument;
 /// verification is a first-class step that gates DOCUMENTS_VERIFIED.
 model AdmissionDocument {
-  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String               @map("tenant_id") @db.Uuid
-  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  applicationId    String               @map("application_id") @db.Uuid
-  application      AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                @map("tenant_id") @db.Uuid
+  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId    String                @map("application_id") @db.Uuid
+  application      AdmissionApplication  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   category         String
-  documentName     String               @map("document_name")
-  storageKey       String?              @map("storage_key")
-  originalFilename String?              @map("original_filename")
-  mimeType         String?              @map("mime_type")
-  sizeBytes        Int?                 @map("size_bytes")
+  documentName     String                @map("document_name")
+  storageKey       String?               @map("storage_key")
+  originalFilename String?               @map("original_filename")
+  mimeType         String?               @map("mime_type")
+  sizeBytes        Int?                  @map("size_bytes")
   status           StudentDocumentStatus @default(PENDING)
-  verifiedAt       DateTime?            @map("verified_at")
-  verifiedBy       String?              @map("verified_by") @db.Uuid
+  verifiedAt       DateTime?             @map("verified_at")
+  verifiedBy       String?               @map("verified_by") @db.Uuid
   remarks          String?
-  uploadedBy       String?              @map("uploaded_by") @db.Uuid
-  createdAt        DateTime             @default(now()) @map("created_at")
-  updatedAt        DateTime             @updatedAt @map("updated_at")
+  uploadedBy       String?               @map("uploaded_by") @db.Uuid
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([applicationId])
@@ -2895,27 +2909,27 @@ model AdmissionDocument {
 /// Prior-education qualification entered with the application. Mirrors StudentAcademicRecord;
 /// the highest qualification feeds the default merit score computation.
 model AdmissionQualification {
-  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId               String               @map("tenant_id") @db.Uuid
-  tenant                 Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  applicationId          String               @map("application_id") @db.Uuid
-  application            AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  id                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String                @map("tenant_id") @db.Uuid
+  tenant                 Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId          String                @map("application_id") @db.Uuid
+  application            AdmissionApplication  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   institution            String
   board                  String?
   degree                 String?
-  yearOfPassing          Int?                 @map("year_of_passing")
+  yearOfPassing          Int?                  @map("year_of_passing")
   percentage             Float?
   gpa                    Float?
   grade                  String?
-  marksObtained          Int?                 @map("marks_obtained")
-  marksOutOf             Int?                 @map("marks_out_of")
+  marksObtained          Int?                  @map("marks_obtained")
+  marksOutOf             Int?                  @map("marks_out_of")
   rank                   String?
-  isHighestQualification Boolean              @default(false) @map("is_highest_qualification")
+  isHighestQualification Boolean               @default(false) @map("is_highest_qualification")
   verificationStatus     StudentDocumentStatus @default(PENDING) @map("verification_status")
   remarks                String?
-  createdBy              String?              @map("created_by") @db.Uuid
-  createdAt              DateTime             @default(now()) @map("created_at")
-  updatedAt              DateTime             @updatedAt @map("updated_at")
+  createdBy              String?               @map("created_by") @db.Uuid
+  createdAt              DateTime              @default(now()) @map("created_at")
+  updatedAt              DateTime              @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([applicationId])
@@ -2924,20 +2938,20 @@ model AdmissionQualification {
 
 /// Counselling slot on a session (optionally program-scoped). Capacity gates bookings.
 model AdmissionCounsellingSlot {
-  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String           @map("tenant_id") @db.Uuid
-  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  sessionId    String           @map("session_id") @db.Uuid
-  session      AdmissionSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  programId    String?          @map("program_id") @db.Uuid
-  program      Program?         @relation(fields: [programId], references: [id], onDelete: SetNull)
-  date         DateTime         @map("date")
-  venue        String?
-  capacity     Int              @default(1)
-  bookedCount  Int              @default(0) @map("booked_count")
-  createdBy    String?          @map("created_by") @db.Uuid
-  createdAt    DateTime         @default(now()) @map("created_at")
-  updatedAt    DateTime         @updatedAt @map("updated_at")
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String           @map("tenant_id") @db.Uuid
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId   String           @map("session_id") @db.Uuid
+  session     AdmissionSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  programId   String?          @map("program_id") @db.Uuid
+  program     Program?         @relation(fields: [programId], references: [id], onDelete: SetNull)
+  date        DateTime         @map("date")
+  venue       String?
+  capacity    Int              @default(1)
+  bookedCount Int              @default(0) @map("booked_count")
+  createdBy   String?          @map("created_by") @db.Uuid
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
 
   applications AdmissionApplication[]
 
@@ -2950,22 +2964,22 @@ model AdmissionCounsellingSlot {
 /// An offer letter issued to a SELECTED applicant (seats are held at issuance and freed on
 /// decline/cancel). Offers are accepted → FEE_PAID → ENROLLED.
 model AdmissionOffer {
-  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId            String                 @map("tenant_id") @db.Uuid
-  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  applicationId       String                 @map("application_id") @db.Uuid
-  application         AdmissionApplication   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  offerNumber         String                 @map("offer_number")
-  admissionFeeCents   Int                    @default(0) @map("admission_fee_cents")
-  issuedAt            DateTime               @map("issued_at")
-  expiresAt           DateTime               @map("expires_at")
-  status              AdmissionOfferStatus   @default(ISSUED)
-  acceptedAt          DateTime?              @map("accepted_at")
-  declinedAt          DateTime?              @map("declined_at")
-  remarks             String?
-  createdBy           String?                @map("created_by") @db.Uuid
-  createdAt           DateTime               @default(now()) @map("created_at")
-  updatedAt           DateTime               @updatedAt @map("updated_at")
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String               @map("tenant_id") @db.Uuid
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId     String               @map("application_id") @db.Uuid
+  application       AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  offerNumber       String               @map("offer_number")
+  admissionFeeCents Int                  @default(0) @map("admission_fee_cents")
+  issuedAt          DateTime             @map("issued_at")
+  expiresAt         DateTime             @map("expires_at")
+  status            AdmissionOfferStatus @default(ISSUED)
+  acceptedAt        DateTime?            @map("accepted_at")
+  declinedAt        DateTime?            @map("declined_at")
+  remarks           String?
+  createdBy         String?              @map("created_by") @db.Uuid
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
 
   @@unique([tenantId, offerNumber])
   @@unique([tenantId, applicationId])
@@ -2979,22 +2993,22 @@ model AdmissionOffer {
 /// can’t live on the student ledger). Reuses the global PaymentMethod/PaymentStatus enums.
 /// On enrollment it’s copied to the created Student’s fee ledger.
 model AdmissionFeePayment {
-  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String               @map("tenant_id") @db.Uuid
-  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  applicationId      String               @map("application_id") @db.Uuid
-  application        AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  amountCents        Int                  @map("amount_cents")
-  currency           String               @default("INR")
-  paymentDate        DateTime             @map("payment_date")
-  method             PaymentMethod
-  status             PaymentStatus        @default(SUCCEEDED)
-  referenceNumber    String?              @map("reference_number")
-  receiptNumber      String               @map("receipt_number")
-  remarks            String?
-  recordedByUserId   String?              @map("recorded_by_user_id") @db.Uuid
-  createdAt          DateTime             @default(now()) @map("created_at")
-  updatedAt          DateTime             @updatedAt @map("updated_at")
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId    String               @map("application_id") @db.Uuid
+  application      AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  amountCents      Int                  @map("amount_cents")
+  currency         String               @default("INR")
+  paymentDate      DateTime             @map("payment_date")
+  method           PaymentMethod
+  status           PaymentStatus        @default(SUCCEEDED)
+  referenceNumber  String?              @map("reference_number")
+  receiptNumber    String               @map("receipt_number")
+  remarks          String?
+  recordedByUserId String?              @map("recorded_by_user_id") @db.Uuid
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
 
   @@unique([tenantId, receiptNumber])
   @@index([tenantId])
@@ -3005,19 +3019,19 @@ model AdmissionFeePayment {
 /// Applicant-side timeline mirror (AdmissionActivity). Records every pipeline transition so a
 /// profile page can show an audit trail without polling the platform audit log.
 model AdmissionActivity {
-  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String               @map("tenant_id") @db.Uuid
-  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  applicationId String            @map("application_id") @db.Uuid
-  application AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  eventType   String               @map("event_type")
-  title       String
-  description String?
-  entityType  String?              @map("entity_type")
-  entityId    String?              @map("entity_id") @db.Uuid
-  occurredAt  DateTime             @default(now()) @map("occurred_at")
-  actorUserId String?              @map("actor_user_id") @db.Uuid
-  createdAt   DateTime             @default(now()) @map("created_at")
+  id            String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String               @map("tenant_id") @db.Uuid
+  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId String               @map("application_id") @db.Uuid
+  application   AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  eventType     String               @map("event_type")
+  title         String
+  description   String?
+  entityType    String?              @map("entity_type")
+  entityId      String?              @map("entity_id") @db.Uuid
+  occurredAt    DateTime             @default(now()) @map("occurred_at")
+  actorUserId   String?              @map("actor_user_id") @db.Uuid
+  createdAt     DateTime             @default(now()) @map("created_at")
 
   @@index([tenantId])
   @@index([applicationId])
@@ -3028,25 +3042,25 @@ model AdmissionActivity {
 /// Input type for a configurable admission form field for a session. Replaces/supplements the
 /// default ADMISSION_FORM_FIELDS so each institution can shape its application form without code.
 model AdmissionFormField {
-  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String               @map("tenant_id") @db.Uuid
-  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  sessionId      String               @map("session_id") @db.Uuid
-  session        AdmissionSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  code           String
-  label          String
-  fieldType      AdmissionFieldType   @map("field_type")
-  placeholder    String?
-  required       Boolean              @default(false)
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String             @map("tenant_id") @db.Uuid
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId     String             @map("session_id") @db.Uuid
+  session       AdmissionSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  code          String
+  label         String
+  fieldType     AdmissionFieldType @map("field_type")
+  placeholder   String?
+  required      Boolean            @default(false)
   /// Select/radio option list (string values). Emitted in the form JSON sent to applicants.
-  options        Json?
-  helpText       String?              @map("help_text")
-  sequenceOrder  Int                  @default(0) @map("sequence_order")
-  isActive       Boolean              @default(true) @map("is_active")
-  createdBy      String?              @map("created_by") @db.Uuid
-  updatedBy      String?              @map("updated_by") @db.Uuid
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
+  options       Json?
+  helpText      String?            @map("help_text")
+  sequenceOrder Int                @default(0) @map("sequence_order")
+  isActive      Boolean            @default(true) @map("is_active")
+  createdBy     String?            @map("created_by") @db.Uuid
+  updatedBy     String?            @map("updated_by") @db.Uuid
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
 
   @@unique([tenantId, sessionId, code])
   @@index([tenantId])
@@ -3058,24 +3072,24 @@ model AdmissionFormField {
 /// target an applicant category and carries a typed config; all active rules must pass before
 /// an application is eligible for a program (advisory at submission, enforced at scoring).
 model AdmissionEligibilityRule {
-  id               String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String                       @map("tenant_id") @db.Uuid
-  tenant           Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  programId        String                       @map("program_id") @db.Uuid
-  program          AdmissionProgramOffer        @relation(fields: [programId], references: [id], onDelete: Cascade)
-  name             String
-  description      String?
-  ruleType         AdmissionEligibilityRuleType @map("rule_type")
+  id                String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                       @map("tenant_id") @db.Uuid
+  tenant            Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  programId         String                       @map("program_id") @db.Uuid
+  program           AdmissionProgramOffer        @relation(fields: [programId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  ruleType          AdmissionEligibilityRuleType @map("rule_type")
   /// Typed rule configuration, e.g. { minPercentage: 60 }, { minGpa: 6.5 }, { minMarks: 75, marksOutOf: 100 },
   /// { minAgeYears: 16 }, { allowedCategories: ['General'] }, or custom { each: { id: 'X', expression: '...' } }.
-  config           Json?
-  appliesToCategory String?                     @map("applies_to_category")
-  sequenceOrder    Int                          @default(0) @map("sequence_order")
-  isActive         Boolean                      @default(true) @map("is_active")
-  createdBy        String?                      @map("created_by") @db.Uuid
-  updatedBy        String?                      @map("updated_by") @db.Uuid
-  createdAt        DateTime                     @default(now()) @map("created_at")
-  updatedAt        DateTime                     @updatedAt @map("updated_at")
+  config            Json?
+  appliesToCategory String?                      @map("applies_to_category")
+  sequenceOrder     Int                          @default(0) @map("sequence_order")
+  isActive          Boolean                      @default(true) @map("is_active")
+  createdBy         String?                      @map("created_by") @db.Uuid
+  updatedBy         String?                      @map("updated_by") @db.Uuid
+  createdAt         DateTime                     @default(now()) @map("created_at")
+  updatedAt         DateTime                     @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([programId])
@@ -3086,19 +3100,19 @@ model AdmissionEligibilityRule {
 /// Outbound communication to an applicant (or their guardian) recorded on the application
 /// thread. Mirrors StudentCommunication; each send also enqueues a Notification.
 model AdmissionMessage {
-  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String               @map("tenant_id") @db.Uuid
-  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  applicationId    String               @map("application_id") @db.Uuid
-  application      AdmissionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  subject          String
-  body             String
-  channel          AdmissionMessageChannel
-  sentBy           String?              @map("sent_by") @db.Uuid
-  sentAt           DateTime             @default(now()) @map("sent_at")
-  relatedNotificationId String?         @map("related_notification_id") @db.Uuid
-  createdAt        DateTime             @default(now()) @map("created_at")
-  updatedAt        DateTime             @updatedAt @map("updated_at")
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String                  @map("tenant_id") @db.Uuid
+  tenant                Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  applicationId         String                  @map("application_id") @db.Uuid
+  application           AdmissionApplication    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  subject               String
+  body                  String
+  channel               AdmissionMessageChannel
+  sentBy                String?                 @map("sent_by") @db.Uuid
+  sentAt                DateTime                @default(now()) @map("sent_at")
+  relatedNotificationId String?                 @map("related_notification_id") @db.Uuid
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([applicationId])
@@ -3239,11 +3253,11 @@ model Course {
   updatedAt    DateTime    @updatedAt @map("updated_at")
   deletedAt    DateTime?   @map("deleted_at")
 
-  prerequisites      CoursePrerequisite[] @relation("CoursePrerequisiteCourse")
-  requiredBy         CoursePrerequisite[] @relation("CoursePrerequisiteRequired")
-  curriculumCourses  CurriculumCourse[]
-  courseOfferings    CourseOffering[]
-  backlogs           CourseBacklog[]
+  prerequisites     CoursePrerequisite[] @relation("CoursePrerequisiteCourse")
+  requiredBy        CoursePrerequisite[] @relation("CoursePrerequisiteRequired")
+  curriculumCourses CurriculumCourse[]
+  courseOfferings   CourseOffering[]
+  backlogs          CourseBacklog[]
 
   @@unique([tenantId, code])
   @@index([tenantId, deletedAt])
@@ -3334,24 +3348,24 @@ model CurriculumVersion {
 /// semester, whether it is compulsory, and any credit override that modifies the
 /// course's default creditHours within this version.
 model CurriculumCourse {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId            String    @map("tenant_id") @db.Uuid
-  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  curriculumVersionId String    @map("curriculum_version_id") @db.Uuid
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String            @map("tenant_id") @db.Uuid
+  tenant              Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  curriculumVersionId String            @map("curriculum_version_id") @db.Uuid
   curriculumVersion   CurriculumVersion @relation(fields: [curriculumVersionId], references: [id], onDelete: Cascade)
-  courseId            String    @map("course_id") @db.Uuid
-  course              Course    @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  courseId            String            @map("course_id") @db.Uuid
+  course              Course            @relation(fields: [courseId], references: [id], onDelete: Restrict)
   /// 1-based semester slot in the program (matches the curriculum's semester grid).
   semester            Int
   /// Open taxonomy (CORE / ELECTIVE / OPEN_ELECTIVE ...) aligned to CourseType.
   category            String?
-  isCompulsory        Boolean   @default(true) @map("is_compulsory")
-  sequence            Int       @default(0)
-  minGrade            String?   @map("min_grade")
-  creditOverride      Int?      @map("credit_override")
-  createdBy           String?   @map("created_by") @db.Uuid
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
+  isCompulsory        Boolean           @default(true) @map("is_compulsory")
+  sequence            Int               @default(0)
+  minGrade            String?           @map("min_grade")
+  creditOverride      Int?              @map("credit_override")
+  createdBy           String?           @map("created_by") @db.Uuid
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
 
   @@unique([tenantId, curriculumVersionId, courseId])
   @@index([tenantId, curriculumVersionId, semester])
@@ -3396,8 +3410,9 @@ model CourseOffering {
   updatedAt         DateTime             @updatedAt @map("updated_at")
   deletedAt         DateTime?            @map("deleted_at")
 
-  faculty       CourseOfferingFaculty[]
-  registrations CourseRegistration[]
+  faculty          CourseOfferingFaculty[]
+  registrations    CourseRegistration[]
+  timetableEntries TimetableEntry[]        @relation("OfferingTimetableEntries")
 
   @@unique([tenantId, code])
   @@index([tenantId, termId])
@@ -3435,25 +3450,25 @@ model CourseOfferingFaculty {
 /// A student's registration in a course offering for a term. Capacity/waitlist
 /// handling and prerequisite validation happen in the service layer.
 model CourseRegistration {
-  id               String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String                  @map("tenant_id") @db.Uuid
-  tenant           Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId        String                  @map("student_id") @db.Uuid
-  student          Student                 @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  courseOfferingId String                  @map("course_offering_id") @db.Uuid
-  courseOffering   CourseOffering          @relation(fields: [courseOfferingId], references: [id], onDelete: Restrict)
-  termId           String                  @map("term_id") @db.Uuid
-  term             Term                    @relation(fields: [termId], references: [id], onDelete: Restrict)
+  id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                   @map("tenant_id") @db.Uuid
+  tenant           Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId        String                   @map("student_id") @db.Uuid
+  student          Student                  @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  courseOfferingId String                   @map("course_offering_id") @db.Uuid
+  courseOffering   CourseOffering           @relation(fields: [courseOfferingId], references: [id], onDelete: Restrict)
+  termId           String                   @map("term_id") @db.Uuid
+  term             Term                     @relation(fields: [termId], references: [id], onDelete: Restrict)
   status           CourseRegistrationStatus @default(REGISTERED)
-  waitlistPosition Int?                    @map("waitlist_position")
-  enrolledAt       DateTime                @default(now()) @map("enrolled_at")
-  approvedByUserId String?                 @map("approved_by_user_id") @db.Uuid
-  dropReason       String?                 @map("drop_reason")
-  completedAt      DateTime?               @map("completed_at")
-  createdBy        String?                 @map("created_by") @db.Uuid
-  updatedBy        String?                 @map("updated_by") @db.Uuid
-  createdAt        DateTime                @default(now()) @map("created_at")
-  updatedAt        DateTime                @updatedAt @map("updated_at")
+  waitlistPosition Int?                     @map("waitlist_position")
+  enrolledAt       DateTime                 @default(now()) @map("enrolled_at")
+  approvedByUserId String?                  @map("approved_by_user_id") @db.Uuid
+  dropReason       String?                  @map("drop_reason")
+  completedAt      DateTime?                @map("completed_at")
+  createdBy        String?                  @map("created_by") @db.Uuid
+  updatedBy        String?                  @map("updated_by") @db.Uuid
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
 
   backlogs         CourseBacklog[] @relation("BacklogRegistration")
   backlogClearedIn CourseBacklog[] @relation("BacklogClearedRegistration")
@@ -3467,27 +3482,27 @@ model CourseRegistration {
 /// Academic advising / counselling session with a student. sessionType is free-form
 /// (ACADEMIC / COURSE_PLANNING / BACKLOG / CAREER / OTHER); resolution is explicit.
 model AcademicAdvisingRecord {
-  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String          @map("tenant_id") @db.Uuid
-  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId     String          @map("student_id") @db.Uuid
-  student       Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  advisorUserId String          @map("advisor_user_id") @db.Uuid
-  advisor       User            @relation("AdvisorAdvisingRecords", fields: [advisorUserId], references: [id], onDelete: Restrict)
-  termId        String?         @map("term_id") @db.Uuid
-  term          Term?           @relation("TermAdvisingRecords", fields: [termId], references: [id], onDelete: SetNull)
-  sessionType   String          @default("ACADEMIC") @map("session_type")
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String           @map("tenant_id") @db.Uuid
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId     String           @map("student_id") @db.Uuid
+  student       Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  advisorUserId String           @map("advisor_user_id") @db.Uuid
+  advisor       User             @relation("AdvisorAdvisingRecords", fields: [advisorUserId], references: [id], onDelete: Restrict)
+  termId        String?          @map("term_id") @db.Uuid
+  term          Term?            @relation("TermAdvisingRecords", fields: [termId], references: [id], onDelete: SetNull)
+  sessionType   String           @default("ACADEMIC") @map("session_type")
   summary       String
   details       String?
-  actionItems   String?         @map("action_items")
+  actionItems   String?          @map("action_items")
   priority      AdvisingPriority @default(NORMAL)
-  status        AdvisingStatus  @default(OPEN)
-  followUpAt    DateTime?       @map("follow_up_at")
-  resolvedAt    DateTime?       @map("resolved_at")
-  createdBy     String?         @map("created_by") @db.Uuid
-  updatedBy     String?         @map("updated_by") @db.Uuid
-  createdAt     DateTime        @default(now()) @map("created_at")
-  updatedAt     DateTime        @updatedAt @map("updated_at")
+  status        AdvisingStatus   @default(OPEN)
+  followUpAt    DateTime?        @map("follow_up_at")
+  resolvedAt    DateTime?        @map("resolved_at")
+  createdBy     String?          @map("created_by") @db.Uuid
+  updatedBy     String?          @map("updated_by") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
 
   @@index([tenantId, studentId])
   @@index([tenantId, advisorUserId])
@@ -3499,32 +3514,32 @@ model AcademicAdvisingRecord {
 /// semester horizon, earned/required credits, backlog counts, and a promotion
 /// decision. Append-only history that the promotion process writes.
 model AcademicProgressionRecord {
-  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String           @map("tenant_id") @db.Uuid
-  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId      String           @map("student_id") @db.Uuid
-  student        Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  programId      String           @map("program_id") @db.Uuid
-  program        Program          @relation(fields: [programId], references: [id], onDelete: Restrict)
-  academicYearId String           @map("academic_year_id") @db.Uuid
-  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  batchId        String?          @map("batch_id") @db.Uuid
-  batch          Batch?           @relation(fields: [batchId], references: [id], onDelete: SetNull)
-  fromSemester   Int              @map("from_semester")
-  toSemester     Int              @map("to_semester")
-  status         ProgressionStatus
-  creditsEarned  Int?             @map("credits_earned")
-  creditsRequired Int?            @map("credits_required")
-  gpaScore       Float?           @map("gpa_score")
-  backlogOpen    Int              @default(0) @map("backlog_open")
-  backlogCleared Int              @default(0) @map("backlog_cleared")
-  decisionBy     String?          @map("decision_by") @db.Uuid
-  decidedAt      DateTime?        @map("decided_at")
-  remarks        String?
-  createdBy      String?          @map("created_by") @db.Uuid
-  updatedBy      String?          @map("updated_by") @db.Uuid
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String            @map("tenant_id") @db.Uuid
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId       String            @map("student_id") @db.Uuid
+  student         Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  programId       String            @map("program_id") @db.Uuid
+  program         Program           @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYearId  String            @map("academic_year_id") @db.Uuid
+  academicYear    AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  batchId         String?           @map("batch_id") @db.Uuid
+  batch           Batch?            @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  fromSemester    Int               @map("from_semester")
+  toSemester      Int               @map("to_semester")
+  status          ProgressionStatus
+  creditsEarned   Int?              @map("credits_earned")
+  creditsRequired Int?              @map("credits_required")
+  gpaScore        Float?            @map("gpa_score")
+  backlogOpen     Int               @default(0) @map("backlog_open")
+  backlogCleared  Int               @default(0) @map("backlog_cleared")
+  decisionBy      String?           @map("decision_by") @db.Uuid
+  decidedAt       DateTime?         @map("decided_at")
+  remarks         String?
+  createdBy       String?           @map("created_by") @db.Uuid
+  updatedBy       String?           @map("updated_by") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
 
   @@index([tenantId, studentId])
   @@index([tenantId, academicYearId])
@@ -3591,4 +3606,279 @@ model AcademicCalendarEvent {
   @@index([tenantId, eventType])
   @@index([tenantId, isPublished])
   @@map("academic_calendar_events")
+}
+
+// ---------------------------------------------------------------------------
+// Timetable (Phase 4) — weekly timetable construction on top of Foundation/
+// Organization (Term, Campus, Room, Section, Building) and Academics (CourseOffering,
+// CourseOfferingFaculty): the weekly grid (Timetable → TimetablePeriod), assigned sessions
+// (TimetableEntry), non-teaching days (TimetableHoliday), recurring faculty busy/unavailable
+// times (FacultyAvailability), detected collisions (TimetableConflict), date-specific faculty
+// swaps (TimetableSubstitution), and an append-only change log (TimetableHistory). The week
+// model is day-of-week + numbered period slots; a timetable belongs to one term and one campus,
+// and entries anchor to the offering's section (copied at write time so section conflicts work
+// even when a future offering's sectionId is cleared). Conflict detection is a hard service-level
+// gate on every write plus an explicit recheck sweep that materializes TimetableConflict rows —
+// there are deliberately no DB unique constraints on the entry cells so consumption ordering and
+// manual fixes are possible with the sweep as the source of truth.
+// ---------------------------------------------------------------------------
+
+enum TimetableStatus {
+  DRAFT
+  GENERATED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum TimetableEntryType {
+  LECTURE
+  LAB
+  TUTORIAL
+  OTHER
+}
+
+enum TimetableConflictType {
+  ROOM
+  FACULTY
+  SECTION
+}
+
+enum SubstitutionStatus {
+  REQUESTED
+  APPROVED
+  DECLINED
+  CANCELLED
+  EXECUTED
+}
+
+/// A weekly timetable for a term on a campus. workingDays stores the active 0-6 weekday set;
+/// the period grid lives in TimetablePeriod; assigned sessions live in TimetableEntry. Status
+/// moves DRAFT → GENERATED → PUBLISHED → ARCHIVED (generation and publication are explicit).
+model Timetable {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String          @map("tenant_id") @db.Uuid
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  termId        String          @map("term_id") @db.Uuid
+  term          Term            @relation("TermTimetables", fields: [termId], references: [id], onDelete: Restrict)
+  campusId      String          @map("campus_id") @db.Uuid
+  campus        Campus          @relation("CampusTimetables", fields: [campusId], references: [id], onDelete: Restrict)
+  name          String
+  code          String?
+  status        TimetableStatus @default(DRAFT)
+  /// ISO weekday numbers (0 = Sunday … 6 = Saturday) on which the timetable runs.
+  workingDays   Json            @map("working_days")
+  generatedAt   DateTime?       @map("generated_at")
+  publishedAt   DateTime?       @map("published_at")
+  publishedById String?         @map("published_by_id") @db.Uuid
+  publishedBy   User?           @relation("TimetablePublisher", fields: [publishedById], references: [id], onDelete: SetNull)
+  createdBy     String?         @map("created_by") @db.Uuid
+  updatedBy     String?         @map("updated_by") @db.Uuid
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  deletedAt     DateTime?       @map("deleted_at")
+
+  periods       TimetablePeriod[]       @relation("TimetablePeriods")
+  entries       TimetableEntry[]
+  holidays      TimetableHoliday[]      @relation("TimetableHolidays")
+  conflicts     TimetableConflict[]     @relation("TimetableConflicts")
+  substitutions TimetableSubstitution[] @relation("TimetableSubstitutions")
+  history       TimetableHistory[]      @relation("TimetableHistoryRows")
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, termId])
+  @@index([tenantId, campusId])
+  @@index([tenantId, status])
+  @@index([tenantId, deletedAt])
+  @@map("timetables")
+}
+
+/// A numbered time slot in a timetable's grid (e.g. period 1 = 09:00-10:00). The grid is
+/// replaced wholesale by the admin UI; breaks are marked so the generator skips them.
+model TimetablePeriod {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  timetableId String    @map("timetable_id") @db.Uuid
+  timetable   Timetable @relation("TimetablePeriods", fields: [timetableId], references: [id], onDelete: Cascade)
+  sequence    Int
+  startTime   String    @map("start_time")
+  endTime     String    @map("end_time")
+  isBreak     Boolean   @default(false) @map("is_break")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdBy   String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  entries TimetableEntry[] @relation("PeriodTimetableEntries")
+
+  @@unique([timetableId, sequence])
+  @@index([tenantId, timetableId])
+  @@map("timetable_periods")
+}
+
+/// A single scheduled session in the weekly grid. sectionId is copied from the offering at
+/// write time; assignedUserId defaults to the offering's PRIMARY faculty but a manual entry
+/// can override it (and the substitute flow swaps it per-date). title overrides the derived
+/// display label for manual/OTHER entries.
+model TimetableEntry {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String             @map("tenant_id") @db.Uuid
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  timetableId      String             @map("timetable_id") @db.Uuid
+  timetable        Timetable          @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  periodId         String             @map("period_id") @db.Uuid
+  period           TimetablePeriod    @relation("PeriodTimetableEntries", fields: [periodId], references: [id], onDelete: Restrict)
+  dayOfWeek        Int                @map("day_of_week")
+  courseOfferingId String?            @map("course_offering_id") @db.Uuid
+  courseOffering   CourseOffering?    @relation("OfferingTimetableEntries", fields: [courseOfferingId], references: [id], onDelete: SetNull)
+  sectionId        String?            @map("section_id") @db.Uuid
+  section          Section?           @relation("SectionTimetableEntries", fields: [sectionId], references: [id], onDelete: SetNull)
+  assignedUserId   String?            @map("assigned_user_id") @db.Uuid
+  assignedUser     User?              @relation("FacultyTimetableEntries", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  roomId           String?            @map("room_id") @db.Uuid
+  room             Room?              @relation("RoomTimetableEntries", fields: [roomId], references: [id], onDelete: SetNull)
+  entryType        TimetableEntryType @default(LECTURE) @map("entry_type")
+  title            String?
+  notes            String?
+  createdBy        String?            @map("created_by") @db.Uuid
+  updatedBy        String?            @map("updated_by") @db.Uuid
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  substitutions TimetableSubstitution[] @relation("EntrySubstitutions")
+
+  @@index([tenantId, timetableId])
+  @@index([tenantId, timetableId, dayOfWeek])
+  @@index([tenantId, timetableId, periodId, dayOfWeek])
+  @@index([tenantId, sectionId, dayOfWeek])
+  @@index([tenantId, assignedUserId, dayOfWeek])
+  @@index([tenantId, roomId, dayOfWeek])
+  @@map("timetable_entries")
+}
+
+/// A date on which the timetable does not run (institutional/term holiday).
+model TimetableHoliday {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  timetableId String    @map("timetable_id") @db.Uuid
+  timetable   Timetable @relation("TimetableHolidays", fields: [timetableId], references: [id], onDelete: Cascade)
+  date        DateTime  @map("date") @db.Date
+  name        String
+  description String?
+  createdBy   String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@unique([timetableId, date])
+  @@index([tenantId, timetableId])
+  @@map("timetable_holidays")
+}
+
+/// Recurring time blocks a faculty member is NOT available (or explicitly available) for
+/// teaching, e.g. admin duty, research day, another campus's load. isBlocked=true marks an
+/// unavailability window the generator must avoid; false marks a guaranteed-free window. Blocks
+/// are optionality scoped to a term/campus (null = applies everywhere).
+model FacultyAvailability {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation("FacultyAvailabilityBlocks", fields: [userId], references: [id], onDelete: Cascade)
+  termId    String?  @map("term_id") @db.Uuid
+  campusId  String?  @map("campus_id") @db.Uuid
+  dayOfWeek Int      @map("day_of_week")
+  startTime String   @map("start_time")
+  endTime   String   @map("end_time")
+  isBlocked Boolean  @default(true) @map("is_blocked")
+  note      String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedBy String?  @map("updated_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, userId])
+  @@index([tenantId, termId])
+  @@index([tenantId, campusId])
+  @@map("faculty_availability")
+}
+
+/// A detected scheduling collision. Written by the manual-entry/update gate and by the explicit
+/// recheck sweep (source: 'write' | 'sweep' | 'substitution'). entryAId/entryBId reference
+/// TimetableEntry rows; for date-specific substitution conflicts substitutionAId/B carry the
+/// TimetableSubstitution ids and the day/period identify the colliding slot.
+model TimetableConflict {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String                @map("tenant_id") @db.Uuid
+  tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  timetableId     String                @map("timetable_id") @db.Uuid
+  timetable       Timetable             @relation("TimetableConflicts", fields: [timetableId], references: [id], onDelete: Cascade)
+  conflictType    TimetableConflictType @map("conflict_type")
+  dayOfWeek       Int                   @map("day_of_week")
+  periodId        String?               @map("period_id") @db.Uuid
+  entryAId        String?               @map("entry_a_id") @db.Uuid
+  entryBId        String?               @map("entry_b_id") @db.Uuid
+  substitutionAId String?               @map("substitution_a_id") @db.Uuid
+  substitutionBId String?               @map("substitution_b_id") @db.Uuid
+  description     String
+  source          String                @default("sweep")
+  detectedAt      DateTime              @default(now()) @map("detected_at")
+  resolvedAt      DateTime?             @map("resolved_at")
+  resolvedById    String?               @map("resolved_by_id") @db.Uuid
+  createdBy       String?               @map("created_by") @db.Uuid
+  createdAt       DateTime              @default(now()) @map("created_at")
+
+  @@index([tenantId, timetableId])
+  @@index([tenantId, timetableId, resolvedAt])
+  @@index([tenantId, entryAId])
+  @@index([tenantId, entryBId])
+  @@map("timetable_conflicts")
+}
+
+/// A date-specific faculty swap for one entry (a substitute takes the entry on a given date).
+/// Only APPROVED substitutions take effect; EXECUTED is applied by the status sweep once the
+/// effective date has passed.
+model TimetableSubstitution {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String             @map("tenant_id") @db.Uuid
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  timetableId      String             @map("timetable_id") @db.Uuid
+  timetable        Timetable          @relation("TimetableSubstitutions", fields: [timetableId], references: [id], onDelete: Cascade)
+  entryId          String             @map("entry_id") @db.Uuid
+  entry            TimetableEntry     @relation("EntrySubstitutions", fields: [entryId], references: [id], onDelete: Cascade)
+  originalUserId   String?            @map("original_user_id") @db.Uuid
+  substituteUserId String             @map("substitute_user_id") @db.Uuid
+  substituteUser   User               @relation("SubstituteTimetableEntries", fields: [substituteUserId], references: [id], onDelete: Restrict)
+  effectiveDate    DateTime           @map("effective_date") @db.Date
+  reason           String?
+  status           SubstitutionStatus @default(REQUESTED)
+  requestedById    String?            @map("requested_by_id") @db.Uuid
+  decidedById      String?            @map("decided_by_id") @db.Uuid
+  decidedAt        DateTime?          @map("decided_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  @@unique([tenantId, entryId, effectiveDate])
+  @@index([tenantId, timetableId, status])
+  @@index([tenantId, substituteUserId, effectiveDate])
+  @@map("timetable_substitutions")
+}
+
+/// Append-only change log for a timetable: structure edits, generation, publication, entry /
+/// holiday / substitution events. Mirrors the audit trail at the timetable's own grain.
+model TimetableHistory {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  timetableId String    @map("timetable_id") @db.Uuid
+  timetable   Timetable @relation("TimetableHistoryRows", fields: [timetableId], references: [id], onDelete: Cascade)
+  action      String
+  actorId     String?   @map("actor_id") @db.Uuid
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId, timetableId])
+  @@index([tenantId, timetableId, createdAt])
+  @@map("timetable_history")
 }
