@@ -9,7 +9,11 @@ import { PlatformAuthGuard } from '../../common/guards/platform-auth.guard';
 import type { RequestWithTenant } from '../../common/types/tenant-request';
 import { LoginDto } from './dto/login.dto';
 import { PlatformAuthService } from './platform-auth.service';
-import { clearRefreshCookie, REFRESH_COOKIE_NAME, setRefreshCookie } from './refresh-cookie.util';
+import {
+  clearPlatformRefreshCookie,
+  PLATFORM_REFRESH_COOKIE_NAME,
+  setPlatformRefreshCookie,
+} from './refresh-cookie.util';
 
 /** Matches AuthController's login throttle — platform accounts are just as attackable. */
 const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
@@ -35,7 +39,7 @@ export class PlatformAuthController {
       return { mfaRequired: true, challengeToken: result.challengeToken, expiresInSeconds: result.expiresInSeconds };
     }
 
-    setRefreshCookie(res, result.rawRefreshToken, this.config);
+    setPlatformRefreshCookie(res, result.rawRefreshToken, this.config);
     return {
       accessToken: result.accessToken,
       mfaSetupRequired: result.mfaSetupRequired,
@@ -51,7 +55,7 @@ export class PlatformAuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Req() req: RequestWithTenant, @Res({ passthrough: true }) res: Response) {
-    const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+    const rawRefreshToken = req.cookies?.[PLATFORM_REFRESH_COOKIE_NAME];
     if (!rawRefreshToken) {
       throw new UnauthorizedException('Missing refresh token.');
     }
@@ -60,18 +64,21 @@ export class PlatformAuthController {
       rawRefreshToken,
     );
 
-    setRefreshCookie(res, nextRawRefreshToken, this.config);
+    setPlatformRefreshCookie(res, nextRawRefreshToken, this.config);
     return { accessToken };
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(@Req() req: RequestWithTenant, @Res({ passthrough: true }) res: Response): Promise<void> {
-    const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+    const rawRefreshToken = req.cookies?.[PLATFORM_REFRESH_COOKIE_NAME];
     if (rawRefreshToken) {
-      await this.platformAuthService.logout(rawRefreshToken);
+      await this.platformAuthService.logout(rawRefreshToken, {
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
     }
-    clearRefreshCookie(res, this.config);
+    clearPlatformRefreshCookie(res, this.config);
   }
 
   @Get('me')

@@ -1,4 +1,5 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { AuditService } from '../../modules/audit/audit.service';
 import { TenantContextService } from '../prisma/tenant-context.service';
 import type { RequestWithTenant } from '../types/tenant-request';
@@ -31,7 +32,8 @@ export class TenantMatchGuard implements CanActivate {
         tenantId: resolvedTenant.id,
         actorType: 'USER',
         actorUserId: user.id,
-        action: 'CROSS_TENANT_ACCESS_ATTEMPT',
+        action: AUDIT_ACTIONS.CROSS_TENANT_ACCESS_ATTEMPT,
+        module: AUDIT_MODULES.PLATFORM,
         entityType: 'Tenant',
         entityId: resolvedTenant.id,
         after: { attemptedWithTenantId: user.tenantId, resolvedTenantId: resolvedTenant.id },

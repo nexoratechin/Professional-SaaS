@@ -1,10 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
+import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
+import type { NotificationChannel } from '@college-erp/database';
 import { QUEUE_NAMES, type NotificationJobData } from '@college-erp/types';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import type { SendNotificationDto } from './dto/send-notification.dto';
+
+export interface SystemNotificationInput {
+  recipientUserId: string;
+  channel?: NotificationChannel;
+  subject: string;
+  body: string;
+}
 
 @Injectable()
 export class NotificationsService {
@@ -43,7 +52,8 @@ export class NotificationsService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'NOTIFICATION_QUEUED',
+      action: AUDIT_ACTIONS.NOTIFICATION_QUEUED,
+      module: AUDIT_MODULES.NOTIFICATIONS,
       entityType: 'Notification',
       entityId: notification.id,
       after: { channel: dto.channel, subject: dto.subject },
@@ -54,5 +64,25 @@ export class NotificationsService {
 
   async list() {
     return this.tenantPrisma.client.notification.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  /** For internal, system-triggered notifications (e.g. the workflow engine notifying an
+   * approver a task is waiting, or a requester their request was decided) — no human actor, so
+   * no actorUserId/audit entry the way the explicit send() above records one. The lifecycle
+   * event that CAUSED the notification (e.g. WORKFLOW_TASK_APPROVED) is what gets audited by its
+   * caller; logging every resulting notification too would just add noise. */
+  async sendSystem(tenantId: string, input: SystemNotificationInput) {
+    const notification = await this.tenantPrisma.client.notification.create({
+      data: {
+        tenantId,
+        recipientUserId: input.recipientUserId,
+        channel: input.channel ?? 'IN_APP',
+        subject: input.subject,
+        body: input.body,
+      },
+    });
+
+    await this.queue.add('deliver', { tenantId, notificationId: notification.id });
+    return notification;
   }
 }

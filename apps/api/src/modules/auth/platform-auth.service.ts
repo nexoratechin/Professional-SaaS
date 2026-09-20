@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import type { PlatformJwtAccessTokenClaims } from '@college-erp/auth';
+import { AUDIT_ACTIONS, AUDIT_MODULES, type PlatformJwtAccessTokenClaims } from '@college-erp/auth';
 import type { PlatformUser } from '@college-erp/database';
 import { AppConfigService } from '../../config/app-config.service';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
@@ -70,7 +70,8 @@ export class PlatformAuthService {
         await this.auditService.record({
           scope: 'PLATFORM',
           actorType: 'SYSTEM',
-          action: 'PLATFORM_ACCOUNT_LOCKED',
+          action: AUDIT_ACTIONS.PLATFORM_ACCOUNT_LOCKED,
+          module: AUDIT_MODULES.AUTH,
           entityType: 'PlatformUser',
           entityId: platformUser.id,
           after: { lockedForMs: ACCOUNT_LOCKOUT_DURATION_MS, reason: 'too many failed login attempts' },
@@ -123,7 +124,8 @@ export class PlatformAuthService {
       scope: 'PLATFORM',
       actorType: 'PLATFORM_USER',
       actorPlatformUserId: platformUser.id,
-      action: 'PLATFORM_LOGIN_SUCCESS',
+      action: AUDIT_ACTIONS.PLATFORM_LOGIN_SUCCESS,
+      module: AUDIT_MODULES.AUTH,
       entityType: 'PlatformUser',
       entityId: platformUser.id,
       ipAddress: meta.ipAddress,
@@ -165,10 +167,28 @@ export class PlatformAuthService {
     return { accessToken, rawRefreshToken: rawRefreshTokenNext, platformUser };
   }
 
-  async logout(rawRefreshToken: string): Promise<void> {
-    await this.platformPrisma.client.platformSession.updateMany({
-      where: { refreshTokenHash: hashToken(rawRefreshToken), revokedAt: null },
+  async logout(rawRefreshToken: string, meta: RequestMeta = {}): Promise<void> {
+    const session = await this.platformPrisma.client.platformSession.findUnique({
+      where: { refreshTokenHash: hashToken(rawRefreshToken) },
+    });
+    if (!session || session.revokedAt) {
+      return;
+    }
+
+    await this.platformPrisma.client.platformSession.update({
+      where: { id: session.id },
       data: { revokedAt: new Date() },
+    });
+    await this.auditService.record({
+      scope: 'PLATFORM',
+      actorType: 'PLATFORM_USER',
+      actorPlatformUserId: session.platformUserId,
+      action: AUDIT_ACTIONS.PLATFORM_LOGOUT,
+      module: AUDIT_MODULES.AUTH,
+      entityType: 'PlatformSession',
+      entityId: session.id,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
     });
   }
 

@@ -35,8 +35,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-college_erp_minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-college_erp_minio_password}
     ports:
-      - '${MINIO_PORT:-9000}:9000'
-      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+      - '${MINIO_PORT:-9100}:9000'
+      - '${MINIO_CONSOLE_PORT:-9101}:9001'
     volumes:
       - minio_data:/data
     healthcheck:
@@ -56,6 +56,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-college_erp}:${POSTGRES_PASSWORD:-college_erp_dev_password}@postgres:5432/${POSTGRES_DB:-college_erp}
       REDIS_URL: redis://redis:6379
       S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9100
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-college_erp_minio}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-college_erp_minio_password}
     ports:

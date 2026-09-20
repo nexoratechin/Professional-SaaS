@@ -6,10 +6,11 @@ WORKDIR /app
 
 COPY pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY packages ./packages
+COPY tooling ./tooling
 COPY apps/web ./apps/web
 
 RUN pnpm install --frozen-lockfile=false
 RUN pnpm --filter @college-erp/ui build && pnpm --filter @college-erp/types build
 
 EXPOSE 5173
-CMD ["pnpm", "--filter", "@college-erp/web", "dev", "--", "--host", "0.0.0.0"]
+CMD ["pnpm", "--filter", "@college-erp/web", "dev"]

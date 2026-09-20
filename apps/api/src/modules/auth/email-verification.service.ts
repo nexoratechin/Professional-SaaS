@@ -1,4 +1,5 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { generateOpaqueToken, hashToken } from './token.util';
@@ -40,7 +41,8 @@ export class EmailVerificationService {
       scope: 'TENANT',
       tenantId,
       actorType: 'SYSTEM',
-      action: 'EMAIL_VERIFICATION_REQUESTED',
+      action: AUDIT_ACTIONS.EMAIL_VERIFICATION_REQUESTED,
+      module: AUDIT_MODULES.AUTH,
       entityType: 'User',
       entityId: userId,
     });
@@ -82,7 +84,8 @@ export class EmailVerificationService {
       tenantId,
       actorType: 'USER',
       actorUserId: verificationToken.userId,
-      action: 'EMAIL_VERIFIED',
+      action: AUDIT_ACTIONS.EMAIL_VERIFIED,
+      module: AUDIT_MODULES.AUTH,
       entityType: 'User',
       entityId: verificationToken.userId,
     });

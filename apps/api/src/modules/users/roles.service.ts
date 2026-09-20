@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PERMISSION_SCOPE_TYPES } from '@college-erp/auth';
+import { AUDIT_ACTIONS, AUDIT_MODULES, PERMISSION_SCOPE_TYPES } from '@college-erp/auth';
 import type { PermissionScopeType as RolePermissionScopeType } from '@college-erp/database';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
@@ -34,7 +34,8 @@ export class RolesService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'ROLE_CREATED',
+      action: AUDIT_ACTIONS.ROLE_CREATED,
+      module: AUDIT_MODULES.RBAC,
       entityType: 'Role',
       entityId: role.id,
       after: { code: role.code, name: role.name },
@@ -87,7 +88,8 @@ export class RolesService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'ROLE_PERMISSIONS_UPDATED',
+      action: AUDIT_ACTIONS.ROLE_PERMISSIONS_UPDATED,
+      module: AUDIT_MODULES.RBAC,
       entityType: 'Role',
       entityId: roleId,
       after: { grants },

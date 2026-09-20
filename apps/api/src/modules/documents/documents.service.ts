@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { StorageService } from '../../common/storage/storage.service';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -34,7 +35,8 @@ export class DocumentsService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'DOCUMENT_UPLOAD_REQUESTED',
+      action: AUDIT_ACTIONS.DOCUMENT_UPLOAD_REQUESTED,
+      module: AUDIT_MODULES.DOCUMENTS,
       entityType: 'Document',
       entityId: document.id,
       after: { category: document.category, originalFilename: document.originalFilename },
@@ -56,7 +58,8 @@ export class DocumentsService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'DOCUMENT_UPLOAD_CONFIRMED',
+      action: AUDIT_ACTIONS.DOCUMENT_UPLOAD_CONFIRMED,
+      module: AUDIT_MODULES.DOCUMENTS,
       entityType: 'Document',
       entityId: document.id,
       after: { sizeBytes: dto.sizeBytes },
@@ -72,9 +75,22 @@ export class DocumentsService {
     });
   }
 
-  async getDownloadUrl(tenantId: string, id: string) {
+  async getDownloadUrl(tenantId: string, id: string, actorUserId: string) {
     const document = await this.findOwnedOrThrow(id);
     const downloadUrl = await this.storage.getDownloadUrl(tenantId, document.storageKey);
+
+    await this.auditService.record({
+      scope: 'TENANT',
+      tenantId,
+      actorType: 'USER',
+      actorUserId,
+      action: AUDIT_ACTIONS.DOCUMENT_DOWNLOADED,
+      module: AUDIT_MODULES.DOCUMENTS,
+      entityType: 'Document',
+      entityId: document.id,
+      after: { category: document.category, originalFilename: document.originalFilename },
+    });
+
     return { document, downloadUrl };
   }
 
@@ -89,7 +105,8 @@ export class DocumentsService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'DOCUMENT_DELETED',
+      action: AUDIT_ACTIONS.DOCUMENT_DELETED,
+      module: AUDIT_MODULES.DOCUMENTS,
       entityType: 'Document',
       entityId: document.id,
     });

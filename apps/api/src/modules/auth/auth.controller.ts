@@ -115,7 +115,7 @@ export class AuthController {
   async logout(@Req() req: RequestWithTenant, @Res({ passthrough: true }) res: Response): Promise<void> {
     const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
     if (rawRefreshToken) {
-      await this.authService.logout(rawRefreshToken);
+      await this.authService.logout(rawRefreshToken, { ipAddress: req.ip, userAgent: req.headers['user-agent'] });
     }
     clearRefreshCookie(res, this.config);
   }

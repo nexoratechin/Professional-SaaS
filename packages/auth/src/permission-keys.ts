@@ -11,8 +11,9 @@
  * the key is an identifier, the action field is the queryable classification.
  *
  * Modules with a real controller today: tenants (self-service), users, roles, audit,
- * organization (campuses/departments/programs/academic-years/terms/rooms — schema+RBAC only,
- * CRUD modules are a later pass), notifications, documents. Every other module below
+ * organization (campuses/departments/programs/academic-years/terms/rooms/buildings/sections/
+ * batches — full CRUD API in apps/api's organization module), notifications, documents.
+ * Every other module below
  * (students…integrations, matching the blueprint's full product map) has no controller yet —
  * their permissions exist now so the 13 default tenant roles (see DEFAULT_ROLE_DEFINITIONS)
  * have real, differentiated grants to seed, and so each module's future CRUD controller has a
@@ -59,6 +60,10 @@ export const PERMISSION_KEYS = {
   // --- Foundation (has controllers) ---
   TENANT_SETTINGS_MANAGE: 'tenant.settings.manage',
   TENANT_FEATURES_VIEW: 'tenant.features.view',
+  TENANT_BILLING_VIEW: 'tenant.billing.view',
+  TENANT_CONFIG_VIEW: 'tenant.config.view',
+  TENANT_CONFIG_MANAGE: 'tenant.config.manage',
+  BILLING_UPDATE: 'billing.update',
   USERS_VIEW: 'users.read',
   USERS_MANAGE: 'users.manage',
   ROLES_VIEW: 'roles.read',
@@ -68,7 +73,7 @@ export const PERMISSION_KEYS = {
   SECURITY_SETTINGS_MANAGE: 'security.settings.manage',
   SECURITY_EVENTS_VIEW: 'security.events.view',
 
-  // --- Organization (schema + RBAC only; CRUD modules are a later pass) ---
+  // --- Organization (full CRUD API in apps/api's organization module) ---
   CAMPUSES_VIEW: 'campuses.read',
   CAMPUSES_MANAGE: 'campuses.manage',
   DEPARTMENTS_VIEW: 'departments.read',
@@ -81,6 +86,12 @@ export const PERMISSION_KEYS = {
   TERMS_MANAGE: 'terms.manage',
   ROOMS_VIEW: 'rooms.read',
   ROOMS_MANAGE: 'rooms.manage',
+  BUILDINGS_VIEW: 'buildings.read',
+  BUILDINGS_MANAGE: 'buildings.manage',
+  SECTIONS_VIEW: 'sections.read',
+  SECTIONS_MANAGE: 'sections.manage',
+  BATCHES_VIEW: 'batches.read',
+  BATCHES_MANAGE: 'batches.manage',
 
   // --- Notifications / Documents (have controllers) ---
   NOTIFICATIONS_VIEW: 'notifications.read',
@@ -211,6 +222,11 @@ export const PERMISSION_KEYS = {
   // --- External integrations ---
   INTEGRATIONS_VIEW: 'integrations.view',
   INTEGRATIONS_MANAGE: 'integrations.manage',
+
+  // --- Workflow engine (has a controller — see apps/api's workflow module) ---
+  WORKFLOWS_VIEW: 'workflows.view',
+  WORKFLOWS_APPROVE: 'workflows.approve',
+  WORKFLOWS_MANAGE: 'workflows.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[keyof typeof PERMISSION_KEYS];
@@ -246,6 +262,31 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
     action: VIEW,
     description: "View the tenant's effective feature flags.",
   },
+  {
+    key: PERMISSION_KEYS.TENANT_BILLING_VIEW,
+    module: 'tenants',
+    action: VIEW,
+    description: "View the tenant's own invoices and billing history.",
+  },
+  {
+    key: PERMISSION_KEYS.BILLING_UPDATE,
+    module: 'billing',
+    action: UPDATE,
+    description:
+      "Manage the tenant's own subscription billing: upgrade/downgrade the plan, cancel or reinstate at the current period end.",
+  },
+  {
+    key: PERMISSION_KEYS.TENANT_CONFIG_VIEW,
+    module: 'tenants',
+    action: VIEW,
+    description: "View the tenant's configuration engine document (branding, academic calendar, fee rules, etc.).",
+  },
+  {
+    key: PERMISSION_KEYS.TENANT_CONFIG_MANAGE,
+    module: 'tenants',
+    action: MANAGE,
+    description: "Manage the tenant's configuration engine document (branding, academic calendar, fee rules, etc.).",
+  },
   ...modulePermissions('users', [
     [PERMISSION_KEYS.USERS_VIEW, VIEW, 'View users within the tenant.'],
     [PERMISSION_KEYS.USERS_MANAGE, MANAGE, 'Invite, activate, suspend, and deactivate tenant users.'],
@@ -275,6 +316,12 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
     [PERMISSION_KEYS.TERMS_MANAGE, MANAGE, 'Create, update, and archive terms within an academic year.'],
     [PERMISSION_KEYS.ROOMS_VIEW, VIEW, 'View rooms.'],
     [PERMISSION_KEYS.ROOMS_MANAGE, MANAGE, 'Create, update, and archive rooms.'],
+    [PERMISSION_KEYS.BUILDINGS_VIEW, VIEW, 'View buildings.'],
+    [PERMISSION_KEYS.BUILDINGS_MANAGE, MANAGE, 'Create, update, and archive buildings.'],
+    [PERMISSION_KEYS.SECTIONS_VIEW, VIEW, 'View sections.'],
+    [PERMISSION_KEYS.SECTIONS_MANAGE, MANAGE, 'Create, update, and archive sections.'],
+    [PERMISSION_KEYS.BATCHES_VIEW, VIEW, 'View batches.'],
+    [PERMISSION_KEYS.BATCHES_MANAGE, MANAGE, 'Create, update, and archive batches.'],
   ]),
   ...modulePermissions('notifications', [
     [PERMISSION_KEYS.NOTIFICATIONS_VIEW, VIEW, "View the tenant's notification history."],
@@ -408,6 +455,19 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
     [PERMISSION_KEYS.INTEGRATIONS_VIEW, VIEW, 'View configured external integrations.'],
     [PERMISSION_KEYS.INTEGRATIONS_MANAGE, MANAGE, 'Configure external integrations.'],
   ]),
+  ...modulePermissions('workflows', [
+    [PERMISSION_KEYS.WORKFLOWS_VIEW, VIEW, 'View workflow definitions, instances, and their history.'],
+    [
+      PERMISSION_KEYS.WORKFLOWS_APPROVE,
+      APPROVE,
+      'Act (approve/reject) on workflow approval tasks assigned to a role the user holds.',
+    ],
+    [
+      PERMISSION_KEYS.WORKFLOWS_MANAGE,
+      MANAGE,
+      'Define and configure workflow definitions (states, transitions, approvers) for the tenant.',
+    ],
+  ]),
 ];
 
 /** System roles seeded for every tenant at provisioning time (RolesService/RolesController
@@ -486,6 +546,8 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.REPORTS_VIEW },
       { key: K.REPORTS_EXPORT },
       { key: K.NOTIFICATIONS_VIEW },
+      { key: K.WORKFLOWS_VIEW },
+      { key: K.WORKFLOWS_APPROVE },
     ],
   },
   {
@@ -495,6 +557,10 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     grants: [
       { key: K.STUDENTS_MANAGE },
       { key: K.ACADEMICS_MANAGE },
+      { key: K.TIMETABLE_CREATE },
+      { key: K.TIMETABLE_UPDATE },
+      { key: K.TIMETABLE_PUBLISH },
+      { key: K.TIMETABLE_MANAGE },
       { key: K.ADMISSIONS_MANAGE },
       { key: K.CERTIFICATES_MANAGE },
       { key: K.CAMPUSES_VIEW },
@@ -502,8 +568,13 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.PROGRAMS_VIEW },
       { key: K.ACADEMIC_YEARS_VIEW },
       { key: K.TERMS_VIEW },
+      { key: K.BUILDINGS_VIEW },
+      { key: K.SECTIONS_VIEW },
+      { key: K.BATCHES_VIEW },
       { key: K.REPORTS_VIEW },
       { key: K.REPORTS_EXPORT },
+      { key: K.WORKFLOWS_VIEW },
+      { key: K.WORKFLOWS_APPROVE },
     ],
   },
   {
@@ -515,12 +586,18 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.ACADEMICS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.ACADEMICS_UPDATE, scopeType: S.DEPARTMENT },
       { key: K.TIMETABLE_VIEW, scopeType: S.DEPARTMENT },
+      { key: K.TIMETABLE_CREATE, scopeType: S.DEPARTMENT },
       { key: K.TIMETABLE_UPDATE, scopeType: S.DEPARTMENT },
-      { key: K.ATTENDANCE_VIEW, scopeType: S.DEPARTMENT },
-      { key: K.EXAMS_VIEW, scopeType: S.DEPARTMENT },
+      { key: K.TIMETABLE_PUBLISH, scopeType: S.DEPARTMENT },
+{ key: K.ATTENDANCE_VIEW, scopeType: S.DEPARTMENT },
+  { key: K.ATTENDANCE_CREATE, scopeType: S.DEPARTMENT },
+  { key: K.ATTENDANCE_UPDATE, scopeType: S.DEPARTMENT },
+  { key: K.EXAMS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.EXAMS_APPROVE, scopeType: S.DEPARTMENT },
       { key: K.RESULTS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.REPORTS_VIEW, scopeType: S.DEPARTMENT },
+      { key: K.WORKFLOWS_VIEW, scopeType: S.DEPARTMENT },
+      { key: K.WORKFLOWS_APPROVE, scopeType: S.DEPARTMENT },
     ],
   },
   {
@@ -529,7 +606,9 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     description: 'Takes attendance and enters marks for their own classes; views their department.',
     grants: [
       { key: K.STUDENTS_VIEW, scopeType: S.DEPARTMENT },
+      { key: K.ACADEMICS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.TIMETABLE_VIEW, scopeType: S.OWN },
+      { key: K.TIMETABLE_CREATE, scopeType: S.OWN },
       { key: K.ATTENDANCE_VIEW, scopeType: S.OWN },
       { key: K.ATTENDANCE_CREATE, scopeType: S.OWN },
       { key: K.ATTENDANCE_UPDATE, scopeType: S.OWN },
@@ -545,9 +624,13 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     grants: [
       { key: K.FEES_MANAGE },
       { key: K.PAYMENTS_MANAGE },
+      { key: K.TENANT_BILLING_VIEW },
+      { key: K.BILLING_UPDATE },
       { key: K.STUDENTS_VIEW },
       { key: K.REPORTS_VIEW },
       { key: K.REPORTS_EXPORT },
+      { key: K.WORKFLOWS_VIEW },
+      { key: K.WORKFLOWS_APPROVE },
     ],
   },
   {
@@ -561,6 +644,8 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.CERTIFICATES_CREATE },
       { key: K.CERTIFICATES_EXPORT },
       { key: K.STUDENTS_VIEW },
+      { key: K.WORKFLOWS_VIEW },
+      { key: K.WORKFLOWS_APPROVE },
     ],
   },
   {
@@ -585,13 +670,24 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     code: SYSTEM_ROLE_CODES.HR,
     name: 'HR',
     description: 'Owns employee records, leave, and workload; manages tenant user accounts for staff.',
-    grants: [{ key: K.HR_MANAGE }, { key: K.USERS_VIEW }, { key: K.USERS_MANAGE }],
+    grants: [
+      { key: K.HR_MANAGE },
+      { key: K.USERS_VIEW },
+      { key: K.USERS_MANAGE },
+      { key: K.WORKFLOWS_VIEW },
+      { key: K.WORKFLOWS_APPROVE },
+    ],
   },
   {
     code: SYSTEM_ROLE_CODES.PLACEMENT_OFFICER,
     name: 'Placement Officer',
     description: 'Owns placement drives, company relationships, and eligibility approvals.',
-    grants: [{ key: K.PLACEMENTS_MANAGE }, { key: K.STUDENTS_VIEW }],
+    grants: [
+      { key: K.PLACEMENTS_MANAGE },
+      { key: K.STUDENTS_VIEW },
+      { key: K.WORKFLOWS_VIEW },
+      { key: K.WORKFLOWS_APPROVE },
+    ],
   },
   {
     code: SYSTEM_ROLE_CODES.STUDENT,
@@ -599,6 +695,9 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     description: 'Self-service access to their own academic, attendance, exam, and fee records.',
     grants: [
       { key: K.STUDENTS_VIEW, scopeType: S.OWN },
+      { key: K.ACADEMICS_VIEW, scopeType: S.OWN },
+      { key: K.ACADEMICS_CREATE, scopeType: S.OWN },
+      { key: K.ACADEMICS_UPDATE, scopeType: S.OWN },
       { key: K.TIMETABLE_VIEW, scopeType: S.OWN },
       { key: K.ATTENDANCE_VIEW, scopeType: S.OWN },
       { key: K.EXAMS_VIEW, scopeType: S.OWN },
@@ -606,6 +705,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.FEES_VIEW, scopeType: S.OWN },
       { key: K.LIBRARY_VIEW, scopeType: S.OWN },
       { key: K.NOTIFICATIONS_VIEW, scopeType: S.OWN },
+      { key: K.WORKFLOWS_VIEW, scopeType: S.OWN },
     ],
   },
   {
@@ -622,6 +722,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.RESULTS_VIEW, scopeType: S.OWN },
       { key: K.FEES_VIEW, scopeType: S.OWN },
       { key: K.NOTIFICATIONS_VIEW, scopeType: S.OWN },
+      { key: K.WORKFLOWS_VIEW, scopeType: S.OWN },
     ],
   },
 ];

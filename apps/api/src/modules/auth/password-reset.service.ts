@@ -1,5 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SecurityEventsService } from '../security/security-events.service';
@@ -56,7 +57,8 @@ export class PasswordResetService {
       tenantId,
       actorType: 'USER',
       actorUserId: user.id,
-      action: 'PASSWORD_RESET_REQUESTED',
+      action: AUDIT_ACTIONS.PASSWORD_RESET_REQUESTED,
+      module: AUDIT_MODULES.AUTH,
       entityType: 'User',
       entityId: user.id,
     });
@@ -106,7 +108,8 @@ export class PasswordResetService {
       tenantId,
       actorType: 'USER',
       actorUserId: resetToken.userId,
-      action: 'PASSWORD_RESET_COMPLETED',
+      action: AUDIT_ACTIONS.PASSWORD_RESET_COMPLETED,
+      module: AUDIT_MODULES.AUTH,
       entityType: 'User',
       entityId: resetToken.userId,
     });

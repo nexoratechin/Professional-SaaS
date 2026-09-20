@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { CurrentUserDto, FeatureFlagsResponseDto, LoginResponseDto, PermissionsResponseDto } from '@college-erp/types';
+import type { CurrentUserDto, EffectiveEntitlementsResponseDto, FeatureFlagsResponseDto, LoginResponseDto, PermissionsResponseDto } from '@college-erp/types';
 import { apiFetch, setAccessToken, tryRefresh } from '../../lib/http';
 
 const TENANT_SLUG_STORAGE_KEY = 'college_erp_tenant_slug';
@@ -9,6 +9,10 @@ interface AuthState {
   user: CurrentUserDto | null;
   permissions: string[];
   features: Record<string, boolean>;
+  /** Granular capability flags (e.g. attendance.qr), resolved via the centralized entitlement
+   * gateway — available to every authenticated role for navigation/UI gating. */
+  entitlements: Record<string, boolean>;
+  hasFetchedEntitlements: boolean;
   tenantSlug: string | null;
 }
 
@@ -25,13 +29,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user: null,
     permissions: [],
     features: {},
+    entitlements: {},
+    hasFetchedEntitlements: false,
     tenantSlug: localStorage.getItem(TENANT_SLUG_STORAGE_KEY),
   });
 
   const loadProfile = useCallback(async (tenantSlug: string) => {
-    const [user, permissionsRes] = await Promise.all([
+    const [user, permissionsRes, entitlementsRes] = await Promise.all([
       apiFetch<CurrentUserDto>('/auth/me', { tenantSlug }),
       apiFetch<PermissionsResponseDto>('/auth/permissions', { tenantSlug }),
+      apiFetch<EffectiveEntitlementsResponseDto>('/tenant/entitlements/effective', { tenantSlug }).catch(() => null),
     ]);
 
     let features: Record<string, boolean> = {};
@@ -43,7 +50,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       features = {};
     }
 
-    setState({ status: 'authenticated', user, permissions: permissionsRes.permissions, features, tenantSlug });
+    const entitlements = entitlementsRes?.entitlements ?? {};
+    const hasFetchedEntitlements = entitlementsRes !== null;
+
+    setState({
+      status: 'authenticated',
+      user,
+      permissions: permissionsRes.permissions,
+      features,
+      entitlements,
+      hasFetchedEntitlements,
+      tenantSlug,
+    });
   }, []);
 
   useEffect(() => {
@@ -86,7 +104,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setAccessToken(null);
     localStorage.removeItem(TENANT_SLUG_STORAGE_KEY);
-    setState({ status: 'unauthenticated', user: null, permissions: [], features: {}, tenantSlug: null });
+    setState({
+      status: 'unauthenticated',
+      user: null,
+      permissions: [],
+      features: {},
+      entitlements: {},
+      hasFetchedEntitlements: false,
+      tenantSlug: null,
+    });
   }, [state.tenantSlug]);
 
   const value = useMemo<AuthContextValue>(() => ({ ...state, login, logout }), [state, login, logout]);
@@ -100,4 +126,24 @@ export function useAuth(): AuthContextValue {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return ctx;
+}
+
+/**
+ * Granular entitlement hook for feature-aware UI/navigation. The backend's
+ * EntitlementsGatewayService already returns a fully-resolved entitlements map (granular key OR
+ * its module flag — module-fallback applied server-side), so the frontend can read the resolved
+ * boolean directly and never needs to re-derive module fallbacks.
+ *
+ * While entitlements haven't loaded yet (`hasFetchedEntitlements = false` — still on the login
+ * page / session restore), this returns true so navigation never flashes away a screen the user
+ * is legitimately entitled to. Once loaded, it returns exactly what the gateway resolved. The
+ * authoritative gate remains the API (FeatureFlagsGuard/EntitlementFlagsGuard) — this hook only
+ * decides whether to render nav links and buttons.
+ */
+export function useEntitlement(key: string): boolean {
+  const { entitlements, hasFetchedEntitlements } = useAuth();
+  if (!hasFetchedEntitlements) {
+    return true;
+  }
+  return entitlements[key] === true;
 }

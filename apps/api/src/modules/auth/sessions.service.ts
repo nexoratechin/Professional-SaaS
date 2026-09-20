@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -57,7 +58,8 @@ export class SessionsService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'SESSION_REVOKED',
+      action: AUDIT_ACTIONS.SESSION_REVOKED,
+      module: AUDIT_MODULES.AUTH,
       entityType: 'Session',
       entityId: sessionId,
     });

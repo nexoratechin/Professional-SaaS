@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import { EmailVerificationService } from '../auth/email-verification.service';
 import { AuditService } from '../audit/audit.service';
@@ -40,7 +41,8 @@ export class UsersService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'USER_INVITED',
+      action: AUDIT_ACTIONS.USER_INVITED,
+      module: AUDIT_MODULES.USERS,
       entityType: 'User',
       entityId: user.id,
       after: { email: user.email, fullName: user.fullName },
@@ -79,7 +81,8 @@ export class UsersService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'USER_STATUS_CHANGED',
+      action: AUDIT_ACTIONS.USER_STATUS_CHANGED,
+      module: AUDIT_MODULES.USERS,
       entityType: 'User',
       entityId: id,
       before: { status: before.status },
@@ -133,7 +136,8 @@ export class UsersService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'ROLE_ASSIGNED',
+      action: AUDIT_ACTIONS.ROLE_ASSIGNED,
+      module: AUDIT_MODULES.RBAC,
       entityType: 'UserRole',
       entityId: userRole.id,
       after: { userId, roleCode: role.code, ...scopeData },
@@ -164,7 +168,8 @@ export class UsersService {
       tenantId,
       actorType: 'USER',
       actorUserId,
-      action: 'ROLE_UNASSIGNED',
+      action: AUDIT_ACTIONS.ROLE_UNASSIGNED,
+      module: AUDIT_MODULES.RBAC,
       entityType: 'UserRole',
       entityId: userRole.id,
       before: { userId, roleId },

@@ -8,6 +8,7 @@ import type { RequestWithTenant } from '../types/tenant-request';
 interface AuditMetadata {
   action: string;
   entityType: string;
+  module: string;
 }
 
 const PLATFORM_ROLES = new Set(['PLATFORM_ADMIN', 'PLATFORM_SUPPORT']);
@@ -44,6 +45,7 @@ export class AuditInterceptor implements NestInterceptor {
           actorUserId: isPlatformActor ? undefined : request.user?.id,
           actorPlatformUserId: isPlatformActor ? request.user?.id : undefined,
           action: metadata.action,
+          module: metadata.module,
           entityType: metadata.entityType,
           entityId: request.auditContext?.entityId,
           before: request.auditContext?.before,
