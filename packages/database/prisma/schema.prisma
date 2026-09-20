@@ -448,6 +448,15 @@ model Tenant {
   attendanceDevices            AttendanceDevice[]
   attendanceDeviceUsers        AttendanceDeviceUser[]
   attendanceDeviceLogs         AttendanceDeviceLog[]
+  feeHeads                     FeeHead[]
+  feeStructures                FeeStructure[]
+  feeStructureLines            FeeStructureLine[]
+  studentFeeAssignments        StudentFeeAssignment[]
+  feeDemands                   FeeDemand[]
+  feeConcessions               FeeConcession[]
+  feeRefunds                   FeeRefund[]
+  feeSequences                 FeeSequence[]
+  feeAllocations               StudentFeeAllocation[]
 
   @@index([status])
   @@map("tenants")
@@ -1363,6 +1372,7 @@ model Program {
   curricula                  Curriculum[]
   courseOfferings            CourseOffering[]
   academicProgressionRecords AcademicProgressionRecord[]
+  feeStructures              FeeStructure[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1397,6 +1407,7 @@ model AcademicYear {
   courseOfferings            CourseOffering[]
   academicCalendarEvents     AcademicCalendarEvent[]
   academicProgressionRecords AcademicProgressionRecord[]
+  feeStructures              FeeStructure[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1434,6 +1445,9 @@ model Term {
   courseBacklogs          CourseBacklog[]
   timetables              Timetable[]              @relation("TermTimetables")
   attendanceSessions      AttendanceSession[]      @relation("TermAttendanceSessions")
+  feeStructures           FeeStructure[]
+  studentFeeAssignments   StudentFeeAssignment[]
+  feeDemands              FeeDemand[]
 
   @@unique([academicYearId, code])
   @@index([tenantId])
@@ -1560,6 +1574,7 @@ model Section {
   courseOfferings    CourseOffering[]
   timetableEntries   TimetableEntry[]    @relation("SectionTimetableEntries")
   attendanceSessions AttendanceSession[] @relation("SectionAttendanceSessions")
+  feeStructures      FeeStructure[]
 
   @@unique([tenantId, programId, code])
   @@index([tenantId])
@@ -1679,6 +1694,65 @@ enum FeeStatus {
   OVERDUE
   WAIVED
   REFUNDED
+}
+
+/// How often a fee head recurs within a structure: a one-off charge, per-term, or once per
+/// academic year. Mirrors the tenant-config 'fees.feeHeads' frequency vocabulary.
+enum FeeHeadFrequency {
+  ONE_TIME
+  PER_TERM
+  ANNUAL
+}
+
+enum FeeStructureStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+/// Lifecycle of a structure-to-student assignment. ACTIVE structures keep generating/issuing
+/// demands; REVOKED stops issuing new demands (existing ones keep their ledger integrity).
+enum FeeAssignmentStatus {
+  ACTIVE
+  COMPLETED
+  REVOKED
+}
+
+/// Why a student's fee was reduced. SCHOLARSHIP/CONCESSION cover most academic/admin discounts;
+/// WAIVER is a full or partial forgiveness of an amount that was never expected to be recovered.
+enum FeeConcessionKind {
+  SCHOLARSHIP
+  CONCESSION
+  WAIVER
+}
+
+enum FeeConcessionBasis {
+  FLAT
+  PERCENT
+}
+
+enum FeeConcessionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVOKED
+}
+
+/// Lifecycle of a fee refund against a StudentPayment. PROCESSED is the only terminal state that
+/// reverses the payment's ledger allocation (see FeeRefundsService.process).
+enum FeeRefundStatus {
+  REQUESTED
+  APPROVED
+  PROCESSED
+  REJECTED
+}
+
+/// The counter family a SequenceAllocator draws from. Kept one row per (tenant, kind, prefix) so
+/// receipts, demands and refunds can use independent numbering without contention.
+enum FeeSequenceKind {
+  RECEIPT
+  DEMAND
+  REFUND
 }
 
 enum ExamType {
@@ -2116,6 +2190,10 @@ model Student {
   attendance            StudentAttendance[]
   fees                  StudentFee[]
   payments              StudentPayment[]
+  feeAssignments        StudentFeeAssignment[] @relation("StudentFeeAssignments")
+  feeDemands            FeeDemand[]           @relation("StudentDemands")
+  concessions           FeeConcession[]       @relation("StudentConcessions")
+  refunds               FeeRefund[]           @relation("StudentRefunds")
   exams                 StudentExam[]
   results               StudentResult[]
   certificates          StudentCertificate[]
@@ -2583,6 +2661,10 @@ model AttendanceDeviceLog {
 /// A fee demand line on a student's ledger. status is recomputed by the students module on
 /// every create/update/payment from amountCents vs paidCents+waivedCents; OVERDUE is derived
 /// at read time when dueDate has passed and the line isn't yet PAID.
+///
+/// When issued through the fees module (FeeStructure → StudentFeeAssignment → FeeDemand) each
+/// line carries its originating structure/line/demand and installment index so the demand's
+/// totals and late-fee accrual can be reconciled back to the catalog that produced them.
 model StudentFee {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId    String    @map("tenant_id") @db.Uuid
@@ -2591,11 +2673,21 @@ model StudentFee {
   student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   termId      String?   @map("term_id") @db.Uuid
   term        Term?     @relation(fields: [termId], references: [id], onDelete: SetNull)
+  structureId String?   @map("structure_id") @db.Uuid
+  structure   FeeStructure?    @relation("FeeStructureGeneratedFees", fields: [structureId], references: [id], onDelete: SetNull)
+  structureLineId String? @map("structure_line_id") @db.Uuid
+  structureLine FeeStructureLine? @relation("FeeStructureLineGeneratedFees", fields: [structureLineId], references: [id], onDelete: SetNull)
+  demandId    String?   @map("demand_id") @db.Uuid
+  demand      FeeDemand? @relation(fields: [demandId], references: [id], onDelete: SetNull)
+  installmentIndex Int  @default(0) @map("installment_index")
   headCode    String    @map("head_code")
   headName    String    @map("head_name")
   amountCents Int       @map("amount_cents")
   paidCents   Int       @default(0) @map("paid_cents")
   waivedCents Int       @default(0) @map("waived_cents")
+  /// Accumulated late-fee charged on this line (flat/percent from the structure's rules).
+  lateFeeCents Int      @default(0) @map("late_fee_cents")
+  lastLateFeeAccruedAt DateTime? @map("last_late_fee_accrued_at")
   status      FeeStatus @default(ISSUED)
   dueDate     DateTime? @map("due_date")
   remarks     String?
@@ -2605,11 +2697,15 @@ model StudentFee {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   payments StudentPayment[]
+  concessions FeeConcession[]
+  allocations StudentFeeAllocation[]
 
   @@index([tenantId])
   @@index([studentId])
   @@index([tenantId, status])
   @@index([studentId, status])
+  @@index([tenantId, demandId])
+  @@index([tenantId, structureId])
   @@map("student_fees")
 }
 
@@ -2631,16 +2727,329 @@ model StudentPayment {
   method           PaymentMethod
   status           PaymentStatus @default(SUCCEEDED)
   referenceNumber  String?       @map("reference_number")
+  /// Caller-supplied dedupe token (e.g. gateway transaction id, bank UTR): replaying a payment
+  /// with the same key returns the original row instead of double-charging the ledger.
+  idempotencyKey   String?       @map("idempotency_key")
   recordedByUserId String?       @map("recorded_by_user_id") @db.Uuid
   remarks          String?
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
+  refunds FeeRefund[] @relation("PaymentRefunds")
+  allocations StudentFeeAllocation[]
+
   @@unique([tenantId, receiptNumber])
+  @@unique([tenantId, idempotencyKey])
   @@index([tenantId])
   @@index([studentId])
   @@index([studentFeeId])
   @@map("student_payments")
+}
+
+/// One inbound payment's allocation to a single StudentFee line. A payment may be split across
+/// any number of lines (greedy oldest-due-first); each allocation reduces only that line's
+/// paidCents, so the ledger reconciles back to the exact paise per fee item. Written in the same
+/// transaction as its StudentPayment and drives the demand/line status recompute.
+model StudentFeeAllocation {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String         @map("tenant_id") @db.Uuid
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  paymentId    String         @map("payment_id") @db.Uuid
+  payment      StudentPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  studentFeeId String         @map("student_fee_id") @db.Uuid
+  line         StudentFee     @relation(fields: [studentFeeId], references: [id], onDelete: Cascade)
+  amountCents  Int            @map("amount_cents")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  @@unique([paymentId, studentFeeId])
+  @@index([tenantId])
+  @@index([tenantId, studentFeeId])
+  @@index([tenantId, paymentId])
+  @@map("student_fee_allocations")
+}
+
+// ---------------------------------------------------------------------------
+// Fees & Finance (Phase 14) — a complete fee-billing surface built on top of the Student 360
+// fee ledger. StudentFee stays the single demand-line table and StudentPayment the receipt/
+// ledger entry the students module already owns; this module adds the catalog + planning +
+// workflow layers around them:
+//
+//   FeeHead            → the tenant's fee catalog (code-denormalized on StudentFee later).
+//   FeeStructure       → a fee template scoped to academic year/term/program/section with
+//                        installment + late-fee rules.
+//   FeeStructureLine   → one head within a structure with its amount override.
+//   StudentFeeAssignment → binding a structure to a student (per term); generation materializes
+//                        the structure's lines into StudentFee rows grouped under FeeDemands.
+//   FeeDemand           → an issued demand (one installment) grouping its StudentFee lines;
+//                        numbered per tenant via FeeSequence (kind DEMAND).
+//   FeeConcession       → scholarship/waiver/concession request against a demand or single line;
+//                        APPROVED applies to the ledger via StudentFee.waivedCents.
+//   FeeRefund           → refund workflow against a StudentPayment; PROCESSED reverses the
+//                        allocation transactionally (reuses student-records semantics).
+//   FeeSequence         → atomic per-tenant counters for receipt / demand / refund numbering.
+//
+// Money invariants: every amount is integer minor units (paise/cents). Payments never exceed a
+// line's outstanding balance unless explicitly permitted; payment allocation and status
+// recomputation always happen inside the same transaction as the StudentPayment row. Waivers /
+// concessions only ever move StudentFee.waivedCents; refunds only ever move paidCents backwards
+// by the refunded amount. All mutations write an audit entry (module 'fees').
+// ---------------------------------------------------------------------------
+
+/// A tenant-level fee catalog entry. Codes are tenant-unique and denormalized onto StudentFee
+/// lines at demand-generation time (so historical demands stay intact even if the head is
+/// renamed/archived, mirroring the codebase's free-form-string snapshot philosophy).
+model FeeHead {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String           @map("tenant_id") @db.Uuid
+  tenant             Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code               String
+  name               String
+  frequency          FeeHeadFrequency
+  defaultAmountCents Int              @map("default_amount_cents")
+  isOptional         Boolean          @default(false) @map("is_optional")
+  isRefundable       Boolean          @default(true) @map("is_refundable")
+  isActive           Boolean          @default(true) @map("is_active")
+  description        String?
+  createdBy          String?          @map("created_by")
+  updatedBy          String?          @map("updated_by")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+  deletedAt          DateTime?        @map("deleted_at")
+
+  structureLines FeeStructureLine[] @relation("FeeHeadLines")
+  concessions    FeeConcession[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@index([tenantId, deletedAt])
+  @@map("fee_heads")
+}
+
+/// A fee template. Installment math: a structure with installmentCount N splits each line into N
+/// equal parts (remainder paise attach to the last installment) and stages them as separate
+/// FeeDemands. dueDayOffset is added to the anchor date (term.startDate, else the assignment's
+/// effective date) for the first installment; further installments add installmentGapDays.
+/// Late-fee rules: after dueDate + lateFeeGraceDays, an accrual adds max(flat, % of unpaid).
+model FeeStructure {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String             @map("tenant_id") @db.Uuid
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  name               String
+  status             FeeStructureStatus @default(DRAFT)
+  academicYearId     String?            @map("academic_year_id") @db.Uuid
+  academicYear       AcademicYear?      @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+  termId             String?            @map("term_id") @db.Uuid
+  term               Term?              @relation(fields: [termId], references: [id], onDelete: SetNull)
+  programId          String?            @map("program_id") @db.Uuid
+  program            Program?           @relation(fields: [programId], references: [id], onDelete: SetNull)
+  sectionId          String?            @map("section_id") @db.Uuid
+  section            Section?           @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  installmentCount   Int                @default(1) @map("installment_count")
+  dueDayOffset       Int                @default(30) @map("due_day_offset")
+  installmentGapDays Int                @default(0) @map("installment_gap_days")
+  lateFeePercentBps  Int                @default(0) @map("late_fee_percent_bps")
+  lateFeeFlatCents   Int                @default(0) @map("late_fee_flat_cents")
+  lateFeeGraceDays   Int                @default(0) @map("late_fee_grace_days")
+  description        String?
+  createdBy          String?            @map("created_by")
+  updatedBy          String?            @map("updated_by")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  deletedAt          DateTime?          @map("deleted_at")
+
+  lines         FeeStructureLine[] @relation("FeeStructureLines")
+  assignments   StudentFeeAssignment[] @relation("StructureAssignments")
+  generatedFees StudentFee[]           @relation("FeeStructureGeneratedFees")
+
+  @@index([tenantId, status])
+  @@index([tenantId, academicYearId])
+  @@index([tenantId, deletedAt])
+  @@map("fee_structures")
+}
+
+/// A single head within a FeeStructure, priced for that structure. Referencing FeeHead.code/name
+/// is optional — amounts are authoritative here and are snapshotted onto generated StudentFee
+/// rows (headCode/headName) so demand history survives catalog edits.
+model FeeStructureLine {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String       @map("tenant_id") @db.Uuid
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  structureId String       @map("structure_id") @db.Uuid
+  structure   FeeStructure @relation("FeeStructureLines", fields: [structureId], references: [id], onDelete: Cascade)
+  headId      String       @map("head_id") @db.Uuid
+  head        FeeHead      @relation("FeeHeadLines", fields: [headId], references: [id], onDelete: Restrict)
+  amountCents Int          @map("amount_cents")
+  isRequired  Boolean      @default(true) @map("is_required")
+  sortOrder   Int          @default(0) @map("sort_order")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  generatedFees StudentFee[] @relation("FeeStructureLineGeneratedFees")
+
+  @@unique([structureId, headId])
+  @@index([tenantId, structureId])
+  @@index([tenantId, headId])
+  @@map("fee_structure_lines")
+}
+
+/// Binding of a structure to a student (optionally for a specific term). Generating demands for
+/// an assignment materializes StudentFee lines + FeeDemands once; COMPLETED happens when all of
+/// its demands are settled, REVOKED stops future issuance without touching the ledger.
+model StudentFeeAssignment {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId     String              @map("student_id") @db.Uuid
+  student       Student             @relation("StudentFeeAssignments", fields: [studentId], references: [id], onDelete: Cascade)
+  structureId   String              @map("structure_id") @db.Uuid
+  structure     FeeStructure        @relation("StructureAssignments", fields: [structureId], references: [id], onDelete: Restrict)
+  termId        String?             @map("term_id") @db.Uuid
+  term          Term?               @relation(fields: [termId], references: [id], onDelete: SetNull)
+  status        FeeAssignmentStatus @default(ACTIVE)
+  effectiveDate DateTime            @default(now()) @map("effective_date") @db.Date
+  notes         String?
+  assignedBy    String?             @map("assigned_by")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  demands FeeDemand[] @relation("AssignmentDemands")
+
+  @@unique([tenantId, studentId, structureId, termId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, structureId])
+  @@index([tenantId, status])
+  @@index([tenantId, termId])
+  @@map("student_fee_assignments")
+}
+
+/// A single issued demand (one installment of a structure) grouping its StudentFee lines.
+/// Totals are cached on the demand so lists/reports don't aggregate per row; the authoritative
+/// per-line state lives on StudentFee and drives the cache refresh after every mutation.
+model FeeDemand {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assignmentId     String    @map("assignment_id") @db.Uuid
+  assignment       StudentFeeAssignment @relation("AssignmentDemands", fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId        String    @map("student_id") @db.Uuid
+  student          Student   @relation("StudentDemands", fields: [studentId], references: [id], onDelete: Cascade)
+  termId           String?   @map("term_id") @db.Uuid
+  term             Term?     @relation(fields: [termId], references: [id], onDelete: SetNull)
+  demandNumber     String    @map("demand_number")
+  installmentIndex Int       @default(1) @map("installment_index")
+  issueDate        DateTime  @map("issue_date") @db.Date
+  dueDate          DateTime  @map("due_date") @db.Date
+  status           FeeStatus @default(ISSUED)
+  totalCents       Int       @map("total_cents")
+  paidCents        Int       @default(0) @map("paid_cents")
+  waivedCents      Int       @default(0) @map("waived_cents")
+  lateFeeCents     Int       @default(0) @map("late_fee_cents")
+  notes            String?
+  createdBy        String?   @map("created_by")
+  updatedBy        String?   @map("updated_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  lines       StudentFee[]
+  concessions FeeConcession[]
+
+  @@unique([tenantId, demandNumber])
+  @@index([tenantId, studentId])
+  @@index([tenantId, assignmentId])
+  @@index([tenantId, status])
+  @@index([tenantId, dueDate])
+  @@map("fee_demands")
+}
+
+/// A scholarship / concession / waiver request against a demand (distributed across its lines) or
+/// a single StudentFee line. Once APPROVED the computed amount lands on the target line(s) as
+/// StudentFee.waivedCents (same channel the students module uses), triggering its status
+/// recompute; REVOKED reverses only unused applied amounts.
+model FeeConcession {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String              @map("tenant_id") @db.Uuid
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId    String              @map("student_id") @db.Uuid
+  student      Student             @relation("StudentConcessions", fields: [studentId], references: [id], onDelete: Cascade)
+  demandId     String?             @map("demand_id") @db.Uuid
+  demand       FeeDemand?          @relation(fields: [demandId], references: [id], onDelete: SetNull)
+  studentFeeId String?             @map("student_fee_id") @db.Uuid
+  studentFee   StudentFee?         @relation(fields: [studentFeeId], references: [id], onDelete: Cascade)
+  headId       String?             @map("head_id") @db.Uuid
+  head         FeeHead?            @relation(fields: [headId], references: [id], onDelete: SetNull)
+  kind         FeeConcessionKind
+  basis        FeeConcessionBasis
+  percentBps   Int?                @map("percent_bps")
+  amountCents  Int?                @map("amount_cents")
+  /// How much of this concession has actually been applied to the ledger so far.
+  appliedCents  Int                @default(0) @map("applied_cents")
+  /// Per-line split actually applied ([{ studentFeeId, amountCents }]) so REVOKE can reverse
+  /// exactly the reduction that was applied rather than guessing from current balances.
+  distribution Json?
+  reason       String
+  status       FeeConcessionStatus @default(PENDING)
+  requestedBy  String?             @map("requested_by")
+  decidedBy    String?             @map("decided_by")
+  decidedAt    DateTime?           @map("decided_at")
+  remarks      String?
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@index([tenantId, status])
+  @@index([tenantId, demandId])
+  @@index([tenantId, studentFeeId])
+  @@map("fee_concessions")
+}
+
+/// Refund workflow against a single StudentPayment (which may be a partial payment itself).
+/// REQUESTED → APPROVED → PROCESSED; PROCESSED reverses the payment's ledger allocation in the
+/// same transaction (StudentFee.paidCents −= refunded, demand/line status recomputed, the
+/// StudentPayment marked REFUNDED when fully refunded) and writes a refundNumber receipt.
+model FeeRefund {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String          @map("tenant_id") @db.Uuid
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId       String          @map("student_id") @db.Uuid
+  student         Student         @relation("StudentRefunds", fields: [studentId], references: [id], onDelete: Cascade)
+  paymentId       String          @map("payment_id") @db.Uuid
+  payment         StudentPayment  @relation("PaymentRefunds", fields: [paymentId], references: [id], onDelete: Restrict)
+  refundNumber    String          @map("refund_number")
+  amountCents     Int             @map("amount_cents")
+  method          PaymentMethod
+  reason          String
+  status          FeeRefundStatus @default(REQUESTED)
+  requestedBy     String?         @map("requested_by")
+  approvedBy      String?         @map("approved_by")
+  approvedAt      DateTime?       @map("approved_at")
+  processedBy     String?         @map("processed_by")
+  processedAt     DateTime?       @map("processed_at")
+  rejectionReason String?         @map("rejection_reason")
+  referenceNumber String?         @map("reference_number")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  @@unique([tenantId, refundNumber])
+  @@index([tenantId, studentId])
+  @@index([tenantId, paymentId])
+  @@index([tenantId, status])
+  @@map("fee_refunds")
+}
+
+/// Atomic per-tenant counters for receipt/demand/refund numbering. Allocation is
+/// update-increment inside the caller's transaction, so concurrent requests never collide.
+model FeeSequence {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String          @map("tenant_id") @db.Uuid
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  kind      FeeSequenceKind
+  prefix    String
+  nextValue Int             @default(1) @map("next_value")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  @@unique([tenantId, kind, prefix])
+  @@map("fee_sequences")
 }
 
 /// An exam session this student sits (registered for). Kept student-tethered so the 360 tab
