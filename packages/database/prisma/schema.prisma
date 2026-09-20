@@ -344,8 +344,8 @@ model Tenant {
   status       TenantStatus @default(TRIAL)
   billingEmail String       @map("billing_email")
   timezone     String       @default("Asia/Kolkata")
-  createdBy    String?      @map("created_by") @db.Uuid
-  updatedBy    String?      @map("updated_by") @db.Uuid
+  createdBy    String?      @map("created_by")
+  updatedBy    String?      @map("updated_by")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
@@ -905,8 +905,8 @@ model User {
   mfaEnabled          Boolean    @default(false) @map("mfa_enabled")
   mfaSecretEncrypted  String?    @map("mfa_secret_encrypted")
   mfaEnabledAt        DateTime?  @map("mfa_enabled_at")
-  createdBy           String?    @map("created_by") @db.Uuid
-  updatedBy           String?    @map("updated_by") @db.Uuid
+  createdBy           String?    @map("created_by")
+  updatedBy           String?    @map("updated_by")
   createdAt           DateTime   @default(now()) @map("created_at")
   updatedAt           DateTime   @updatedAt @map("updated_at")
 
@@ -943,8 +943,8 @@ model Role {
   code      String
   name      String
   isSystem  Boolean   @default(false) @map("is_system")
-  createdBy String?   @map("created_by") @db.Uuid
-  updatedBy String?   @map("updated_by") @db.Uuid
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
@@ -985,7 +985,7 @@ model RolePermission {
   /// PermissionScopeType. The concrete scope VALUE (which campus/department/program) is bound
   /// per user assignment on UserRole, not here.
   scopeType    PermissionScopeType @default(GLOBAL) @map("scope_type")
-  createdBy    String?             @map("created_by") @db.Uuid
+  createdBy    String?             @map("created_by")
   createdAt    DateTime            @default(now()) @map("created_at")
 
   @@unique([roleId, permissionId])
@@ -1221,8 +1221,8 @@ model TenantSecuritySettings {
   trustedDeviceDays      Int?     @map("trusted_device_days")
   notifyOnNewDeviceLogin Boolean  @default(true) @map("notify_on_new_device_login")
   blockSuspiciousLogins  Boolean  @default(false) @map("block_suspicious_logins")
-  createdBy              String?  @map("created_by") @db.Uuid
-  updatedBy              String?  @map("updated_by") @db.Uuid
+  createdBy              String?  @map("created_by")
+  updatedBy              String?  @map("updated_by")
   createdAt              DateTime @default(now()) @map("created_at")
   updatedAt              DateTime @updatedAt @map("updated_at")
 
@@ -1240,8 +1240,8 @@ model TenantConfiguration {
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   data      Json     @default("{}")
   version   Int      @default(1)
-  createdBy String?  @map("created_by") @db.Uuid
-  updatedBy String?  @map("updated_by") @db.Uuid
+  createdBy String?  @map("created_by")
+  updatedBy String?  @map("updated_by")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1285,8 +1285,8 @@ model Campus {
   state       String?
   country     String?   @default("India")
   isActive    Boolean   @default(true) @map("is_active")
-  createdBy   String?   @map("created_by") @db.Uuid
-  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdBy   String?   @map("created_by")
+  updatedBy   String?   @map("updated_by")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
@@ -1316,8 +1316,8 @@ model Department {
   name        String
   description String?
   isActive    Boolean   @default(true) @map("is_active")
-  createdBy   String?   @map("created_by") @db.Uuid
-  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdBy   String?   @map("created_by")
+  updatedBy   String?   @map("updated_by")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
@@ -1344,8 +1344,8 @@ model Program {
   degreeLevel   String?     @map("degree_level")
   durationYears Int?        @map("duration_years")
   isActive      Boolean     @default(true) @map("is_active")
-  createdBy     String?     @map("created_by") @db.Uuid
-  updatedBy     String?     @map("updated_by") @db.Uuid
+  createdBy     String?     @map("created_by")
+  updatedBy     String?     @map("updated_by")
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
   deletedAt     DateTime?   @map("deleted_at")
@@ -1380,8 +1380,8 @@ model AcademicYear {
   startDate DateTime  @map("start_date")
   endDate   DateTime  @map("end_date")
   isCurrent Boolean   @default(false) @map("is_current")
-  createdBy String?   @map("created_by") @db.Uuid
-  updatedBy String?   @map("updated_by") @db.Uuid
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
@@ -1417,8 +1417,8 @@ model Term {
   startDate      DateTime     @map("start_date")
   endDate        DateTime     @map("end_date")
   isCurrent      Boolean      @default(false) @map("is_current")
-  createdBy      String?      @map("created_by") @db.Uuid
-  updatedBy      String?      @map("updated_by") @db.Uuid
+  createdBy      String?      @map("created_by")
+  updatedBy      String?      @map("updated_by")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
   deletedAt      DateTime?    @map("deleted_at")
@@ -1457,8 +1457,8 @@ model Room {
   buildingName String?   @map("building_name")
   floor        String?
   isActive     Boolean   @default(true) @map("is_active")
-  createdBy    String?   @map("created_by") @db.Uuid
-  updatedBy    String?   @map("updated_by") @db.Uuid
+  createdBy    String?   @map("created_by")
+  updatedBy    String?   @map("updated_by")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
@@ -1484,8 +1484,8 @@ model Building {
   name        String
   addressLine String?   @map("address_line")
   isActive    Boolean   @default(true) @map("is_active")
-  createdBy   String?   @map("created_by") @db.Uuid
-  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdBy   String?   @map("created_by")
+  updatedBy   String?   @map("updated_by")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
@@ -1515,8 +1515,8 @@ model Batch {
   startDate      DateTime?     @map("start_date")
   endDate        DateTime?     @map("end_date")
   isActive       Boolean       @default(true) @map("is_active")
-  createdBy      String?       @map("created_by") @db.Uuid
-  updatedBy      String?       @map("updated_by") @db.Uuid
+  createdBy      String?       @map("created_by")
+  updatedBy      String?       @map("updated_by")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
   deletedAt      DateTime?     @map("deleted_at")
@@ -1548,8 +1548,8 @@ model Section {
   name           String
   capacity       Int?
   isActive       Boolean       @default(true) @map("is_active")
-  createdBy      String?       @map("created_by") @db.Uuid
-  updatedBy      String?       @map("updated_by") @db.Uuid
+  createdBy      String?       @map("created_by")
+  updatedBy      String?       @map("updated_by")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
   deletedAt      DateTime?     @map("deleted_at")
@@ -1791,7 +1791,7 @@ model Notification {
   status          NotificationStatus  @default(PENDING)
   error           String?
   sentAt          DateTime?           @map("sent_at")
-  createdBy       String?             @map("created_by") @db.Uuid
+  createdBy       String?             @map("created_by")
   createdAt       DateTime            @default(now()) @map("created_at")
   updatedAt       DateTime            @updatedAt @map("updated_at")
 
@@ -1859,8 +1859,8 @@ model WorkflowDefinition {
   /// support (see this file's header "Known trade-off" note); activating a new version
   /// deactivates the previous one in the same transaction.
   isActive    Boolean   @default(true) @map("is_active")
-  createdBy   String?   @map("created_by") @db.Uuid
-  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdBy   String?   @map("created_by")
+  updatedBy   String?   @map("updated_by")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
@@ -2099,8 +2099,8 @@ model Student {
   academicYear          AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
   admittedOn            DateTime?     @map("admitted_on")
   yearOfAdmission       Int?          @map("year_of_admission")
-  createdBy             String?       @map("created_by") @db.Uuid
-  updatedBy             String?       @map("updated_by") @db.Uuid
+  createdBy             String?       @map("created_by")
+  updatedBy             String?       @map("updated_by")
   createdAt             DateTime      @default(now()) @map("created_at")
   updatedAt             DateTime      @updatedAt @map("updated_at")
   /// Soft delete: unlike master data, a student's timeline/history is what other rows point
@@ -2163,8 +2163,8 @@ model Guardian {
   occupation         String?
   monthlyIncomeCents Int?         @map("monthly_income_cents")
   address            String?
-  createdBy          String?      @map("created_by") @db.Uuid
-  updatedBy          String?      @map("updated_by") @db.Uuid
+  createdBy          String?      @map("created_by")
+  updatedBy          String?      @map("updated_by")
   createdAt          DateTime     @default(now()) @map("created_at")
   updatedAt          DateTime     @updatedAt @map("updated_at")
 
@@ -2224,7 +2224,7 @@ model StudentAdmission {
   offerLetterKey    String?         @map("offer_letter_key")
   admissionFeeCents Int?            @map("admission_fee_cents")
   remarks           String?
-  createdBy         String?         @map("created_by") @db.Uuid
+  createdBy         String?         @map("created_by")
   createdAt         DateTime        @default(now()) @map("created_at")
   updatedAt         DateTime        @updatedAt @map("updated_at")
 
@@ -2256,7 +2256,7 @@ model StudentAcademicRecord {
   isHighestQualification Boolean               @default(false) @map("is_highest_qualification")
   verificationStatus     StudentDocumentStatus @default(PENDING) @map("verification_status")
   remarks                String?
-  createdBy              String?               @map("created_by") @db.Uuid
+  createdBy              String?               @map("created_by")
   createdAt              DateTime              @default(now()) @map("created_at")
   updatedAt              DateTime              @updatedAt @map("updated_at")
 
@@ -2290,7 +2290,7 @@ model StudentEnrollment {
   enrolledAt     DateTime?        @map("enrolled_at")
   completedAt    DateTime?        @map("completed_at")
   remarks        String?
-  createdBy      String?          @map("created_by") @db.Uuid
+  createdBy      String?          @map("created_by")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
 
@@ -2365,8 +2365,8 @@ model AttendanceSession {
   notes            String?
   status           AttendanceSessionStatus @default(OPEN)
   markedByUserId   String?                 @map("marked_by_user_id") @db.Uuid
-  createdBy        String?                 @map("created_by") @db.Uuid
-  updatedBy        String?                 @map("updated_by") @db.Uuid
+  createdBy        String?                 @map("created_by")
+  updatedBy        String?                 @map("updated_by")
   openedAt         DateTime                @default(now()) @map("opened_at")
   closedAt         DateTime?               @map("closed_at")
   closedById       String?                 @map("closed_by_id") @db.Uuid
@@ -2489,8 +2489,8 @@ model AttendanceDevice {
   lastSyncAt         DateTime? @map("last_sync_at")
   lastSyncStatus     String?   @map("last_sync_status")
   lastSyncMessage    String?   @map("last_sync_message")
-  createdBy          String?   @map("created_by") @db.Uuid
-  updatedBy          String?   @map("updated_by") @db.Uuid
+  createdBy          String?   @map("created_by")
+  updatedBy          String?   @map("updated_by")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
   deletedAt          DateTime? @map("deleted_at")
@@ -2523,8 +2523,8 @@ model AttendanceDeviceUser {
   user             User?            @relation("UserDeviceMappings", fields: [userId], references: [id], onDelete: SetNull)
   label            String?
   isActive         Boolean          @default(true) @map("is_active")
-  createdBy        String?          @map("created_by") @db.Uuid
-  updatedBy        String?          @map("updated_by") @db.Uuid
+  createdBy        String?          @map("created_by")
+  updatedBy        String?          @map("updated_by")
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
@@ -2599,8 +2599,8 @@ model StudentFee {
   status      FeeStatus @default(ISSUED)
   dueDate     DateTime? @map("due_date")
   remarks     String?
-  createdBy   String?   @map("created_by") @db.Uuid
-  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdBy   String?   @map("created_by")
+  updatedBy   String?   @map("updated_by")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
@@ -2662,7 +2662,7 @@ model StudentExam {
   startDate DateTime?  @map("start_date")
   endDate   DateTime?  @map("end_date")
   status    ExamStatus @default(SCHEDULED)
-  createdBy String?    @map("created_by") @db.Uuid
+  createdBy String?    @map("created_by")
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
 
@@ -2694,7 +2694,7 @@ model StudentResult {
   publishedAt   DateTime?     @map("published_at")
   publishedBy   String?       @map("published_by") @db.Uuid
   remarks       String?
-  createdBy     String?       @map("created_by") @db.Uuid
+  createdBy     String?       @map("created_by")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
@@ -2725,7 +2725,7 @@ model StudentCertificate {
   issuedByUserId    String?           @map("issued_by_user_id") @db.Uuid
   storageKey        String?           @map("storage_key")
   remarks           String?
-  createdBy         String?           @map("created_by") @db.Uuid
+  createdBy         String?           @map("created_by")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
@@ -2754,8 +2754,8 @@ model StudentLibraryLoan {
   status     LibraryLoanStatus @default(ISSUED)
   fineCents  Int               @default(0) @map("fine_cents")
   remarks    String?
-  createdBy  String?           @map("created_by") @db.Uuid
-  updatedBy  String?           @map("updated_by") @db.Uuid
+  createdBy  String?           @map("created_by")
+  updatedBy  String?           @map("updated_by")
   createdAt  DateTime          @default(now()) @map("created_at")
   updatedAt  DateTime          @updatedAt @map("updated_at")
 
@@ -2781,8 +2781,8 @@ model StudentHostelBooking {
   status           HostelBookingStatus @default(REQUESTED)
   monthlyRentCents Int?                @map("monthly_rent_cents")
   remarks          String?
-  createdBy        String?             @map("created_by") @db.Uuid
-  updatedBy        String?             @map("updated_by") @db.Uuid
+  createdBy        String?             @map("created_by")
+  updatedBy        String?             @map("updated_by")
   createdAt        DateTime            @default(now()) @map("created_at")
   updatedAt        DateTime            @updatedAt @map("updated_at")
 
@@ -2809,8 +2809,8 @@ model StudentTransportPass {
   status        TransportPassStatus @default(ACTIVE)
   amountCents   Int?                @map("amount_cents")
   remarks       String?
-  createdBy     String?             @map("created_by") @db.Uuid
-  updatedBy     String?             @map("updated_by") @db.Uuid
+  createdBy     String?             @map("created_by")
+  updatedBy     String?             @map("updated_by")
   createdAt     DateTime            @default(now()) @map("created_at")
   updatedAt     DateTime            @updatedAt @map("updated_at")
 
@@ -2836,7 +2836,7 @@ model StudentHold {
   liftedOn       DateTime?         @map("lifted_on")
   liftedByUserId String?           @map("lifted_by_user_id") @db.Uuid
   remarks        String?
-  createdBy      String?           @map("created_by") @db.Uuid
+  createdBy      String?           @map("created_by")
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
 
@@ -2884,7 +2884,7 @@ model StudentCommunication {
   recipientEmail    String?                @map("recipient_email")
   conductedByUserId String?                @map("conducted_by_user_id") @db.Uuid
   remarks           String?
-  createdBy         String?                @map("created_by") @db.Uuid
+  createdBy         String?                @map("created_by")
   createdAt         DateTime               @default(now()) @map("created_at")
   updatedAt         DateTime               @updatedAt @map("updated_at")
 
@@ -2987,8 +2987,8 @@ model AdmissionSession {
   requiredDocuments   Json?                  @map("required_documents")
   source              String?                @default("FRONT_DESK")
   meritPublishedAt    DateTime?              @map("merit_published_at")
-  createdBy           String?                @map("created_by") @db.Uuid
-  updatedBy           String?                @map("updated_by") @db.Uuid
+  createdBy           String?                @map("created_by")
+  updatedBy           String?                @map("updated_by")
   createdAt           DateTime               @default(now()) @map("created_at")
   updatedAt           DateTime               @updatedAt @map("updated_at")
 
@@ -3023,8 +3023,8 @@ model AdmissionProgramOffer {
   tuitionFeeCents     Int                    @default(0) @map("tuition_fee_cents")
   requiredDocuments   Json?                  @map("required_documents")
   status              AdmissionProgramStatus @default(OPEN)
-  createdBy           String?                @map("created_by") @db.Uuid
-  updatedBy           String?                @map("updated_by") @db.Uuid
+  createdBy           String?                @map("created_by")
+  updatedBy           String?                @map("updated_by")
   createdAt           DateTime               @default(now()) @map("created_at")
   updatedAt           DateTime               @updatedAt @map("updated_at")
 
@@ -3056,8 +3056,8 @@ model AdmissionEnquiry {
   followUpAt               DateTime?         @map("follow_up_at")
   convertedToApplicationId String?           @map("converted_to_application_id") @db.Uuid
   convertedAt              DateTime?         @map("converted_at")
-  createdBy                String?           @map("created_by") @db.Uuid
-  updatedBy                String?           @map("updated_by") @db.Uuid
+  createdBy                String?           @map("created_by")
+  updatedBy                String?           @map("updated_by")
   createdAt                DateTime          @default(now()) @map("created_at")
   updatedAt                DateTime          @updatedAt @map("updated_at")
 
@@ -3135,8 +3135,8 @@ model AdmissionApplication {
   enrolledStudent   Student?  @relation(fields: [enrolledStudentId], references: [id], onDelete: SetNull)
   enrolledAt        DateTime? @map("enrolled_at")
 
-  createdBy String?  @map("created_by") @db.Uuid
-  updatedBy String?  @map("updated_by") @db.Uuid
+  createdBy String?  @map("created_by")
+  updatedBy String?  @map("updated_by")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -3209,7 +3209,7 @@ model AdmissionQualification {
   isHighestQualification Boolean               @default(false) @map("is_highest_qualification")
   verificationStatus     StudentDocumentStatus @default(PENDING) @map("verification_status")
   remarks                String?
-  createdBy              String?               @map("created_by") @db.Uuid
+  createdBy              String?               @map("created_by")
   createdAt              DateTime              @default(now()) @map("created_at")
   updatedAt              DateTime              @updatedAt @map("updated_at")
 
@@ -3231,7 +3231,7 @@ model AdmissionCounsellingSlot {
   venue       String?
   capacity    Int              @default(1)
   bookedCount Int              @default(0) @map("booked_count")
-  createdBy   String?          @map("created_by") @db.Uuid
+  createdBy   String?          @map("created_by")
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
 
@@ -3259,7 +3259,7 @@ model AdmissionOffer {
   acceptedAt        DateTime?            @map("accepted_at")
   declinedAt        DateTime?            @map("declined_at")
   remarks           String?
-  createdBy         String?              @map("created_by") @db.Uuid
+  createdBy         String?              @map("created_by")
   createdAt         DateTime             @default(now()) @map("created_at")
   updatedAt         DateTime             @updatedAt @map("updated_at")
 
@@ -3339,8 +3339,8 @@ model AdmissionFormField {
   helpText      String?            @map("help_text")
   sequenceOrder Int                @default(0) @map("sequence_order")
   isActive      Boolean            @default(true) @map("is_active")
-  createdBy     String?            @map("created_by") @db.Uuid
-  updatedBy     String?            @map("updated_by") @db.Uuid
+  createdBy     String?            @map("created_by")
+  updatedBy     String?            @map("updated_by")
   createdAt     DateTime           @default(now()) @map("created_at")
   updatedAt     DateTime           @updatedAt @map("updated_at")
 
@@ -3368,8 +3368,8 @@ model AdmissionEligibilityRule {
   appliesToCategory String?                      @map("applies_to_category")
   sequenceOrder     Int                          @default(0) @map("sequence_order")
   isActive          Boolean                      @default(true) @map("is_active")
-  createdBy         String?                      @map("created_by") @db.Uuid
-  updatedBy         String?                      @map("updated_by") @db.Uuid
+  createdBy         String?                      @map("created_by")
+  updatedBy         String?                      @map("updated_by")
   createdAt         DateTime                     @default(now()) @map("created_at")
   updatedAt         DateTime                     @updatedAt @map("updated_at")
 
@@ -3529,8 +3529,8 @@ model Course {
   /// the grading scheme without a schema change.
   gradingBasis String?     @map("grading_basis")
   isActive     Boolean     @default(true) @map("is_active")
-  createdBy    String?     @map("created_by") @db.Uuid
-  updatedBy    String?     @map("updated_by") @db.Uuid
+  createdBy    String?     @map("created_by")
+  updatedBy    String?     @map("updated_by")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
   deletedAt    DateTime?   @map("deleted_at")
@@ -3561,7 +3561,7 @@ model CoursePrerequisite {
   /// Optional minimum grade required in the prerequisite (e.g. "B").
   minGrade         String?  @map("min_grade")
   description      String?
-  createdBy        String?  @map("created_by") @db.Uuid
+  createdBy        String?  @map("created_by")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -3582,8 +3582,8 @@ model Curriculum {
   name        String
   description String?
   isActive    Boolean   @default(true) @map("is_active")
-  createdBy   String?   @map("created_by") @db.Uuid
-  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdBy   String?   @map("created_by")
+  updatedBy   String?   @map("updated_by")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
@@ -3613,8 +3613,8 @@ model CurriculumVersion {
   effectiveTo     DateTime?               @map("effective_to")
   minTotalCredits Int?                    @map("min_total_credits")
   isCurrent       Boolean                 @default(false) @map("is_current")
-  createdBy       String?                 @map("created_by") @db.Uuid
-  updatedBy       String?                 @map("updated_by") @db.Uuid
+  createdBy       String?                 @map("created_by")
+  updatedBy       String?                 @map("updated_by")
   createdAt       DateTime                @default(now()) @map("created_at")
   updatedAt       DateTime                @updatedAt @map("updated_at")
 
@@ -3645,7 +3645,7 @@ model CurriculumCourse {
   sequence            Int               @default(0)
   minGrade            String?           @map("min_grade")
   creditOverride      Int?              @map("credit_override")
-  createdBy           String?           @map("created_by") @db.Uuid
+  createdBy           String?           @map("created_by")
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @updatedAt @map("updated_at")
 
@@ -3686,8 +3686,8 @@ model CourseOffering {
   enrollmentStartAt DateTime?            @map("enrollment_start_at")
   enrollmentEndAt   DateTime?            @map("enrollment_end_at")
   schedule          Json?
-  createdBy         String?              @map("created_by") @db.Uuid
-  updatedBy         String?              @map("updated_by") @db.Uuid
+  createdBy         String?              @map("created_by")
+  updatedBy         String?              @map("updated_by")
   createdAt         DateTime             @default(now()) @map("created_at")
   updatedAt         DateTime             @updatedAt @map("updated_at")
   deletedAt         DateTime?            @map("deleted_at")
@@ -3721,7 +3721,7 @@ model CourseOfferingFaculty {
   role              FacultyAssignmentRole @default(CO_TEACHER)
   allocationPercent Int?                  @map("allocation_percent")
   isActive          Boolean               @default(true) @map("is_active")
-  createdBy         String?               @map("created_by") @db.Uuid
+  createdBy         String?               @map("created_by")
   createdAt         DateTime              @default(now()) @map("created_at")
   updatedAt         DateTime              @updatedAt @map("updated_at")
 
@@ -3748,8 +3748,8 @@ model CourseRegistration {
   approvedByUserId String?                  @map("approved_by_user_id") @db.Uuid
   dropReason       String?                  @map("drop_reason")
   completedAt      DateTime?                @map("completed_at")
-  createdBy        String?                  @map("created_by") @db.Uuid
-  updatedBy        String?                  @map("updated_by") @db.Uuid
+  createdBy        String?                  @map("created_by")
+  updatedBy        String?                  @map("updated_by")
   createdAt        DateTime                 @default(now()) @map("created_at")
   updatedAt        DateTime                 @updatedAt @map("updated_at")
 
@@ -3782,8 +3782,8 @@ model AcademicAdvisingRecord {
   status        AdvisingStatus   @default(OPEN)
   followUpAt    DateTime?        @map("follow_up_at")
   resolvedAt    DateTime?        @map("resolved_at")
-  createdBy     String?          @map("created_by") @db.Uuid
-  updatedBy     String?          @map("updated_by") @db.Uuid
+  createdBy     String?          @map("created_by")
+  updatedBy     String?          @map("updated_by")
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
 
@@ -3819,8 +3819,8 @@ model AcademicProgressionRecord {
   decisionBy      String?           @map("decision_by") @db.Uuid
   decidedAt       DateTime?         @map("decided_at")
   remarks         String?
-  createdBy       String?           @map("created_by") @db.Uuid
-  updatedBy       String?           @map("updated_by") @db.Uuid
+  createdBy       String?           @map("created_by")
+  updatedBy       String?           @map("updated_by")
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
 
@@ -3850,8 +3850,8 @@ model CourseBacklog {
   clearedInRegistrationId String?             @map("cleared_in_registration_id") @db.Uuid
   clearedInRegistration   CourseRegistration? @relation("BacklogClearedRegistration", fields: [clearedInRegistrationId], references: [id], onDelete: SetNull)
   remarks                 String?
-  createdBy               String?             @map("created_by") @db.Uuid
-  updatedBy               String?             @map("updated_by") @db.Uuid
+  createdBy               String?             @map("created_by")
+  updatedBy               String?             @map("updated_by")
   createdAt               DateTime            @default(now()) @map("created_at")
   updatedAt               DateTime            @updatedAt @map("updated_at")
 
@@ -3880,8 +3880,8 @@ model AcademicCalendarEvent {
   appliesTo      String?      @default("GLOBAL") @map("applies_to")
   color          String?
   isPublished    Boolean      @default(false) @map("is_published")
-  createdBy      String?      @map("created_by") @db.Uuid
-  updatedBy      String?      @map("updated_by") @db.Uuid
+  createdBy      String?      @map("created_by")
+  updatedBy      String?      @map("updated_by")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
@@ -3954,8 +3954,8 @@ model Timetable {
   publishedAt   DateTime?       @map("published_at")
   publishedById String?         @map("published_by_id") @db.Uuid
   publishedBy   User?           @relation("TimetablePublisher", fields: [publishedById], references: [id], onDelete: SetNull)
-  createdBy     String?         @map("created_by") @db.Uuid
-  updatedBy     String?         @map("updated_by") @db.Uuid
+  createdBy     String?         @map("created_by")
+  updatedBy     String?         @map("updated_by")
   createdAt     DateTime        @default(now()) @map("created_at")
   updatedAt     DateTime        @updatedAt @map("updated_at")
   deletedAt     DateTime?       @map("deleted_at")
@@ -3989,7 +3989,7 @@ model TimetablePeriod {
   endTime     String    @map("end_time")
   isBreak     Boolean   @default(false) @map("is_break")
   isActive    Boolean   @default(true) @map("is_active")
-  createdBy   String?   @map("created_by") @db.Uuid
+  createdBy   String?   @map("created_by")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
@@ -4024,8 +4024,8 @@ model TimetableEntry {
   entryType        TimetableEntryType @default(LECTURE) @map("entry_type")
   title            String?
   notes            String?
-  createdBy        String?            @map("created_by") @db.Uuid
-  updatedBy        String?            @map("updated_by") @db.Uuid
+  createdBy        String?            @map("created_by")
+  updatedBy        String?            @map("updated_by")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
@@ -4051,7 +4051,7 @@ model TimetableHoliday {
   date        DateTime  @map("date") @db.Date
   name        String
   description String?
-  createdBy   String?   @map("created_by") @db.Uuid
+  createdBy   String?   @map("created_by")
   createdAt   DateTime  @default(now()) @map("created_at")
 
   @@unique([timetableId, date])
@@ -4077,8 +4077,8 @@ model FacultyAvailability {
   isBlocked Boolean  @default(true) @map("is_blocked")
   note      String?
   isActive  Boolean  @default(true) @map("is_active")
-  createdBy String?  @map("created_by") @db.Uuid
-  updatedBy String?  @map("updated_by") @db.Uuid
+  createdBy String?  @map("created_by")
+  updatedBy String?  @map("updated_by")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -4110,7 +4110,7 @@ model TimetableConflict {
   detectedAt      DateTime              @default(now()) @map("detected_at")
   resolvedAt      DateTime?             @map("resolved_at")
   resolvedById    String?               @map("resolved_by_id") @db.Uuid
-  createdBy       String?               @map("created_by") @db.Uuid
+  createdBy       String?               @map("created_by")
   createdAt       DateTime              @default(now()) @map("created_at")
 
   @@index([tenantId, timetableId])

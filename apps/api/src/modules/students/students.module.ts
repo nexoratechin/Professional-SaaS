@@ -11,5 +11,6 @@ import { StudentRecordsService } from './student-records.service';
   imports: [CommonGuardsModule, RbacModule, AuthModule],
   controllers: [StudentsController, StudentRecordsController],
   providers: [StudentsService, StudentRecordsService],
+  exports: [StudentsService, StudentRecordsService],
 })
 export class StudentsModule {}

@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NestMiddleware, NotFoundException } from '@nestjs/common';
 import type { NextFunction, Response } from 'express';
 import { AppConfigService } from '../../config/app-config.service';
+import { TenantContextService } from '../prisma/tenant-context.service';
 import { TenantLookupService } from '../tenant/tenant-lookup.service';
 import type { RequestWithTenant } from '../types/tenant-request';
 
@@ -16,6 +17,7 @@ export class TenantResolutionMiddleware implements NestMiddleware {
   constructor(
     private readonly tenantLookup: TenantLookupService,
     private readonly config: AppConfigService,
+    private readonly tenantContext: TenantContextService,
   ) {}
 
   async use(req: RequestWithTenant, _res: Response, next: NextFunction): Promise<void> {
@@ -34,6 +36,7 @@ export class TenantResolutionMiddleware implements NestMiddleware {
       }
 
       req.resolvedTenant = tenant;
+      this.tenantContext.setTenant(tenant.id, tenant.slug);
       next();
     } catch (error) {
       next(error);
