@@ -6,7 +6,7 @@
  * amounts that were applied. Rejection/revoke never touch applied amounts unless unwinding them.
  */
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { PrismaClient } from '@college-erp/database';
+import type { FeeStatus, PrismaClient } from '@college-erp/database';
 import { AUDIT_MODULES } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -138,11 +138,12 @@ export class FeeConcessionsService {
 
       for (const split of splits.items) {
         const line = await tx.studentFee.findUnique({ where: { id: split.studentFeeId } });
+        if (!line) continue;
         const waivedCents = (line.waivedCents ?? 0) + split.amountCents;
         const status = computeFeeLineStatus({ ...line, waivedCents });
         await tx.studentFee.update({
           where: { id: split.studentFeeId },
-          data: { waivedCents, status, updatedBy: userId },
+          data: { waivedCents, status: status as FeeStatus, updatedBy: userId },
         });
         if (line.demandId) touchedDemands.add(line.demandId);
       }
@@ -181,7 +182,8 @@ export class FeeConcessionsService {
     if (!existing) throw new NotFoundException('Concession not found.');
     if (existing.status !== 'APPROVED') throw new BadRequestException('Only approved concessions can be revoked.');
 
-    const distribution = (existing.distribution ?? []) as ConcessionSplit[];
+    // distribution is a persisted JSON blob, not typed as ConcessionSplit[]
+    const distribution = (existing.distribution ?? []) as unknown as ConcessionSplit[];
     if (!distribution.length || existing.appliedCents === 0) {
       throw new BadRequestException('Concession has no applied distribution to reverse.');
     }
@@ -197,7 +199,7 @@ export class FeeConcessionsService {
         const status = computeFeeLineStatus({ ...line, waivedCents });
         await tx.studentFee.update({
           where: { id: split.studentFeeId },
-          data: { waivedCents, status, updatedBy: userId },
+          data: { waivedCents, status: status as FeeStatus, updatedBy: userId },
         });
         if (line.demandId) touchedDemands.add(line.demandId);
       }

@@ -4,71 +4,77 @@
  * instead of being re-tested through a mocked transaction.
  */
 import { AUDIT_MODULES } from '@college-erp/auth';
-import { describe } from '@jest/globals';
-import {
-  computeDemandFromLines,
-  computeFeeSnapshotFromSource,
-  computeFeeStatusFromSource,
-} from './fee-ledger';
+import { computeFeeLineStatus, deriveDemandStatus, type DemandLineSnapshot } from './fee-ledger';
 
 describe('fee-ledger', () => {
-  describe('computeFeeStatusFromSource', () => {
-    it('derives the top-level fee status from its source, including its attachment term', () => {
+  describe('computeFeeLineStatus', () => {
+    it('derives the per-line status from its cash/waiver coverage and due date', () => {
       expect(
-        computeFeeStatusFromSource({
-          id: 'fee-1',
-          studentId: 'stu-1',
-          structureId: 'structure-1',
-          demandId: 'd-1',
+        computeFeeLineStatus({
+          amountCents: 200000,
+          paidCents: 0,
+          waivedCents: 0,
+          dueDate: new Date('2099-01-01T00:00:00Z'),
         }),
       ).toBe('ISSUED');
 
       expect(
-        computeFeeStatusFromSource({
-          id: 'fee-1',
-          studentId: 'stu-1',
-          structureId: 'structure-1',
-          demandId: 'd-1',
+        computeFeeLineStatus({
           amountCents: 0,
+          paidCents: 0,
+          waivedCents: 0,
+        }),
+      ).toBe('PAID');
+    });
+
+    it('reports PAID for cash-covered lines and WAIVED for waiver-covered lines', () => {
+      expect(
+        computeFeeLineStatus({
+          amountCents: 200000,
+          paidCents: 200000,
+          waivedCents: 0,
+        }),
+      ).toBe('PAID');
+
+      expect(
+        computeFeeLineStatus({
+          amountCents: 200000,
+          paidCents: 50000,
+          waivedCents: 150000,
         }),
       ).toBe('WAIVED');
     });
+
+    it('reports OVERDUE for an unsettled line past its due date', () => {
+      expect(
+        computeFeeLineStatus({
+          amountCents: 200000,
+          paidCents: 0,
+          waivedCents: 0,
+          dueDate: new Date('2020-01-01T00:00:00Z'),
+        }),
+      ).toBe('OVERDUE');
+    });
   });
 
-  describe('computeFeeSnapshotFromSource', () => {
-    it('produces a snapshot object for an ISSUED line', () => {
-      const snapshot = computeFeeSnapshotFromSource({
-        id: 'fee-1',
-        tenantId: 't-1',
-        studentId: 'stu-1',
-        structureId: 'structure-1',
-        demandId: 'd-1',
-        structureLineId: 'line-1',
-        headCode: 'TUITION',
-        headName: 'Tuition',
-        installmentIndex: 1,
+  describe('deriveDemandStatus', () => {
+    it('derives the demand status from its line set and due date', () => {
+      const base: DemandLineSnapshot = {
         amountCents: 200000,
-        lateFeeCents: 1000,
-        dueDate: new Date('2026-08-01T00:00:00Z'),
-      });
-      expect(snapshot).toMatchObject({
-        tenantId: 't-1',
-        studentId: 'stu-1',
-        structureId: 'structure-1',
-        demandId: 'd-1',
-        structureLineId: 'line-1',
-        headCode: 'TUITION',
-        headName: 'Tuition',
-        installmentIndex: 1,
-        amountCents: 200000,
-        lateFeeCents: 1000,
-      });
-      expect(snapshot.status).toBe('ISSUED');
+        paidCents: 0,
+        waivedCents: 0,
+        lateFeeCents: 0,
+      };
+      expect(deriveDemandStatus([{ ...base }], new Date('2099-01-01T00:00:00Z'))).toBe('ISSUED');
+      expect(deriveDemandStatus([{ ...base, paidCents: 1000 }], new Date('2099-01-01T00:00:00Z'))).toBe('PARTIALLY_PAID');
+      expect(deriveDemandStatus([{ ...base, paidCents: 200000 }], new Date('2099-01-01T00:00:00Z'))).toBe('PAID');
+      expect(deriveDemandStatus([{ ...base, waivedCents: 200000 }], new Date('2099-01-01T00:00:00Z'))).toBe('WAIVED');
+      expect(deriveDemandStatus([{ ...base }], new Date('2020-01-01T00:00:00Z'))).toBe('OVERDUE');
     });
   });
 });
 
-describe('fee-ledger deriveDemandStatus + fixFeeLineStatus', () => {
+describe('fee-ledger deriveDemandStatus + computeFeeLineStatus', () => {
   it('available through the service layer; direct status math is covered in its own suite', () => {
     expect(typeof AUDIT_MODULES).toBe('object');
   });

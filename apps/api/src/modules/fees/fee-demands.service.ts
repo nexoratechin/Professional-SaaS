@@ -7,7 +7,7 @@
  * Structure rules drive the amounts (percent is basis points: 500 = 5%).
  */
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { type PrismaClient } from '@college-erp/database';
+import { type FeeStatus, type PrismaClient } from '@college-erp/database';
 import { AUDIT_MODULES } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -17,7 +17,7 @@ import { AccrueLateFeeDto, ListFeeDemandQueryDto } from './fees.dto';
 
 type Client = PrismaClient;
 
-const DEMAND_STATUS_PENDING = ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'];
+const DEMAND_STATUS_PENDING: FeeStatus[] = ['ISSUED', 'PARTIALLY_PAID', 'OVERDUE'];
 
 export const DEMAND_INCLUDE = {
   student: { select: { id: true, fullName: true, admissionNumber: true, rollNumber: true, program: true, section: true } },

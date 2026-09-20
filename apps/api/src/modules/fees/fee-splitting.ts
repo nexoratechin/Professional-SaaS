@@ -54,7 +54,7 @@ export function splitLines(
   for (const item of items) {
     const parts = splitAmount(item.amountCents, n);
     parts.forEach((amount, i) => {
-      installments[i].push({
+      installments[i]!.push({
         sourceId: item.id,
         headCode: item.headCode,
         headName: item.headName,
@@ -96,7 +96,7 @@ export function buildInstallmentPlan(
   const dates = installmentDates(anchor, installmentCount, dueDayOffset, installmentGapDays);
   return allocated.map((alloc, i) => ({
     index: i + 1,
-    dueDate: dates[i],
+    dueDate: dates[i]!,
     totalCents: alloc.reduce((sum, l) => sum + l.installmentAmountCents, 0),
     lines: alloc,
   }));

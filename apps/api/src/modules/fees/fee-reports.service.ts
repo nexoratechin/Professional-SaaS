@@ -4,7 +4,7 @@
  * outstanding roll with a UTF-8 BOM so Excel renders paise correctly.
  */
 import { Injectable } from '@nestjs/common';
-import type { PrismaClient } from '@college-erp/database';
+import type { FeeStatus, PrismaClient } from '@college-erp/database';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import {
   CollectionsReportQueryDto,
@@ -14,7 +14,7 @@ import {
 
 type Client = PrismaClient;
 
-const OPEN_LINE_STATUSES = ['ISSUED', 'OVERDUE', 'PARTIALLY_PAID'];
+const OPEN_LINE_STATUSES: FeeStatus[] = ['ISSUED', 'OVERDUE', 'PARTIALLY_PAID'];
 
 @Injectable()
 export class FeeReportsService {
@@ -70,7 +70,7 @@ export class FeeReportsService {
           admissionNumber: student?.admissionNumber ?? null,
           programName: student?.program?.name ?? null,
           sectionName: student?.section?.name ?? null,
-          openLineCount: a._count._all,
+          openLineCount: a._count ? (a._count as { _all?: number })._all ?? 0 : 0,
           outstandingCents: Math.max(0, totalCents - paidCents),
         };
       })

@@ -6,7 +6,7 @@
  * FeeSequence allocator (kind REFUND).
  */
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { FeeSequenceKind, type PrismaClient } from '@college-erp/database';
+import { FeeSequenceKind, type FeeStatus, type PrismaClient } from '@college-erp/database';
 import { AUDIT_MODULES } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -157,7 +157,7 @@ export class FeeRefundsService {
         const status = computeFeeLineStatus({ ...line, paidCents });
         await tx.studentFee.update({
           where: { id: line.id },
-          data: { paidCents, status, updatedBy: userId },
+          data: { paidCents, status: status as FeeStatus, updatedBy: userId },
         });
         if (line.demandId) touchedDemands.add(line.demandId);
       }

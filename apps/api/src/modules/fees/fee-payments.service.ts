@@ -13,7 +13,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { FeeSequenceKind, type PrismaClient } from '@college-erp/database';
+import { FeeSequenceKind, type FeeStatus, type PrismaClient } from '@college-erp/database';
 import { AUDIT_MODULES } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -26,7 +26,7 @@ import { ListFeePaymentQueryDto, RecordFeePaymentDto } from './fees.dto';
 
 type Client = PrismaClient;
 
-const OPEN_LINE_STATUSES = ['ISSUED', 'OVERDUE', 'PARTIALLY_PAID'];
+const OPEN_LINE_STATUSES: FeeStatus[] = ['ISSUED', 'OVERDUE', 'PARTIALLY_PAID'];
 
 const PAYMENT_INCLUDE = {
   student: { select: { id: true, fullName: true, admissionNumber: true } },
@@ -159,7 +159,7 @@ export class FeePaymentsService {
         });
         await tx.studentFee.update({
           where: { id: line.id },
-          data: { paidCents, status, updatedBy: userId },
+          data: { paidCents, status: status as FeeStatus, updatedBy: userId },
         });
         allocations.push({ studentFeeId: line.id, amountCents: alloc });
         if (line.demandId) touchedDemands.add(line.demandId);
@@ -201,7 +201,7 @@ export class FeePaymentsService {
     if (dto.studentFeeId) {
       const line = await this.client.studentFee.findFirst({ where: { tenantId, id: dto.studentFeeId } });
       if (!line) throw new NotFoundException('Fee line not found.');
-      if (!OPEN_LINE_STATUSES.includes(line.status as string)) {
+      if (!OPEN_LINE_STATUSES.includes(line.status)) {
         throw new BadRequestException('This fee line is already settled.');
       }
       return [line as OpenLine];

@@ -59,9 +59,9 @@ describe('fee-splitting', () => {
     it('returns strictly increasing dates starting from the due-day-offset anchor', () => {
       const dates = installmentDates(new Date('2026-08-01T00:00:00Z'), 4, 15, 30);
       expect(dates).toHaveLength(4);
-      expect(dates[0].getUTCDate()).toBe(16);
+      expect(dates[0]!.getUTCDate()).toBe(16);
       for (let i = 1; i < dates.length; i += 1) {
-        expect(dates[i].getTime()).toBeGreaterThan(dates[i - 1].getTime());
+        expect(dates[i]!.getTime()).toBeGreaterThan(dates[i - 1]!.getTime());
       }
     });
   });
