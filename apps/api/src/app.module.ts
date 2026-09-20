@@ -14,6 +14,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { ExamsModule } from './modules/exams/exams.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PlatformOpsModule } from './modules/platform-ops/platform-ops.module';
@@ -49,6 +50,7 @@ import { WorkflowModule } from './modules/workflow/workflow.module';
     WorkflowModule,
     StudentsModule,
     AcademicsModule,
+    ExamsModule,
     TimetableModule,
     AttendanceModule,
     FeesModule,

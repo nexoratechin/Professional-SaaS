@@ -457,6 +457,17 @@ model Tenant {
   feeRefunds                   FeeRefund[]
   feeSequences                 FeeSequence[]
   feeAllocations               StudentFeeAllocation[]
+  examSessions                 ExamSession[]
+  examSubjects                 ExamSubject[]
+  examEligibilityRules         ExamEligibilityRule[]
+  examRegistrations            ExamRegistration[]
+  examHallTickets              ExamHallTicket[]
+  examHallTicketSubjects       ExamHallTicketSubject[]
+  examSeatingPlans             ExamSeatingPlan[]
+  examSeatAllocations          ExamSeatAllocation[]
+  examInvigilatorAssignments   ExamInvigilatorAssignment[]
+  examMarksEntries             ExamMarksEntry[]
+  examRevaluationRequests      ExamRevaluationRequest[]
 
   @@index([status])
   @@map("tenants")
@@ -938,6 +949,7 @@ model User {
   correctionDecisions     AttendanceCorrectionRequest[] @relation("AttendanceCorrectionDeciders")
   deviceMappings          AttendanceDeviceUser[]        @relation("UserDeviceMappings")
   deviceLogs              AttendanceDeviceLog[]         @relation("UserDeviceLogs")
+  examInvigilatorAssignments ExamInvigilatorAssignment[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1373,6 +1385,7 @@ model Program {
   courseOfferings            CourseOffering[]
   academicProgressionRecords AcademicProgressionRecord[]
   feeStructures              FeeStructure[]
+  examSessions               ExamSession[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1408,6 +1421,7 @@ model AcademicYear {
   academicCalendarEvents     AcademicCalendarEvent[]
   academicProgressionRecords AcademicProgressionRecord[]
   feeStructures              FeeStructure[]
+  examSessions               ExamSession[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1448,6 +1462,7 @@ model Term {
   feeStructures           FeeStructure[]
   studentFeeAssignments   StudentFeeAssignment[]
   feeDemands              FeeDemand[]
+  examSessions            ExamSession[]
 
   @@unique([academicYearId, code])
   @@index([tenantId])
@@ -1479,6 +1494,9 @@ model Room {
 
   timetableEntries  TimetableEntry[]   @relation("RoomTimetableEntries")
   attendanceDevices AttendanceDevice[]
+  examSeatingPlans  ExamSeatingPlan[]
+  examSubjects      ExamSubject[]
+  examInvigilatorAssignments ExamInvigilatorAssignment[]
 
   @@unique([campusId, code])
   @@index([tenantId])
@@ -1777,6 +1795,77 @@ enum ResultOutcome {
   FAIL
   PASS_WITH_GRACE
   INCOMPLETE
+}
+
+/// Lifecycle of an exam session (a whole examination for a program/term, e.g. "End-Term
+/// Nov 2026"). DRAFT → SCHEDULED → IN_PROGRESS → COMPLETED; CANCELLED is an administrative
+/// dead-end. Distinct from ExamStatus (SCHEDULED/IN_PROGRESS/COMPLETED), which stays as the
+/// per-student sitting status on the student-360 StudentExam rows this module still reuses.
+enum ExamSessionStatus {
+  DRAFT
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/// Lifecycle of one subject (paper) within a session. Subjects are configurable per session
+/// even though they anchor on the academics Course catalog.
+enum ExamSubjectStatus {
+  DRAFT
+  PUBLISHED
+  COMPLETED
+}
+
+enum ExamRegistrationStatus {
+  REGISTERED
+  CONFIRMED
+  CANCELLED
+}
+
+enum ExamHallTicketStatus {
+  PENDING
+  ISSUED
+}
+
+/// Per-student-per-paper seat attendance status: ALLOCATED until marked PRESENT/ABSENT during
+/// the paper; presence is the gate for marks entry eligibility.
+enum ExamSeatAllocationStatus {
+  ALLOCATED
+  PRESENT
+  ABSENT
+}
+
+enum ExamInvigilatorRole {
+  CHIEF_INVIGILATOR
+  INVIGILATOR
+}
+
+/// Data-driven eligibility knobs attached to a session (see ExamEligibilityRule). Each rule is
+/// evaluated against existing student data (enrollment, attendance aggregate, prerequisites,
+/// backlogs) by the exams service; rules are AND-composed when enabled.
+enum ExamEligibilityRuleType {
+  ACTIVE_STUDENT
+  PROGRAM_ENROLLMENT
+  MINIMUM_ATTENDANCE
+  CLEARED_PREREQUISITES
+  OPEN_BACKLOG
+}
+
+/// Marks-entry workflow: DRAFT (entered, editable) → SUBMITTED (locked, awaiting moderation) →
+/// MODERATED (checked, awaiting approval) → APPROVED (final; eligible for results publication).
+enum ExamMarksStatus {
+  DRAFT
+  SUBMITTED
+  MODERATED
+  APPROVED
+}
+
+enum ExamRevaluationStatus {
+  REQUESTED
+  UNDER_REVIEW
+  RESOLVED
+  REJECTED
 }
 
 enum CertificateType {
@@ -2212,6 +2301,9 @@ model Student {
   attendanceCorrections AttendanceCorrectionRequest[] @relation("AttendanceCorrectionStudents")
   deviceMappings        AttendanceDeviceUser[]        @relation("StudentDeviceMappings")
   deviceLogs            AttendanceDeviceLog[]         @relation("StudentDeviceLogs")
+  examRegistrations     ExamRegistration[]
+  examSeatAllocations   ExamSeatAllocation[]
+  examMarksEntries      ExamMarksEntry[]
 
   @@unique([tenantId, admissionNumber])
   @@index([tenantId])
@@ -2769,6 +2861,388 @@ model StudentFeeAllocation {
 }
 
 // ---------------------------------------------------------------------------
+// Exams (Phase 7) — a complete examination surface built on the Organization/Academics and
+// Student 360 foundations:
+//
+//   ExamSession             → one examination cycle for a program/term (reuses ExamType; a
+//                             SUPPLEMENTARY session links back to the failed base session).
+//   ExamSubject             → one paper within a session, anchored on the academics Course
+//                             catalog with its own marks/duration/date/time + default room.
+//   ExamEligibilityRule     → data-driven eligibility knobs evaluated against student data.
+//   ExamRegistration        → a student registered to sit a session (auto-eligible via rules).
+//   ExamHallTicket          → one admit card per registration with per-subject line-item
+//                             snapshots (ExamHallTicketSubject copies code/name/marks/venue/seat
+//                             at print time so the issued ticket is immutable).
+//   ExamSeatingPlan         → a room + label for a subject; ExamSeatAllocation assigns each
+//                             registration a seat (ALLOCATED → PRESENT/ABSENT gate for marks).
+//   ExamInvigilatorAssignment → user + role + optional room for a subject paper.
+//   ExamMarksEntry          → per-registration per-subject marks with DRAFT → SUBMITTED →
+//                             MODERATED → APPROVED workflow and grace marks.
+//   ExamRevaluationRequest  → request → UNDER_REVIEW → RESOLVED/REJECTED; RESOLVED may revise
+//                             marks which flow back to the marks entry + published result.
+//
+// Results are NOT stored twice: publishing a COMPLETED session syncs the APPROVED marks into the
+// student-360 StudentExam/StudentResult tables (StudentExam gained a nullable sessionId link so
+// the sync is idempotent and the student profile shows these exams unchanged). All rows are
+// tenant-scoped (auto-isolated by TenantScopedPrismaService) and sensitive transitions are
+// audit-logged via the exams module tag.
+// ---------------------------------------------------------------------------
+
+/// One examination cycle for a program/term (e.g. "End-Term November 2026, B.Tech CSE").
+/// The session is the unit of scheduling, registration, seating, marks, and result publication.
+model ExamSession {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String            @map("tenant_id") @db.Uuid
+  tenant                Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  name                  String
+  code                  String
+  programId             String            @map("program_id") @db.Uuid
+  program               Program           @relation(fields: [programId], references: [id], onDelete: Restrict)
+  academicYearId        String            @map("academic_year_id") @db.Uuid
+  academicYear          AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  termId                String?           @map("term_id") @db.Uuid
+  term                  Term?             @relation(fields: [termId], references: [id], onDelete: SetNull)
+  examType              ExamType          @map("exam_type")
+  /// True for SUPPLEMENTARY/reappearance sessions; baseSessionId points at the session the
+  /// student originally failed, when one exists.
+  isSupplementary       Boolean           @default(false) @map("is_supplementary")
+  baseSessionId         String?           @map("base_session_id") @db.Uuid
+  baseSession           ExamSession?      @relation("ExamSessionChain", fields: [baseSessionId], references: [id], onDelete: SetNull)
+  status                ExamSessionStatus @default(DRAFT)
+  startDate             DateTime?         @map("start_date")
+  endDate               DateTime?         @map("end_date")
+  resultDeclarationDate DateTime?         @map("result_declaration_date")
+  /// Free-form, human-readable eligibility policy note (the machine-checked rules live in
+  /// ExamEligibilityRule below).
+  eligibilityPolicy     String?           @map("eligibility_policy")
+  resultPublishedAt     DateTime?         @map("result_published_at")
+  resultPublishedBy     String?           @map("result_published_by") @db.Uuid
+  remarks               String?
+  createdBy             String?           @map("created_by")
+  updatedBy             String?           @map("updated_by")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+  deletedAt             DateTime?         @map("deleted_at")
+
+  supplementarySessions ExamSession[]         @relation("ExamSessionChain")
+  studentExams          StudentExam[]         @relation("StudentExamSessions")
+  subjects              ExamSubject[]
+  eligibilityRules      ExamEligibilityRule[]
+  registrations         ExamRegistration[]
+  hallTickets           ExamHallTicket[]
+  seatingPlans          ExamSeatingPlan[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, programId, termId])
+  @@index([tenantId, status])
+  @@index([tenantId, deletedAt])
+  @@map("exam_sessions")
+}
+
+/// One paper within a session. Anchored on the academics Course catalog (no duplicate course
+/// taxonomy); marks/duration/time are set here because they vary per exam. A single room may be
+/// the paper's default venue for hall-ticket printing; fine-grained seating lives in
+/// ExamSeatingPlan/ExamSeatAllocation.
+model ExamSubject {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String            @map("tenant_id") @db.Uuid
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId       String            @map("session_id") @db.Uuid
+  session         ExamSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  courseId        String            @map("course_id") @db.Uuid
+  course          Course            @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  roomId          String?           @map("room_id") @db.Uuid
+  room            Room?             @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  maxMarks        Int               @map("max_marks")
+  passMarks       Int               @map("pass_marks")
+  durationMinutes Int?              @map("duration_minutes")
+  /// Free-form paper/pattern description (e.g. "MCQ + long answers").
+  pattern         String?
+  examDate        DateTime?         @map("exam_date")
+  startTime       String?           @map("start_time")
+  endTime         String?           @map("end_time")
+  status          ExamSubjectStatus @default(DRAFT)
+  remarks         String?
+  createdBy       String?           @map("created_by")
+  updatedBy       String?           @map("updated_by")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  hallTicketLines        ExamHallTicketSubject[]
+  seatingPlans           ExamSeatingPlan[]
+  invigilatorAssignments ExamInvigilatorAssignment[]
+  marksEntries           ExamMarksEntry[]
+  revaluationRequests    ExamRevaluationRequest[]
+
+  @@unique([tenantId, sessionId, courseId])
+  @@index([tenantId])
+  @@index([tenantId, sessionId])
+  @@index([tenantId, status])
+  @@map("exam_subjects")
+}
+
+/// Data-driven eligibility rule attached to a session; enabled rules are AND-composed by the
+/// exams service when computing/report-ing eligible students. Each rule type maps to an
+/// existing-data check (student status/enrollment, attendance aggregates, course prerequisites,
+/// open backlogs).
+model ExamEligibilityRule {
+  id                   String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                  @map("tenant_id") @db.Uuid
+  tenant               Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId            String                  @map("session_id") @db.Uuid
+  session              ExamSession             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ruleType             ExamEligibilityRuleType @map("rule_type")
+  enabled              Boolean                 @default(true)
+  /// Required overall attendance % for MINIMUM_ATTENDANCE rules.
+  minAttendancePercent Int?                    @map("min_attendance_percent")
+  remarks              String?
+  createdBy            String?                 @map("created_by")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
+  @@unique([tenantId, sessionId, ruleType])
+  @@index([tenantId, sessionId])
+  @@map("exam_eligibility_rules")
+}
+
+/// A student registered to sit a session. Subject-level participation is derived per
+/// registration from the session's subject list (regular sessions: students registered for the
+/// course in the term; supplementary sessions: students holding an OPEN backlog or FAIL for it).
+model ExamRegistration {
+  id           String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String                @map("tenant_id") @db.Uuid
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId    String                @map("session_id") @db.Uuid
+  session      ExamSession           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId    String                @map("student_id") @db.Uuid
+  student      Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status       ExamRegistrationStatus @default(REGISTERED)
+  registeredAt DateTime              @default(now()) @map("registered_at")
+  remarks      String?
+  createdBy    String?               @map("created_by")
+  updatedBy    String?               @map("updated_by")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  hallTicket          ExamHallTicket?
+  seatAllocations     ExamSeatAllocation[]
+  marksEntries        ExamMarksEntry[]
+  revaluationRequests ExamRevaluationRequest[]
+
+  @@unique([tenantId, sessionId, studentId])
+  @@index([tenantId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, sessionId])
+  @@map("exam_registrations")
+}
+
+/// One admit card per registration. The per-subject line items are immutable snapshots (course
+/// code/name/marks/venue/seat) frozen at generation time so printed/issued tickets never change
+/// when a subject is later edited.
+model ExamHallTicket {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String               @map("tenant_id") @db.Uuid
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  registrationId String               @unique @map("registration_id") @db.Uuid
+  registration   ExamRegistration     @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  sessionId      String               @map("session_id") @db.Uuid
+  session        ExamSession          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ticketNumber   String               @map("ticket_number")
+  status         ExamHallTicketStatus @default(ISSUED)
+  issuedAt       DateTime?            @map("issued_at")
+  issuedBy       String?              @map("issued_by")
+  remarks        String?
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  subjects ExamHallTicketSubject[]
+
+  @@unique([tenantId, ticketNumber])
+  @@index([tenantId])
+  @@index([tenantId, sessionId])
+  @@index([tenantId, status])
+  @@map("exam_hall_tickets")
+}
+
+/// Immutable per-subject line item on a hall ticket (see ExamHallTicket).
+model ExamHallTicketSubject {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String         @map("tenant_id") @db.Uuid
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  hallTicketId String         @map("hall_ticket_id") @db.Uuid
+  hallTicket   ExamHallTicket @relation(fields: [hallTicketId], references: [id], onDelete: Cascade)
+  subjectId    String         @map("subject_id") @db.Uuid
+  subject      ExamSubject    @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  courseCode   String         @map("course_code")
+  courseName   String         @map("course_name")
+  maxMarks     Int            @map("max_marks")
+  passMarks    Int            @map("pass_marks")
+  examDate     DateTime?      @map("exam_date")
+  startTime    String?        @map("start_time")
+  endTime      String?        @map("end_time")
+  roomName     String?        @map("room_name")
+  seatNo       String?        @map("seat_no")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  @@unique([tenantId, hallTicketId, subjectId])
+  @@index([tenantId])
+  @@index([tenantId, hallTicketId])
+  @@map("exam_hall_ticket_subjects")
+}
+
+/// A seating plan associates a room (reused from the Organization module) with a subject (or the
+/// whole session when subjectId is null) for hall tickets and attendance marking. capacity is a
+/// snapshot of the room's usable seats at generation time.
+model ExamSeatingPlan {
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String         @map("tenant_id") @db.Uuid
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId String         @map("session_id") @db.Uuid
+  session   ExamSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  subjectId String?        @map("subject_id") @db.Uuid
+  subject   ExamSubject?   @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  roomId    String         @map("room_id") @db.Uuid
+  room      Room           @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  label     String?
+  capacity  Int?
+  createdBy String?        @map("created_by")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  allocations ExamSeatAllocation[]
+
+  @@index([tenantId])
+  @@index([tenantId, sessionId])
+  @@index([tenantId, subjectId])
+  @@map("exam_seating_plans")
+}
+
+/// One student's allocated seat for a plan. seatNo is unique within the plan's reading room;
+/// a registration may only have one allocation per plan. status is the invigilator's gate for
+/// marks entry (PRESENT/ABSENT from the attendance sheet).
+model ExamSeatAllocation {
+  id             String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String                   @map("tenant_id") @db.Uuid
+  tenant         Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  planId         String                   @map("plan_id") @db.Uuid
+  plan           ExamSeatingPlan          @relation(fields: [planId], references: [id], onDelete: Cascade)
+  registrationId String                   @map("registration_id") @db.Uuid
+  registration   ExamRegistration         @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  studentId      String                   @map("student_id") @db.Uuid
+  student        Student                  @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  seatNo         String                   @map("seat_no")
+  status         ExamSeatAllocationStatus @default(ALLOCATED)
+  createdBy      String?                  @map("created_by")
+  updatedBy      String?                  @map("updated_by")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  @@unique([tenantId, planId, registrationId])
+  @@unique([tenantId, planId, seatNo])
+  @@index([tenantId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, planId])
+  @@map("exam_seat_allocations")
+}
+
+/// A user assigned to invigilate a subject's paper (reuses the tenant User catalog). A paper may
+/// have one CHIEF_INVIGILATOR plus multiple INVIGILATORs; the optional room narrows which venue
+/// they supervise.
+model ExamInvigilatorAssignment {
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String               @map("tenant_id") @db.Uuid
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subjectId   String               @map("subject_id") @db.Uuid
+  subject     ExamSubject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  userId      String               @map("user_id") @db.Uuid
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role        ExamInvigilatorRole  @default(INVIGILATOR)
+  roomId      String?              @map("room_id") @db.Uuid
+  room        Room?                @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  assignedAt  DateTime?            @map("assigned_at")
+  createdBy   String?              @map("created_by")
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  @@unique([tenantId, subjectId, userId])
+  @@index([tenantId])
+  @@index([tenantId, userId])
+  @@index([tenantId, subjectId])
+  @@map("exam_invigilator_assignments")
+}
+
+/// Marks for one registration on one subject paper, with an approval workflow so an
+/// examiner-submitted sheet must be moderated then approved before it can be published.
+/// outcome is computed on approval from marksObtained (+ graceMarks) vs the subject's passMarks
+/// using the shared ResultOutcome enum; the published StudentResult is derived from it.
+model ExamMarksEntry {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String          @map("tenant_id") @db.Uuid
+  tenant           Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  registrationId   String          @map("registration_id") @db.Uuid
+  registration     ExamRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  subjectId        String          @map("subject_id") @db.Uuid
+  subject          ExamSubject     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  studentId        String          @map("student_id") @db.Uuid
+  student          Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  marksObtained    Int?            @map("marks_obtained")
+  graceMarks       Int             @default(0) @map("grace_marks")
+  /// PRESENT/ABSENT free taxonomy (drives INCOMPLETE outcomes when no marks were recorded and
+  /// lets attendance-only papers exist without inventing a separate table).
+  attendanceStatus String          @default("PRESENT") @map("attendance_status")
+  status           ExamMarksStatus @default(DRAFT)
+  moderatedBy      String?         @map("moderated_by")
+  moderatedAt      DateTime?       @map("moderated_at")
+  approvedBy       String?         @map("approved_by")
+  approvedAt       DateTime?       @map("approved_at")
+  remark           String?
+  createdBy        String?         @map("created_by")
+  updatedBy        String?         @map("updated_by")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  revaluationRequests ExamRevaluationRequest[]
+
+  @@unique([tenantId, registrationId, subjectId])
+  @@index([tenantId])
+  @@index([tenantId, subjectId])
+  @@index([tenantId, status])
+  @@map("exam_marks_entries")
+}
+
+/// A student's request to re-evaluate a subject paper after results are published. RESOLVED
+/// entries may carry revisedMarks, which flow back into the marks entry (and the published
+/// StudentResult) when the revaluation closes.
+model ExamRevaluationRequest {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String                @map("tenant_id") @db.Uuid
+  tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  registrationId String                @map("registration_id") @db.Uuid
+  registration   ExamRegistration      @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  subjectId      String                @map("subject_id") @db.Uuid
+  subject        ExamSubject           @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  marksEntryId   String?               @map("marks_entry_id") @db.Uuid
+  marksEntry     ExamMarksEntry?       @relation(fields: [marksEntryId], references: [id], onDelete: SetNull)
+  reason         String
+  requestedBy    String?               @map("requested_by")
+  requestedAt    DateTime              @default(now()) @map("requested_at")
+  status         ExamRevaluationStatus @default(REQUESTED)
+  resolvedBy     String?               @map("resolved_by")
+  resolvedAt     DateTime?             @map("resolved_at")
+  revisedMarks   Int?                  @map("revised_marks")
+  remark         String?
+  createdBy      String?               @map("created_by")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  @@unique([tenantId, registrationId, subjectId])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("exam_revaluation_requests")
+}
+
+// ---------------------------------------------------------------------------
 // Fees & Finance (Phase 14) — a complete fee-billing surface built on top of the Student 360
 // fee ledger. StudentFee stays the single demand-line table and StudentPayment the receipt/
 // ledger entry the students module already owns; this module adds the catalog + planning +
@@ -3077,6 +3551,14 @@ model StudentExam {
 
   results StudentResult[]
 
+  /// Link back to the exam-module session (Phase 7) this row was synced from, when it was
+  /// created by the exams result-publication flow rather than the student-360 editor. Nullable so
+  /// manual per-student exam rows keep working unchanged; the unique below makes the publication
+  /// flow idempotent (one 360 exam row per student per session).
+  sessionId String?       @map("session_id") @db.Uuid
+  session   ExamSession?  @relation("StudentExamSessions", fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, studentId, sessionId])
   @@index([tenantId])
   @@index([studentId])
   @@index([programId])
@@ -3949,6 +4431,7 @@ model Course {
   curriculumCourses CurriculumCourse[]
   courseOfferings   CourseOffering[]
   backlogs          CourseBacklog[]
+  examSubjects      ExamSubject[]
 
   @@unique([tenantId, code])
   @@index([tenantId, deletedAt])
