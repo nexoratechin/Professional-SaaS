@@ -12,6 +12,7 @@ const ACADEMICS_VIEW_PERMISSION = 'academics.view';
 const TIMETABLE_VIEW_PERMISSION = 'timetable.view';
 const ATTENDANCE_VIEW_PERMISSION = 'attendance.view';
 const EXAMS_VIEW_PERMISSION = 'exams.view';
+const CERTIFICATES_VIEW_PERMISSION = 'certificates.view';
 const ORG_VIEW_PERMISSIONS = ['campuses.read', 'departments.read', 'programs.read', 'academicYears.read', 'terms.read', 'rooms.read', 'buildings.read', 'sections.read', 'batches.read'];
 
 /** Entitlement-gated navigation section — rendered links are only as trustworthy as the
@@ -57,6 +58,7 @@ export function DashboardPage() {
           {permissions.includes(TIMETABLE_VIEW_PERMISSION) && <Link to="/timetable">Timetable</Link>}
           {permissions.includes(ATTENDANCE_VIEW_PERMISSION) && <Link to="/attendance">Attendance</Link>}
           {permissions.includes(EXAMS_VIEW_PERMISSION) && <Link to="/exams">Examinations</Link>}
+          {permissions.includes(CERTIFICATES_VIEW_PERMISSION) && <Link to="/certificates">Certificates</Link>}
           {permissions.some((p) => ORG_VIEW_PERMISSIONS.includes(p)) && <Link to="/organization">Organization</Link>}
           {permissions.includes(AUDIT_VIEW_PERMISSION) && <Link to="/audit">Audit log</Link>}
           {permissions.includes(BILLING_VIEW_PERMISSION) && <Link to="/billing">Billing</Link>}

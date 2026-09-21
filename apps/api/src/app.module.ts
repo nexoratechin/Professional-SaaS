@@ -24,6 +24,7 @@ import { StudentsModule } from './modules/students/students.module';
 import { TimetableModule } from './modules/timetable/timetable.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { FeesModule } from './modules/fees/fees.module';
+import { CertificatesModule } from './modules/certificates/certificates.module';
 import { TenantConfigurationModule } from './modules/tenant-configuration/tenant-configuration.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { ResultsModule } from './modules/results/results.module';
@@ -56,6 +57,7 @@ import { WorkflowModule } from './modules/workflow/workflow.module';
     TimetableModule,
     AttendanceModule,
     FeesModule,
+    CertificatesModule,
     AdmissionsModule,
     BillingModule,
     SupportModule,
@@ -76,6 +78,7 @@ export class AppModule implements NestModule {
         { path: 'health', method: RequestMethod.ALL },
         { path: 'api/docs', method: RequestMethod.ALL },
         { path: 'api/docs/(.*)', method: RequestMethod.ALL },
+        { path: 'public/(.*)', method: RequestMethod.ALL },
         { path: 'platform/(.*)', method: RequestMethod.ALL },
         { path: 'plans', method: RequestMethod.ALL },
         { path: 'plans/(.*)', method: RequestMethod.ALL },

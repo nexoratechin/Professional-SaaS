@@ -475,6 +475,8 @@ model Tenant {
   resultCalculations           ResultCalculation[]
   resultProcesses              ResultProcess[]
   resultHistory                ResultHistory[]
+  certificateTemplates         CertificateTemplate[]
+  certificateHistoryRows       CertificateHistoryRow[]
 
   @@index([status])
   @@map("tenants")
@@ -1902,6 +1904,10 @@ enum CertificateType {
   MIGRATION
   TRANSCRIPT
   TRANSFER_CERTIFICATE
+  GRADE_CARD
+  MARKSHEET
+  CHARACTER_CERTIFICATE
+  TESTIMONIAL
   OTHER
 }
 
@@ -1911,6 +1917,7 @@ enum CertificateStatus {
   APPROVED
   ISSUED
   REJECTED
+  REVOKED
 }
 
 enum LibraryLoanStatus {
@@ -3941,8 +3948,9 @@ model StudentResult {
   @@map("student_results")
 }
 
-/// Certificate / transcript requests and their issuance lifecycle (request → generate →
-/// approve → issue).
+/// Certificate / transcript documents and their issuance lifecycle
+/// (request → generate → approve → issue), with tamper-evident QR verification,
+/// numbering chains, reissue lineage and append-only history.
 model StudentCertificate {
   id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId          String            @map("tenant_id") @db.Uuid
@@ -3954,6 +3962,14 @@ model StudentCertificate {
   title             String?
   requestDate       DateTime          @map("request_date")
   status            CertificateStatus @default(REQUESTED)
+  /// The template whose branded layout / field config / numbering produced this document.
+  templateId        String?           @map("template_id") @db.Uuid
+  template          CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  /// Random verifier token encoded into the QR; resolves to the public verify page.
+  qrToken           String?           @unique @map("qr_token")
+  /// Immutable snapshot of branded, student & type-specific fields baked at generation time,
+  /// so verification reflects exactly what was printed (independent of later edits).
+  contentJson       Json?             @map("content_json")
   generatedAt       DateTime?         @map("generated_at")
   generatedByUserId String?           @map("generated_by_user_id") @db.Uuid
   approvedAt        DateTime?         @map("approved_at")
@@ -3961,16 +3977,73 @@ model StudentCertificate {
   issuedAt          DateTime?         @map("issued_at")
   issuedByUserId    String?           @map("issued_by_user_id") @db.Uuid
   storageKey        String?           @map("storage_key")
+  revokedAt         DateTime?         @map("revoked_at")
+  revokedByUserId   String?           @map("revoked_by_user_id") @db.Uuid
+  revokeReason      String?           @map("revoke_reason")
+  reissuedFromId    String?           @map("reissued_from_id") @db.Uuid
+  reissuedFrom      StudentCertificate? @relation("CertificateReissue", fields: [reissuedFromId], references: [id], onDelete: SetNull)
+  reissues          StudentCertificate[] @relation("CertificateReissue")
   remarks           String?
   createdBy         String?           @map("created_by")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
 
+  history           CertificateHistoryRow[]
+
   @@unique([tenantId, certificateNumber])
   @@index([tenantId])
   @@index([studentId])
   @@index([tenantId, status])
+  @@index([tenantId, certificateType])
   @@map("student_certificates")
+}
+
+/// Reusable issuance template: branded layout, dynamic-field config, numbering chain
+/// and (optionally) its QR payload used to print identical documents at scale.
+model CertificateTemplate {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String          @map("tenant_id") @db.Uuid
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code           String
+  name           String
+  certificateType CertificateType @map("certificate_type")
+  /// Human-authored field map consumed by the generate step: `{ "student_fullname": "fullName", ... }`.
+  fieldConfigJson Json?          @map("field_config_json")
+  /// Branding: colors / logoUrl / headerText / footerText / watermark / signedBy.
+  brandingJson   Json?           @map("branding_json")
+  /// Numbering: `{ prefix, start, padding, perType }`.
+  numberingJson  Json?           @map("numbering_json")
+  /// Whether the QR (verify token) is embedded on the printed document.
+  qrEnabled      Boolean         @default(true) @map("qr_enabled")
+  isDefault      Boolean         @default(false) @map("is_default")
+  isActive       Boolean         @default(true) @map("is_active")
+  createdBy      String?         @map("created_by")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  certificates   StudentCertificate[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, certificateType])
+  @@map("certificate_templates")
+}
+
+/// Append-only state transition log for a certificate document (request → generate →
+/// approve → issue → revoke → reissue). Every write path appends a row here.
+model CertificateHistoryRow {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String            @map("tenant_id") @db.Uuid
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  certificateId String            @map("certificate_id") @db.Uuid
+  certificate   StudentCertificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  fromStatus    CertificateStatus @map("from_status")
+  toStatus      CertificateStatus @map("to_status")
+  actorUserId   String?           @map("actor_user_id") @db.Uuid
+  detailJson    Json?             @map("detail_json")
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  @@index([tenantId, certificateId])
+  @@map("certificate_history_rows")
 }
 
 /// Library loans for this student (items are free-form strings — the dedicated library

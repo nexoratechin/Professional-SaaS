@@ -29,6 +29,8 @@ import { AcademicsPage } from './routes/academics';
 import { TimetablePage } from './routes/timetable';
 import { AttendancePage } from './routes/attendance';
 import { ExamsPage } from './routes/exams';
+import { CertificatesPage } from './routes/certificates';
+import { CertificateVerifyPage } from './routes/certificate-verify';
 
 function ProfileRoute() {
   const { id } = useParams<{ id: string }>();
@@ -180,6 +182,16 @@ function TenantArea() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/certificates"
+          element={
+            <ProtectedRoute>
+              <CertificatesPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Public QR landing — intentionally outside ProtectedRoute; the token is the credential. */}
+        <Route path="/verify/certificate" element={<CertificateVerifyPage />} />
         <Route
           path="/students/:id"
           element={

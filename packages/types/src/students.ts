@@ -72,9 +72,19 @@ export type CertificateTypeDto =
   | 'MIGRATION'
   | 'TRANSCRIPT'
   | 'TRANSFER_CERTIFICATE'
+  | 'GRADE_CARD'
+  | 'MARKSHEET'
+  | 'CHARACTER_CERTIFICATE'
+  | 'TESTIMONIAL'
   | 'OTHER';
 
-export type CertificateStatusDto = 'REQUESTED' | 'GENERATED' | 'APPROVED' | 'ISSUED' | 'REJECTED';
+export type CertificateStatusDto =
+  | 'REQUESTED'
+  | 'GENERATED'
+  | 'APPROVED'
+  | 'ISSUED'
+  | 'REJECTED'
+  | 'REVOKED';
 
 export type LibraryLoanStatusDto = 'ISSUED' | 'RETURNED' | 'OVERDUE' | 'LOST';
 
@@ -303,10 +313,44 @@ export interface StudentCertificateDto {
   title: string | null;
   requestDate: string;
   status: CertificateStatusDto;
+  templateId: string | null;
+  template?: CertificateTemplateRefDto | null;
+  qrToken: string | null;
+  qrUrl: string | null;
+  contentJson: unknown | null;
+  storageKey: string | null;
   generatedAt: string | null;
+  generatedByUserId: string | null;
   approvedAt: string | null;
+  approvedByUserId: string | null;
   issuedAt: string | null;
+  issuedByUserId: string | null;
+  revokedAt: string | null;
+  revokedByUserId: string | null;
+  revokeReason: string | null;
+  reissuedFromId: string | null;
+  reissuedFrom?: StudentCertificateDto | null;
+  reissues?: StudentCertificateDto[];
   remarks: string | null;
+  history?: CertificateHistoryRowDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CertificateTemplateRefDto {
+  id: string;
+  code: string;
+  name: string;
+  certificateType: CertificateTypeDto;
+}
+
+export interface CertificateHistoryRowDto {
+  id: string;
+  certificateId: string;
+  fromStatus: CertificateStatusDto;
+  toStatus: CertificateStatusDto;
+  actorUserId: string | null;
+  detail: unknown | null;
   createdAt: string;
 }
 

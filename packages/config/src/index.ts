@@ -41,6 +41,9 @@ export const apiEnvSchema = z.object({
 
   COOKIE_DOMAIN: z.string().optional(),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  /** Base URL embedded in certificate QR codes so an offline printed document can be verified
+   *  by anyone scanning it (resolves to the public /verify/certificate page). */
+  PUBLIC_BASE_URL: z.string().url().default('http://localhost:5173'),
   /** In prod, tenant is resolved from subdomain; dev/CI fall back to the X-Tenant-Slug header. */
   TENANT_HEADER_FALLBACK: boolFromString,
 });
