@@ -26,6 +26,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
 import { FeesModule } from './modules/fees/fees.module';
 import { TenantConfigurationModule } from './modules/tenant-configuration/tenant-configuration.module';
 import { OrganizationModule } from './modules/organization/organization.module';
+import { ResultsModule } from './modules/results/results.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
@@ -51,6 +52,7 @@ import { WorkflowModule } from './modules/workflow/workflow.module';
     StudentsModule,
     AcademicsModule,
     ExamsModule,
+    ResultsModule,
     TimetableModule,
     AttendanceModule,
     FeesModule,

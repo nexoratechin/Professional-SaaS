@@ -468,6 +468,13 @@ model Tenant {
   examInvigilatorAssignments   ExamInvigilatorAssignment[]
   examMarksEntries             ExamMarksEntry[]
   examRevaluationRequests      ExamRevaluationRequest[]
+  gradingSchemes               GradingScheme[]
+  gradeScales                  GradeScale[]
+  assessmentComponents         AssessmentComponent[]
+  examComponentMarks           ExamComponentMark[]
+  resultCalculations           ResultCalculation[]
+  resultProcesses              ResultProcess[]
+  resultHistory                ResultHistory[]
 
   @@index([status])
   @@map("tenants")
@@ -1868,6 +1875,27 @@ enum ExamRevaluationStatus {
   REJECTED
 }
 
+/// Lifecycle of a computed result process (results module) — one row per student per exam
+/// session. CALCULATED → PENDING_APPROVAL → APPROVED → PUBLISHED → LOCKED; PUBLISHED may be
+/// UNPUBLISHED (back to APPROVED) and LOCKED may be UNLOCKED (back to PUBLISHED), both as
+/// administrator corrections. Recalculation after PUBLISHED is refused while locked.
+enum ResultState {
+  CALCULATED
+  PENDING_APPROVAL
+  APPROVED
+  PUBLISHED
+  LOCKED
+}
+
+/// Overall outcome of a result process across all papers. SUPPLEMENTARY marks a process whose
+/// student still has failed papers but is sitting a supplementary/reappearance session (they may
+/// yet pass and clear); FAILED otherwise, PASSED when nothing is failed or absent.
+enum ResultStanding {
+  PASSED
+  FAILED
+  SUPPLEMENTARY
+}
+
 enum CertificateType {
   BONAFIDE
   PROVISIONAL
@@ -2304,6 +2332,10 @@ model Student {
   examRegistrations     ExamRegistration[]
   examSeatAllocations   ExamSeatAllocation[]
   examMarksEntries      ExamMarksEntry[]
+  examComponentMarks    ExamComponentMark[]
+  resultCalculations    ResultCalculation[]
+  resultProcesses       ResultProcess[]
+  resultHistory         ResultHistory[]
 
   @@unique([tenantId, admissionNumber])
   @@index([tenantId])
@@ -2917,6 +2949,15 @@ model ExamSession {
   eligibilityPolicy     String?           @map("eligibility_policy")
   resultPublishedAt     DateTime?         @map("result_published_at")
   resultPublishedBy     String?           @map("result_published_by") @db.Uuid
+  /// Grading scheme applied by the result engine for this session; null falls back to the
+  /// tenant's default GradingScheme (itself configurable, never hard-coded).
+  gradingSchemeId       String?           @map("grading_scheme_id") @db.Uuid
+  gradingScheme         GradingScheme?    @relation(fields: [gradingSchemeId], references: [id], onDelete: SetNull)
+  /// Per-session grace-marks override, e.g. { enabled: true, maxGraceMarks: 2, graceToPassDiff: 4 }.
+  /// When present it wins over the scheme's own grace settings.
+  gracePolicy           Json?             @map("grace_policy")
+  /// Set when results are locked at session level (hard stop on recalculation/publication).
+  resultsLockedAt       DateTime?         @map("results_locked_at")
   remarks               String?
   createdBy             String?           @map("created_by")
   updatedBy             String?           @map("updated_by")
@@ -2931,6 +2972,10 @@ model ExamSession {
   registrations         ExamRegistration[]
   hallTickets           ExamHallTicket[]
   seatingPlans          ExamSeatingPlan[]
+  assessmentComponents  AssessmentComponent[]
+  resultCalculations    ResultCalculation[]
+  resultProcesses       ResultProcess[]
+  resultHistory         ResultHistory[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -2974,6 +3019,9 @@ model ExamSubject {
   invigilatorAssignments ExamInvigilatorAssignment[]
   marksEntries           ExamMarksEntry[]
   revaluationRequests    ExamRevaluationRequest[]
+  assessmentComponents   AssessmentComponent[]        @relation("SubjectComponents")
+  componentMarks         ExamComponentMark[]
+  resultCalculations     ResultCalculation[]
 
   @@unique([tenantId, sessionId, courseId])
   @@index([tenantId])
@@ -3029,6 +3077,8 @@ model ExamRegistration {
   seatAllocations     ExamSeatAllocation[]
   marksEntries        ExamMarksEntry[]
   revaluationRequests ExamRevaluationRequest[]
+  componentMarks      ExamComponentMark[]
+  resultCalculations  ResultCalculation[]
 
   @@unique([tenantId, sessionId, studentId])
   @@index([tenantId])
@@ -3203,6 +3253,7 @@ model ExamMarksEntry {
   updatedAt        DateTime        @updatedAt @map("updated_at")
 
   revaluationRequests ExamRevaluationRequest[]
+  resultCalculations  ResultCalculation[]
 
   @@unique([tenantId, registrationId, subjectId])
   @@index([tenantId])
@@ -3240,6 +3291,291 @@ model ExamRevaluationRequest {
   @@index([tenantId])
   @@index([tenantId, status])
   @@map("exam_revaluation_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Results calculation engine (Phase 7, part 2) — a configurable result-calculation layer that
+// sits on top of the exams module (exams keeps marks capture: DRAFT → SUBMITTED → MODERATED →
+// APPROVED, revaluation, and the student-360 StudentExam/StudentResult sync). Nothing about how
+// a grade is derived is hard-coded here: grading schemes (grades → grade points, pass rules,
+// grace-marks policy, GPA weighting) are tenant data, any paper may be split into weighted
+// assessment components, and every computed result is snapshotted so results are reproducible
+// and auditable.
+//
+//   GradingScheme        → tenant-level, configurable grading policy (pass rule, grade scale,
+//                          grace policy, GPA weighting/scale, rounding).
+//   GradeScale           → one band: percentage window ↔ letter grade ↔ grade point.
+//   AssessmentComponent  → optional session- or paper-level exam components with weightages
+//                          (e.g. Internal 30% + End-Term 70% + Practical 20%).
+//   ExamComponentMark    → a student's marks in one component of one paper.
+//   ResultCalculation    → the computed, snapshotted result of one student in one paper
+//                          (weighted/effective marks, grade, grade point, outcome, schema used).
+//   ResultProcess        → one student's whole-session result state machine, GPA, CGPA and
+//                          standing (CALCULATED → APPROVED → PUBLISHED → LOCKED).
+//   ResultHistory        → an append-only trail of calculation/approval/publication/lock events.
+// ---------------------------------------------------------------------------
+
+/// Tenant-level, configurable grading scheme used by the result engine. Grading is entirely
+/// data-driven — no institution's scheme is baked in. A session either names a scheme or falls
+/// back to the tenant's default (created on first use and editable from the UI).
+model GradingScheme {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code          String
+  name          String
+  description   String?
+  /// How a paper is judged a pass: PERCENTAGE (>= minPassPercent of the paper's max marks) or
+  /// GRADE_POINT (mapped gradePoint >= minPassGradePoint).
+  passMode      String   @default("PERCENTAGE") @map("pass_mode")
+  minPassPercent Float?  @map("min_pass_percent")
+  minPassGradePoint Float? @map("min_pass_grade_point")
+  /// GPA aggregation: CREDIT_WEIGHTED weights each paper's grade point by Course.creditHours;
+  /// SIMPLE averages the grade points of the session's papers.
+  weightingMode String   @default("CREDIT_WEIGHTED") @map("weighting_mode")
+  gpaMax        Float    @default(10) @map("gpa_max")
+  /// Grace marks, where configured: when graceEnabled and a paper's shortfall from the pass
+  /// threshold is <= graceToPassDiff, up to maxGraceMarks are applied so it becomes
+  /// PASS_WITH_GRACE. A session-level gracePolicy on ExamSession overrides these.
+  graceEnabled  Boolean  @default(false) @map("grace_enabled")
+  maxGraceMarks Float    @default(0) @map("max_grace_marks")
+  graceToPassDiff Float  @default(0) @map("grace_to_pass_diff")
+  /// Decimal places used when rounding computed percentages / GPAs.
+  roundingDecimals Int   @default(2) @map("rounding_decimals")
+  isDefault     Boolean  @default(false) @map("is_default")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdBy     String?  @map("created_by")
+  updatedBy     String?  @map("updated_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  gradeScale GradeScale[]
+  sessions   ExamSession[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, isDefault])
+  @@map("grading_schemes")
+}
+
+/// One band of a GradingScheme's scale: a contiguous percentage window maps to a letter grade
+/// and a grade point. Bands for one scheme are owned by the scheme (cascade delete); the engine
+/// matches a computed percentage against bands in order (highest minPercent first).
+model GradeScale {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String        @map("tenant_id") @db.Uuid
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  schemeId         String        @map("scheme_id") @db.Uuid
+  scheme           GradingScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  grade            String
+  minPercent       Float         @map("min_percent")
+  maxPercent       Float         @map("max_percent")
+  gradePoint       Float         @map("grade_point")
+  gradeDescription String?       @map("grade_description")
+  createdBy        String?       @map("created_by")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  @@unique([tenantId, schemeId, grade])
+  @@index([tenantId, schemeId])
+  @@map("grade_scales")
+}
+
+/// Optional, configurable assessment components for a session (e.g. Internal 30, End-Term 70).
+/// subjectId null ⇒ the component applies to every paper in the session; otherwise only to that
+/// paper. When any component applies to a paper, a student's component marks are aggregated
+/// (weighted by `weightage`) onto the paper's own maxMarks; papers without components keep the
+/// single entered marks value.
+model AssessmentComponent {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String        @map("tenant_id") @db.Uuid
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId  String        @map("session_id") @db.Uuid
+  session    ExamSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  subjectId  String?       @map("subject_id") @db.Uuid
+  subject    ExamSubject?  @relation("SubjectComponents", fields: [subjectId], references: [id], onDelete: Cascade)
+  code       String
+  name       String
+  /// Free taxonomy (INTERNAL / THEORY / PRACTICAL / PROJECT / VIVA / OTHER) — keeps paper kinds
+  /// configurable without enums.
+  kind       String        @default("THEORY")
+  /// Percentage weight of this component in the paper's total (may exceed the default 100 total
+  /// when components describe supplemental/internal weights; the engine normalizes by the sum).
+  weightage  Float         @map("weightage")
+  maxMarks   Float         @map("max_marks")
+  sortOrder  Int           @default(0) @map("sort_order")
+  createdBy  String?       @map("created_by")
+  updatedBy  String?       @map("updated_by")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  marks ExamComponentMark[]
+
+  @@unique([tenantId, sessionId, subjectId, code])
+  @@index([tenantId, sessionId])
+  @@index([tenantId, subjectId])
+  @@map("assessment_components")
+}
+
+/// Marks recorded against one AssessmentComponent for a registered student in a paper. Only
+/// used when the paper has components configured; the engine weights these into the paper's
+/// total. Single-value papers keep using ExamMarksEntry alone.
+model ExamComponentMark {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String              @map("tenant_id") @db.Uuid
+  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  registrationId String              @map("registration_id") @db.Uuid
+  registration   ExamRegistration    @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  subjectId      String              @map("subject_id") @db.Uuid
+  subject        ExamSubject         @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  componentId    String              @map("component_id") @db.Uuid
+  component      AssessmentComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  studentId      String              @map("student_id") @db.Uuid
+  student        Student             @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  marksObtained  Float               @map("marks_obtained")
+  remark         String?
+  createdBy      String?             @map("created_by")
+  updatedBy      String?             @map("updated_by")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  @@unique([tenantId, registrationId, subjectId, componentId])
+  @@index([tenantId, componentId])
+  @@index([tenantId, registrationId])
+  @@index([tenantId, subjectId])
+  @@map("exam_component_marks")
+}
+
+/// Computed result snapshot of one student in one paper, produced by the result engine from the
+/// session's APPROVED marks (+ component marks) and the active grading scheme. Rows keep the
+/// scheme snapshot and component breakdown used so recalculations and history stay reproducible.
+model ResultCalculation {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String          @map("tenant_id") @db.Uuid
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId      String          @map("session_id") @db.Uuid
+  session        ExamSession     @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  studentId      String          @map("student_id") @db.Uuid
+  student        Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  registrationId String?         @map("registration_id") @db.Uuid
+  registration   ExamRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  subjectId      String          @map("subject_id") @db.Uuid
+  subject        ExamSubject     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  marksEntryId   String?         @map("marks_entry_id") @db.Uuid
+  marksEntry     ExamMarksEntry? @relation(fields: [marksEntryId], references: [id], onDelete: SetNull)
+  examId         String?         @map("exam_id") @db.Uuid
+  exam           StudentExam?    @relation(fields: [examId], references: [id], onDelete: SetNull)
+  processId      String?         @map("process_id") @db.Uuid
+  process        ResultProcess?  @relation(fields: [processId], references: [id], onDelete: SetNull)
+  /// Marks before any grace adjustment (single value or weighted component total).
+  rawMarks       Float?          @map("raw_marks")
+  graceApplied   Float           @default(0) @map("grace_applied")
+  /// rawMarks + graceApplied, capped at maxMarks.
+  effectiveMarks Float?          @map("effective_marks")
+  maxMarks       Int             @map("max_marks")
+  passMarks      Int             @map("pass_marks")
+  percentage     Float?
+  grade          String?
+  gradePoint     Float?          @map("grade_point")
+  outcome        ResultOutcome   @default(INCOMPLETE)
+  /// Component-wise breakdown (marks, weightage, weighted marks) used when components applied.
+  componentJson  Json?           @map("component_json")
+  /// Immutable snapshot of the grading scheme config that produced this calculation.
+  schemaJson     Json?           @map("schema_json")
+  calculatedAt   DateTime?       @map("calculated_at")
+  calculatedBy   String?         @map("calculated_by")
+  createdBy      String?         @map("created_by")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  publishedResult StudentResult?
+
+  @@unique([tenantId, sessionId, studentId, subjectId])
+  @@index([tenantId, sessionId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, subjectId])
+  @@index([tenantId, processId])
+  @@index([tenantId, outcome])
+  @@map("result_calculations")
+}
+
+/// One student's whole-session result process: state machine (CALCULATED → APPROVED → PUBLISHED
+/// → LOCKED), aggregated marks, credits, GPA and standing. CGPA (`cgpa`) is captured at
+/// calculation time across every previously published/locked process of the student.
+model ResultProcess {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String        @map("tenant_id") @db.Uuid
+  tenant              Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId           String        @map("session_id") @db.Uuid
+  session             ExamSession   @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  studentId           String        @map("student_id") @db.Uuid
+  student             Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  examId              String?       @map("exam_id") @db.Uuid
+  exam                StudentExam?  @relation(fields: [examId], references: [id], onDelete: SetNull)
+  state               ResultState   @default(CALCULATED)
+  standing            ResultStanding?
+  subjectCount        Int?          @map("subject_count")
+  passedCount         Int?          @map("passed_count")
+  failedCount         Int?          @map("failed_count")
+  totalRawMarks       Float?        @map("total_raw_marks")
+  totalGraceMarks     Float?        @map("total_grace_marks")
+  totalEffectiveMarks Float?        @map("total_effective_marks")
+  totalMaxMarks       Int?          @map("total_max_marks")
+  aggregatePercent    Float?        @map("aggregate_percent")
+  creditsAttempted    Int?          @map("credits_attempted")
+  creditsEarned       Int?          @map("credits_earned")
+  gpa                 Float?
+  cgpa                Float?
+  /// Bumped on every recalculation; lets consumers detect re-published results.
+  calculationVersion  Int           @default(1) @map("calculation_version")
+  calculatedAt        DateTime?     @map("calculated_at")
+  calculatedBy        String?       @map("calculated_by")
+  approvedAt          DateTime?     @map("approved_at")
+  approvedBy          String?       @map("approved_by")
+  publishedAt         DateTime?     @map("published_at")
+  publishedBy         String?       @map("published_by")
+  lockedAt            DateTime?     @map("locked_at")
+  createdBy           String?       @map("created_by")
+  updatedBy           String?       @map("updated_by")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  history ResultHistory[]
+
+  calculations ResultCalculation[]
+
+  @@unique([tenantId, sessionId, studentId])
+  @@index([tenantId, sessionId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, state])
+  @@map("result_processes")
+}
+
+/// Append-only trail of result lifecycle events (calculation, approval, publication, locking,
+/// recalculation …). `details` holds the delta of the event.
+model ResultHistory {
+  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String        @map("tenant_id") @db.Uuid
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId  String        @map("session_id") @db.Uuid
+  session    ExamSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  processId  String?       @map("process_id") @db.Uuid
+  process    ResultProcess? @relation(fields: [processId], references: [id], onDelete: SetNull)
+  studentId  String?       @map("student_id") @db.Uuid
+  student    Student?      @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  /// Event verb: CALCULATED / APPROVED / PUBLISHED / UNPUBLISHED / LOCKED / UNLOCKED / REJECTED.
+  event      String
+  fromState  ResultState?
+  toState    ResultState?
+  details    Json?
+  actorUserId String?      @map("actor_user_id") @db.Uuid
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@index([tenantId, sessionId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, processId])
+  @@map("result_history")
 }
 
 // ---------------------------------------------------------------------------
@@ -3550,6 +3886,8 @@ model StudentExam {
   updatedAt DateTime   @updatedAt @map("updated_at")
 
   results StudentResult[]
+  resultCalculations ResultCalculation[]
+  resultProcesses    ResultProcess[]
 
   /// Link back to the exam-module session (Phase 7) this row was synced from, when it was
   /// created by the exams result-publication flow rather than the student-360 editor. Nullable so
@@ -3580,7 +3918,12 @@ model StudentResult {
   maxMarks      Int           @map("max_marks")
   obtainedMarks Int?          @map("obtained_marks")
   grade         String?
+  gradePoint    Float?        @map("grade_point")
   percentage    Float?
+  /// Grace marks applied by the result engine to reach a pass (drives PASS_WITH_GRACE).
+  graceApplied  Float         @default(0) @map("grace_applied")
+  /// Component-wise breakdown when the paper used weighted assessment components.
+  componentJson Json?         @map("component_json")
   outcome       ResultOutcome @default(INCOMPLETE)
   publishedAt   DateTime?     @map("published_at")
   publishedBy   String?       @map("published_by") @db.Uuid
@@ -3588,6 +3931,9 @@ model StudentResult {
   createdBy     String?       @map("created_by")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  resultCalculationId String?           @unique @map("result_calculation_id") @db.Uuid
+  resultCalculation   ResultCalculation? @relation(fields: [resultCalculationId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([studentId])

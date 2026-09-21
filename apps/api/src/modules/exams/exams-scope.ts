@@ -11,7 +11,7 @@ type Grants = { scopeType: string; scopeId?: string }[];
 type WhereClause = Prisma.ExamSessionWhereInput;
 
 const EMPTY_SESSION: WhereClause = { id: { in: [] } };
-const EMPTY_REGISTRATION: Prisma.ExamRegistrationWhereInput = { id: { in: [] } };
+const EMPTY_STUDENT: Prisma.StudentWhereInput = { id: { in: [] } };
 
 export function examSessionScopeFilter(grants: Grants, _actorUserId?: string): WhereClause | undefined {
   if (!grants?.length || grants.some((g) => g.scopeType === 'GLOBAL')) return undefined;
@@ -34,7 +34,8 @@ export function examSessionScopeFilter(grants: Grants, _actorUserId?: string): W
   return { program: { department: { campusId: { in: campusIds } } } };
 }
 
-export function examStudentScopeFilter(grants: Grants, actorUserId?: string): Prisma.ExamRegistrationWhereInput | undefined {
+/** Direct student anchor for models exposing a `student` relation (e.g. ResultProcess). */
+export function examStudentWhereInput(grants: Grants, actorUserId?: string): Prisma.StudentWhereInput | undefined {
   if (!grants?.length || grants.some((g) => g.scopeType === 'GLOBAL')) return undefined;
 
   const programIds: string[] = [];
@@ -49,11 +50,17 @@ export function examStudentScopeFilter(grants: Grants, actorUserId?: string): Pr
     if (grant.scopeType === 'PROGRAM' && grant.scopeId) programIds.push(grant.scopeId);
   }
 
-  if (canAccessOwn && actorUserId) return { student: { userId: actorUserId } };
-  if (programIds.length) return { student: { programId: { in: programIds } } };
-  if (departmentIds.length) return { student: { program: { departmentId: { in: departmentIds } } } };
-  if (campusIds.length) return { student: { campusId: { in: campusIds } } };
-  return EMPTY_REGISTRATION;
+  if (canAccessOwn && actorUserId) return { userId: actorUserId };
+  if (programIds.length) return { programId: { in: programIds } };
+  if (departmentIds.length) return { program: { departmentId: { in: departmentIds } } };
+  if (campusIds.length) return { campusId: { in: campusIds } };
+  return EMPTY_STUDENT;
+}
+
+export function examStudentScopeFilter(grants: Grants, actorUserId?: string): Prisma.ExamRegistrationWhereInput | undefined {
+  const studentClause = examStudentWhereInput(grants, actorUserId);
+  if (!studentClause) return undefined;
+  return { student: studentClause };
 }
 
 export function examRegistrationScopeFilter(grants: Grants, actorUserId?: string): Prisma.ExamRegistrationWhereInput | undefined {
