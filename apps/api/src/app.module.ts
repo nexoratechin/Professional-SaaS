@@ -17,6 +17,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { ExamsModule } from './modules/exams/exams.module';
 import { HealthModule } from './modules/health/health.module';
 import { LibraryModule } from './modules/library/library.module';
+import { HostelModule } from './modules/hostel/hostel.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PlatformOpsModule } from './modules/platform-ops/platform-ops.module';
 import { SaasModule } from './modules/saas/saas.module';
@@ -60,6 +61,7 @@ import { WorkflowModule } from './modules/workflow/workflow.module';
     FeesModule,
     CertificatesModule,
     LibraryModule,
+    HostelModule,
     AdmissionsModule,
     BillingModule,
     SupportModule,

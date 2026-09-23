@@ -489,6 +489,14 @@ model Tenant {
   libraryReservations          LibraryReservation[]
   libraryFines                 LibraryFine[]
   libraryTransactions          LibraryTransaction[]
+  hostels                      Hostel[]
+  hostelBuildings              HostelBuilding[]
+  hostelFloors                 HostelFloor[]
+  hostelRooms                  HostelRoom[]
+  hostelBeds                   HostelBed[]
+  hostelWardens                HostelWarden[]
+  hostelComplaints             HostelComplaint[]
+  hostelVisitors               HostelVisitor[]
 
   @@index([status])
   @@map("tenants")
@@ -951,25 +959,25 @@ model User {
   createdAt           DateTime   @default(now()) @map("created_at")
   updatedAt           DateTime   @updatedAt @map("updated_at")
 
-  userRoles               UserRole[]
-  sessions                Session[]
-  passwordResetTokens     PasswordResetToken[]
-  emailVerificationTokens EmailVerificationToken[]
-  mfaBackupCodes          MfaBackupCode[]
-  trustedDevices          TrustedDevice[]
-  passwordHistory         PasswordHistory[]
-  securityEvents          SecurityEvent[]
-  facultyAssignments      CourseOfferingFaculty[]       @relation("FacultyAssignedCourseOfferings")
-  advisingRecords         AcademicAdvisingRecord[]      @relation("AdvisorAdvisingRecords")
-  timetableEntries        TimetableEntry[]              @relation("FacultyTimetableEntries")
-  publishedTimetables     Timetable[]                   @relation("TimetablePublisher")
-  availabilityBlocks      FacultyAvailability[]         @relation("FacultyAvailabilityBlocks")
-  substitutions           TimetableSubstitution[]       @relation("SubstituteTimetableEntries")
-  facultyAttendance       FacultyAttendance[]           @relation("FacultyAttendanceLogs")
-  correctionRequests      AttendanceCorrectionRequest[] @relation("AttendanceCorrectionRequesters")
-  correctionDecisions     AttendanceCorrectionRequest[] @relation("AttendanceCorrectionDeciders")
-  deviceMappings          AttendanceDeviceUser[]        @relation("UserDeviceMappings")
-  deviceLogs              AttendanceDeviceLog[]         @relation("UserDeviceLogs")
+  userRoles                  UserRole[]
+  sessions                   Session[]
+  passwordResetTokens        PasswordResetToken[]
+  emailVerificationTokens    EmailVerificationToken[]
+  mfaBackupCodes             MfaBackupCode[]
+  trustedDevices             TrustedDevice[]
+  passwordHistory            PasswordHistory[]
+  securityEvents             SecurityEvent[]
+  facultyAssignments         CourseOfferingFaculty[]       @relation("FacultyAssignedCourseOfferings")
+  advisingRecords            AcademicAdvisingRecord[]      @relation("AdvisorAdvisingRecords")
+  timetableEntries           TimetableEntry[]              @relation("FacultyTimetableEntries")
+  publishedTimetables        Timetable[]                   @relation("TimetablePublisher")
+  availabilityBlocks         FacultyAvailability[]         @relation("FacultyAvailabilityBlocks")
+  substitutions              TimetableSubstitution[]       @relation("SubstituteTimetableEntries")
+  facultyAttendance          FacultyAttendance[]           @relation("FacultyAttendanceLogs")
+  correctionRequests         AttendanceCorrectionRequest[] @relation("AttendanceCorrectionRequesters")
+  correctionDecisions        AttendanceCorrectionRequest[] @relation("AttendanceCorrectionDeciders")
+  deviceMappings             AttendanceDeviceUser[]        @relation("UserDeviceMappings")
+  deviceLogs                 AttendanceDeviceLog[]         @relation("UserDeviceLogs")
   examInvigilatorAssignments ExamInvigilatorAssignment[]
   libraryMembers             LibraryMember[]
 
@@ -1342,6 +1350,7 @@ model Campus {
   admissionApplications AdmissionApplication[]
   courseOfferings       CourseOffering[]
   timetables            Timetable[]            @relation("CampusTimetables")
+  hostels               Hostel[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1514,10 +1523,10 @@ model Room {
   updatedAt    DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
-  timetableEntries  TimetableEntry[]   @relation("RoomTimetableEntries")
-  attendanceDevices AttendanceDevice[]
-  examSeatingPlans  ExamSeatingPlan[]
-  examSubjects      ExamSubject[]
+  timetableEntries           TimetableEntry[]            @relation("RoomTimetableEntries")
+  attendanceDevices          AttendanceDevice[]
+  examSeatingPlans           ExamSeatingPlan[]
+  examSubjects               ExamSubject[]
   examInvigilatorAssignments ExamInvigilatorAssignment[]
 
   @@unique([campusId, code])
@@ -1948,6 +1957,64 @@ enum HostelBookingStatus {
   CANCELLED
 }
 
+/// Which student body a hostel serves. COED hostels can host rooms of mixed gender policy; the
+/// genderType is a booking-time placement heuristic, not a hard constraint.
+enum HostelGenderType {
+  BOYS
+  GIRLS
+  COED
+}
+
+/// Occupancy model of a hostel room — drives the sensible default bed capacity when beds are
+/// bulk-created and is the room's public "type" (single/double/triple/quad/dorm).
+enum HostelRoomSharing {
+  SINGLE
+  DOUBLE
+  TRIPLE
+  FOUR
+  DORM
+}
+
+/// Physical state of a bed. OCCUPIED/RESERVED are maintained by the hostel service on
+/// allocate/transfer/check-in/check-out/cancel; AVAILABLE/MAINTENANCE are operator-set.
+enum HostelBedStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  MAINTENANCE
+}
+
+enum HostelWardenRole {
+  WARDEN
+  ASSISTANT
+}
+
+/// Complaint taxonomy for hostel upkeep/wellbeing issues. Priority reuses the shared
+/// SupportTicketPriority enum rather than inventing a parallel low/medium/high vocabulary.
+enum HostelComplaintCategory {
+  MAINTENANCE
+  ELECTRICAL
+  PLUMBING
+  CLEANING
+  INFRASTRUCTURE
+  NOISE
+  FOOD
+  SECURITY
+  OTHER
+}
+
+enum HostelComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum HostelVisitorStatus {
+  INSIDE
+  EXITED
+}
+
 enum TransportPassStatus {
   ACTIVE
   EXPIRED
@@ -2327,16 +2394,18 @@ model Student {
   attendance            StudentAttendance[]
   fees                  StudentFee[]
   payments              StudentPayment[]
-  feeAssignments        StudentFeeAssignment[] @relation("StudentFeeAssignments")
-  feeDemands            FeeDemand[]           @relation("StudentDemands")
-  concessions           FeeConcession[]       @relation("StudentConcessions")
-  refunds               FeeRefund[]           @relation("StudentRefunds")
+  feeAssignments        StudentFeeAssignment[]        @relation("StudentFeeAssignments")
+  feeDemands            FeeDemand[]                   @relation("StudentDemands")
+  concessions           FeeConcession[]               @relation("StudentConcessions")
+  refunds               FeeRefund[]                   @relation("StudentRefunds")
   exams                 StudentExam[]
   results               StudentResult[]
   certificates          StudentCertificate[]
   libraryLoans          StudentLibraryLoan[]
   libraryMembers        LibraryMember[]
   hostelBookings        StudentHostelBooking[]
+  hostelComplaints      HostelComplaint[]
+  hostelVisitors        HostelVisitor[]
   transportPasses       StudentTransportPass[]
   holds                 StudentHold[]
   statusHistory         StudentStatusHistory[]
@@ -2811,37 +2880,43 @@ model AttendanceDeviceLog {
 /// line carries its originating structure/line/demand and installment index so the demand's
 /// totals and late-fee accrual can be reconciled back to the catalog that produced them.
 model StudentFee {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String    @map("tenant_id") @db.Uuid
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId   String    @map("student_id") @db.Uuid
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  termId      String?   @map("term_id") @db.Uuid
-  term        Term?     @relation(fields: [termId], references: [id], onDelete: SetNull)
-  structureId String?   @map("structure_id") @db.Uuid
-  structure   FeeStructure?    @relation("FeeStructureGeneratedFees", fields: [structureId], references: [id], onDelete: SetNull)
-  structureLineId String? @map("structure_line_id") @db.Uuid
-  structureLine FeeStructureLine? @relation("FeeStructureLineGeneratedFees", fields: [structureLineId], references: [id], onDelete: SetNull)
-  demandId    String?   @map("demand_id") @db.Uuid
-  demand      FeeDemand? @relation(fields: [demandId], references: [id], onDelete: SetNull)
-  installmentIndex Int  @default(0) @map("installment_index")
-  headCode    String    @map("head_code")
-  headName    String    @map("head_name")
-  amountCents Int       @map("amount_cents")
-  paidCents   Int       @default(0) @map("paid_cents")
-  waivedCents Int       @default(0) @map("waived_cents")
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                @map("tenant_id") @db.Uuid
+  tenant               Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId            String                @map("student_id") @db.Uuid
+  student              Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId               String?               @map("term_id") @db.Uuid
+  term                 Term?                 @relation(fields: [termId], references: [id], onDelete: SetNull)
+  structureId          String?               @map("structure_id") @db.Uuid
+  structure            FeeStructure?         @relation("FeeStructureGeneratedFees", fields: [structureId], references: [id], onDelete: SetNull)
+  structureLineId      String?               @map("structure_line_id") @db.Uuid
+  structureLine        FeeStructureLine?     @relation("FeeStructureLineGeneratedFees", fields: [structureLineId], references: [id], onDelete: SetNull)
+  demandId             String?               @map("demand_id") @db.Uuid
+  demand               FeeDemand?            @relation(fields: [demandId], references: [id], onDelete: SetNull)
+  installmentIndex     Int                   @default(0) @map("installment_index")
+  /// When this fee line was created as a hostel rent charge it points back at the hostel
+  /// booking that produced it (see the hostel module) so the hostel ledger can list/report a
+  /// student's hostel dues without re-deriving them from fee history heuristics. Null for
+  /// academic/structure-generated fees.
+  hostelBookingId      String?               @map("hostel_booking_id") @db.Uuid
+  hostelBooking        StudentHostelBooking? @relation(fields: [hostelBookingId], references: [id], onDelete: SetNull)
+  headCode             String                @map("head_code")
+  headName             String                @map("head_name")
+  amountCents          Int                   @map("amount_cents")
+  paidCents            Int                   @default(0) @map("paid_cents")
+  waivedCents          Int                   @default(0) @map("waived_cents")
   /// Accumulated late-fee charged on this line (flat/percent from the structure's rules).
-  lateFeeCents Int      @default(0) @map("late_fee_cents")
-  lastLateFeeAccruedAt DateTime? @map("last_late_fee_accrued_at")
-  status      FeeStatus @default(ISSUED)
-  dueDate     DateTime? @map("due_date")
-  remarks     String?
-  createdBy   String?   @map("created_by")
-  updatedBy   String?   @map("updated_by")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  lateFeeCents         Int                   @default(0) @map("late_fee_cents")
+  lastLateFeeAccruedAt DateTime?             @map("last_late_fee_accrued_at")
+  status               FeeStatus             @default(ISSUED)
+  dueDate              DateTime?             @map("due_date")
+  remarks              String?
+  createdBy            String?               @map("created_by")
+  updatedBy            String?               @map("updated_by")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
 
-  payments StudentPayment[]
+  payments    StudentPayment[]
   concessions FeeConcession[]
   allocations StudentFeeAllocation[]
 
@@ -2880,7 +2955,7 @@ model StudentPayment {
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
-  refunds FeeRefund[] @relation("PaymentRefunds")
+  refunds     FeeRefund[]            @relation("PaymentRefunds")
   allocations StudentFeeAllocation[]
 
   @@unique([tenantId, receiptNumber])
@@ -3040,7 +3115,7 @@ model ExamSubject {
   invigilatorAssignments ExamInvigilatorAssignment[]
   marksEntries           ExamMarksEntry[]
   revaluationRequests    ExamRevaluationRequest[]
-  assessmentComponents   AssessmentComponent[]        @relation("SubjectComponents")
+  assessmentComponents   AssessmentComponent[]       @relation("SubjectComponents")
   componentMarks         ExamComponentMark[]
   resultCalculations     ResultCalculation[]
 
@@ -3079,20 +3154,20 @@ model ExamEligibilityRule {
 /// registration from the session's subject list (regular sessions: students registered for the
 /// course in the term; supplementary sessions: students holding an OPEN backlog or FAIL for it).
 model ExamRegistration {
-  id           String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String                @map("tenant_id") @db.Uuid
-  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  sessionId    String                @map("session_id") @db.Uuid
-  session      ExamSession           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  studentId    String                @map("student_id") @db.Uuid
-  student      Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id           String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String                 @map("tenant_id") @db.Uuid
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId    String                 @map("session_id") @db.Uuid
+  session      ExamSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId    String                 @map("student_id") @db.Uuid
+  student      Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
   status       ExamRegistrationStatus @default(REGISTERED)
-  registeredAt DateTime              @default(now()) @map("registered_at")
+  registeredAt DateTime               @default(now()) @map("registered_at")
   remarks      String?
-  createdBy    String?               @map("created_by")
-  updatedBy    String?               @map("updated_by")
-  createdAt    DateTime              @default(now()) @map("created_at")
-  updatedAt    DateTime              @updatedAt @map("updated_at")
+  createdBy    String?                @map("created_by")
+  updatedBy    String?                @map("updated_by")
+  createdAt    DateTime               @default(now()) @map("created_at")
+  updatedAt    DateTime               @updatedAt @map("updated_at")
 
   hallTicket          ExamHallTicket?
   seatAllocations     ExamSeatAllocation[]
@@ -3166,20 +3241,20 @@ model ExamHallTicketSubject {
 /// whole session when subjectId is null) for hall tickets and attendance marking. capacity is a
 /// snapshot of the room's usable seats at generation time.
 model ExamSeatingPlan {
-  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId  String         @map("tenant_id") @db.Uuid
-  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  sessionId String         @map("session_id") @db.Uuid
-  session   ExamSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  subjectId String?        @map("subject_id") @db.Uuid
-  subject   ExamSubject?   @relation(fields: [subjectId], references: [id], onDelete: SetNull)
-  roomId    String         @map("room_id") @db.Uuid
-  room      Room           @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String       @map("tenant_id") @db.Uuid
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId String       @map("session_id") @db.Uuid
+  session   ExamSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  subjectId String?      @map("subject_id") @db.Uuid
+  subject   ExamSubject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  roomId    String       @map("room_id") @db.Uuid
+  room      Room         @relation(fields: [roomId], references: [id], onDelete: Restrict)
   label     String?
   capacity  Int?
-  createdBy String?        @map("created_by")
-  createdAt DateTime       @default(now()) @map("created_at")
-  updatedAt DateTime       @updatedAt @map("updated_at")
+  createdBy String?      @map("created_by")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
 
   allocations ExamSeatAllocation[]
 
@@ -3221,20 +3296,20 @@ model ExamSeatAllocation {
 /// have one CHIEF_INVIGILATOR plus multiple INVIGILATORs; the optional room narrows which venue
 /// they supervise.
 model ExamInvigilatorAssignment {
-  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String               @map("tenant_id") @db.Uuid
-  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  subjectId   String               @map("subject_id") @db.Uuid
-  subject     ExamSubject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  userId      String               @map("user_id") @db.Uuid
-  user        User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
-  role        ExamInvigilatorRole  @default(INVIGILATOR)
-  roomId      String?              @map("room_id") @db.Uuid
-  room        Room?                @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  assignedAt  DateTime?            @map("assigned_at")
-  createdBy   String?              @map("created_by")
-  createdAt   DateTime             @default(now()) @map("created_at")
-  updatedAt   DateTime             @updatedAt @map("updated_at")
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String              @map("tenant_id") @db.Uuid
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subjectId  String              @map("subject_id") @db.Uuid
+  subject    ExamSubject         @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  userId     String              @map("user_id") @db.Uuid
+  user       User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role       ExamInvigilatorRole @default(INVIGILATOR)
+  roomId     String?             @map("room_id") @db.Uuid
+  room       Room?               @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  assignedAt DateTime?           @map("assigned_at")
+  createdBy  String?             @map("created_by")
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
 
   @@unique([tenantId, subjectId, userId])
   @@index([tenantId])
@@ -3248,30 +3323,30 @@ model ExamInvigilatorAssignment {
 /// outcome is computed on approval from marksObtained (+ graceMarks) vs the subject's passMarks
 /// using the shared ResultOutcome enum; the published StudentResult is derived from it.
 model ExamMarksEntry {
-  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String          @map("tenant_id") @db.Uuid
-  tenant           Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  registrationId   String          @map("registration_id") @db.Uuid
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  registrationId   String           @map("registration_id") @db.Uuid
   registration     ExamRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  subjectId        String          @map("subject_id") @db.Uuid
-  subject          ExamSubject     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  studentId        String          @map("student_id") @db.Uuid
-  student          Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  marksObtained    Int?            @map("marks_obtained")
-  graceMarks       Int             @default(0) @map("grace_marks")
+  subjectId        String           @map("subject_id") @db.Uuid
+  subject          ExamSubject      @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  studentId        String           @map("student_id") @db.Uuid
+  student          Student          @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  marksObtained    Int?             @map("marks_obtained")
+  graceMarks       Int              @default(0) @map("grace_marks")
   /// PRESENT/ABSENT free taxonomy (drives INCOMPLETE outcomes when no marks were recorded and
   /// lets attendance-only papers exist without inventing a separate table).
-  attendanceStatus String          @default("PRESENT") @map("attendance_status")
-  status           ExamMarksStatus @default(DRAFT)
-  moderatedBy      String?         @map("moderated_by")
-  moderatedAt      DateTime?       @map("moderated_at")
-  approvedBy       String?         @map("approved_by")
-  approvedAt       DateTime?       @map("approved_at")
+  attendanceStatus String           @default("PRESENT") @map("attendance_status")
+  status           ExamMarksStatus  @default(DRAFT)
+  moderatedBy      String?          @map("moderated_by")
+  moderatedAt      DateTime?        @map("moderated_at")
+  approvedBy       String?          @map("approved_by")
+  approvedAt       DateTime?        @map("approved_at")
   remark           String?
-  createdBy        String?         @map("created_by")
-  updatedBy        String?         @map("updated_by")
-  createdAt        DateTime        @default(now()) @map("created_at")
-  updatedAt        DateTime        @updatedAt @map("updated_at")
+  createdBy        String?          @map("created_by")
+  updatedBy        String?          @map("updated_by")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
   revaluationRequests ExamRevaluationRequest[]
   resultCalculations  ResultCalculation[]
@@ -3340,36 +3415,36 @@ model ExamRevaluationRequest {
 /// data-driven â€” no institution's scheme is baked in. A session either names a scheme or falls
 /// back to the tenant's default (created on first use and editable from the UI).
 model GradingScheme {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String   @map("tenant_id") @db.Uuid
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  code          String
-  name          String
-  description   String?
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code              String
+  name              String
+  description       String?
   /// How a paper is judged a pass: PERCENTAGE (>= minPassPercent of the paper's max marks) or
   /// GRADE_POINT (mapped gradePoint >= minPassGradePoint).
-  passMode      String   @default("PERCENTAGE") @map("pass_mode")
-  minPassPercent Float?  @map("min_pass_percent")
-  minPassGradePoint Float? @map("min_pass_grade_point")
+  passMode          String    @default("PERCENTAGE") @map("pass_mode")
+  minPassPercent    Float?    @map("min_pass_percent")
+  minPassGradePoint Float?    @map("min_pass_grade_point")
   /// GPA aggregation: CREDIT_WEIGHTED weights each paper's grade point by Course.creditHours;
   /// SIMPLE averages the grade points of the session's papers.
-  weightingMode String   @default("CREDIT_WEIGHTED") @map("weighting_mode")
-  gpaMax        Float    @default(10) @map("gpa_max")
+  weightingMode     String    @default("CREDIT_WEIGHTED") @map("weighting_mode")
+  gpaMax            Float     @default(10) @map("gpa_max")
   /// Grace marks, where configured: when graceEnabled and a paper's shortfall from the pass
   /// threshold is <= graceToPassDiff, up to maxGraceMarks are applied so it becomes
   /// PASS_WITH_GRACE. A session-level gracePolicy on ExamSession overrides these.
-  graceEnabled  Boolean  @default(false) @map("grace_enabled")
-  maxGraceMarks Float    @default(0) @map("max_grace_marks")
-  graceToPassDiff Float  @default(0) @map("grace_to_pass_diff")
+  graceEnabled      Boolean   @default(false) @map("grace_enabled")
+  maxGraceMarks     Float     @default(0) @map("max_grace_marks")
+  graceToPassDiff   Float     @default(0) @map("grace_to_pass_diff")
   /// Decimal places used when rounding computed percentages / GPAs.
-  roundingDecimals Int   @default(2) @map("rounding_decimals")
-  isDefault     Boolean  @default(false) @map("is_default")
-  isActive      Boolean  @default(true) @map("is_active")
-  createdBy     String?  @map("created_by")
-  updatedBy     String?  @map("updated_by")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  deletedAt     DateTime? @map("deleted_at")
+  roundingDecimals  Int       @default(2) @map("rounding_decimals")
+  isDefault         Boolean   @default(false) @map("is_default")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdBy         String?   @map("created_by")
+  updatedBy         String?   @map("updated_by")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
 
   gradeScale GradeScale[]
   sessions   ExamSession[]
@@ -3409,27 +3484,27 @@ model GradeScale {
 /// (weighted by `weightage`) onto the paper's own maxMarks; papers without components keep the
 /// single entered marks value.
 model AssessmentComponent {
-  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String        @map("tenant_id") @db.Uuid
-  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  sessionId  String        @map("session_id") @db.Uuid
-  session    ExamSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  subjectId  String?       @map("subject_id") @db.Uuid
-  subject    ExamSubject?  @relation("SubjectComponents", fields: [subjectId], references: [id], onDelete: Cascade)
-  code       String
-  name       String
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String       @map("tenant_id") @db.Uuid
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId String       @map("session_id") @db.Uuid
+  session   ExamSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  subjectId String?      @map("subject_id") @db.Uuid
+  subject   ExamSubject? @relation("SubjectComponents", fields: [subjectId], references: [id], onDelete: Cascade)
+  code      String
+  name      String
   /// Free taxonomy (INTERNAL / THEORY / PRACTICAL / PROJECT / VIVA / OTHER) â€” keeps paper kinds
   /// configurable without enums.
-  kind       String        @default("THEORY")
+  kind      String       @default("THEORY")
   /// Percentage weight of this component in the paper's total (may exceed the default 100 total
   /// when components describe supplemental/internal weights; the engine normalizes by the sum).
-  weightage  Float         @map("weightage")
-  maxMarks   Float         @map("max_marks")
-  sortOrder  Int           @default(0) @map("sort_order")
-  createdBy  String?       @map("created_by")
-  updatedBy  String?       @map("updated_by")
-  createdAt  DateTime      @default(now()) @map("created_at")
-  updatedAt  DateTime      @updatedAt @map("updated_at")
+  weightage Float        @map("weightage")
+  maxMarks  Float        @map("max_marks")
+  sortOrder Int          @default(0) @map("sort_order")
+  createdBy String?      @map("created_by")
+  updatedBy String?      @map("updated_by")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
 
   marks ExamComponentMark[]
 
@@ -3472,43 +3547,43 @@ model ExamComponentMark {
 /// session's APPROVED marks (+ component marks) and the active grading scheme. Rows keep the
 /// scheme snapshot and component breakdown used so recalculations and history stay reproducible.
 model ResultCalculation {
-  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String          @map("tenant_id") @db.Uuid
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  sessionId      String          @map("session_id") @db.Uuid
-  session        ExamSession     @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  studentId      String          @map("student_id") @db.Uuid
-  student        Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  registrationId String?         @map("registration_id") @db.Uuid
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String            @map("tenant_id") @db.Uuid
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId      String            @map("session_id") @db.Uuid
+  session        ExamSession       @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  studentId      String            @map("student_id") @db.Uuid
+  student        Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  registrationId String?           @map("registration_id") @db.Uuid
   registration   ExamRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
-  subjectId      String          @map("subject_id") @db.Uuid
-  subject        ExamSubject     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
-  marksEntryId   String?         @map("marks_entry_id") @db.Uuid
-  marksEntry     ExamMarksEntry? @relation(fields: [marksEntryId], references: [id], onDelete: SetNull)
-  examId         String?         @map("exam_id") @db.Uuid
-  exam           StudentExam?    @relation(fields: [examId], references: [id], onDelete: SetNull)
-  processId      String?         @map("process_id") @db.Uuid
-  process        ResultProcess?  @relation(fields: [processId], references: [id], onDelete: SetNull)
+  subjectId      String            @map("subject_id") @db.Uuid
+  subject        ExamSubject       @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  marksEntryId   String?           @map("marks_entry_id") @db.Uuid
+  marksEntry     ExamMarksEntry?   @relation(fields: [marksEntryId], references: [id], onDelete: SetNull)
+  examId         String?           @map("exam_id") @db.Uuid
+  exam           StudentExam?      @relation(fields: [examId], references: [id], onDelete: SetNull)
+  processId      String?           @map("process_id") @db.Uuid
+  process        ResultProcess?    @relation(fields: [processId], references: [id], onDelete: SetNull)
   /// Marks before any grace adjustment (single value or weighted component total).
-  rawMarks       Float?          @map("raw_marks")
-  graceApplied   Float           @default(0) @map("grace_applied")
+  rawMarks       Float?            @map("raw_marks")
+  graceApplied   Float             @default(0) @map("grace_applied")
   /// rawMarks + graceApplied, capped at maxMarks.
-  effectiveMarks Float?          @map("effective_marks")
-  maxMarks       Int             @map("max_marks")
-  passMarks      Int             @map("pass_marks")
+  effectiveMarks Float?            @map("effective_marks")
+  maxMarks       Int               @map("max_marks")
+  passMarks      Int               @map("pass_marks")
   percentage     Float?
   grade          String?
-  gradePoint     Float?          @map("grade_point")
-  outcome        ResultOutcome   @default(INCOMPLETE)
+  gradePoint     Float?            @map("grade_point")
+  outcome        ResultOutcome     @default(INCOMPLETE)
   /// Component-wise breakdown (marks, weightage, weighted marks) used when components applied.
-  componentJson  Json?           @map("component_json")
+  componentJson  Json?             @map("component_json")
   /// Immutable snapshot of the grading scheme config that produced this calculation.
-  schemaJson     Json?           @map("schema_json")
-  calculatedAt   DateTime?       @map("calculated_at")
-  calculatedBy   String?         @map("calculated_by")
-  createdBy      String?         @map("created_by")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  schemaJson     Json?             @map("schema_json")
+  calculatedAt   DateTime?         @map("calculated_at")
+  calculatedBy   String?           @map("calculated_by")
+  createdBy      String?           @map("created_by")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
 
   publishedResult StudentResult?
 
@@ -3525,42 +3600,42 @@ model ResultCalculation {
 /// â†’ LOCKED), aggregated marks, credits, GPA and standing. CGPA (`cgpa`) is captured at
 /// calculation time across every previously published/locked process of the student.
 model ResultProcess {
-  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId            String        @map("tenant_id") @db.Uuid
-  tenant              Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  sessionId           String        @map("session_id") @db.Uuid
-  session             ExamSession   @relation(fields: [sessionId], references: [id], onDelete: Restrict)
-  studentId           String        @map("student_id") @db.Uuid
-  student             Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  examId              String?       @map("exam_id") @db.Uuid
-  exam                StudentExam?  @relation(fields: [examId], references: [id], onDelete: SetNull)
-  state               ResultState   @default(CALCULATED)
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String          @map("tenant_id") @db.Uuid
+  tenant              Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId           String          @map("session_id") @db.Uuid
+  session             ExamSession     @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  studentId           String          @map("student_id") @db.Uuid
+  student             Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  examId              String?         @map("exam_id") @db.Uuid
+  exam                StudentExam?    @relation(fields: [examId], references: [id], onDelete: SetNull)
+  state               ResultState     @default(CALCULATED)
   standing            ResultStanding?
-  subjectCount        Int?          @map("subject_count")
-  passedCount         Int?          @map("passed_count")
-  failedCount         Int?          @map("failed_count")
-  totalRawMarks       Float?        @map("total_raw_marks")
-  totalGraceMarks     Float?        @map("total_grace_marks")
-  totalEffectiveMarks Float?        @map("total_effective_marks")
-  totalMaxMarks       Int?          @map("total_max_marks")
-  aggregatePercent    Float?        @map("aggregate_percent")
-  creditsAttempted    Int?          @map("credits_attempted")
-  creditsEarned       Int?          @map("credits_earned")
+  subjectCount        Int?            @map("subject_count")
+  passedCount         Int?            @map("passed_count")
+  failedCount         Int?            @map("failed_count")
+  totalRawMarks       Float?          @map("total_raw_marks")
+  totalGraceMarks     Float?          @map("total_grace_marks")
+  totalEffectiveMarks Float?          @map("total_effective_marks")
+  totalMaxMarks       Int?            @map("total_max_marks")
+  aggregatePercent    Float?          @map("aggregate_percent")
+  creditsAttempted    Int?            @map("credits_attempted")
+  creditsEarned       Int?            @map("credits_earned")
   gpa                 Float?
   cgpa                Float?
   /// Bumped on every recalculation; lets consumers detect re-published results.
-  calculationVersion  Int           @default(1) @map("calculation_version")
-  calculatedAt        DateTime?     @map("calculated_at")
-  calculatedBy        String?       @map("calculated_by")
-  approvedAt          DateTime?     @map("approved_at")
-  approvedBy          String?       @map("approved_by")
-  publishedAt         DateTime?     @map("published_at")
-  publishedBy         String?       @map("published_by")
-  lockedAt            DateTime?     @map("locked_at")
-  createdBy           String?       @map("created_by")
-  updatedBy           String?       @map("updated_by")
-  createdAt           DateTime      @default(now()) @map("created_at")
-  updatedAt           DateTime      @updatedAt @map("updated_at")
+  calculationVersion  Int             @default(1) @map("calculation_version")
+  calculatedAt        DateTime?       @map("calculated_at")
+  calculatedBy        String?         @map("calculated_by")
+  approvedAt          DateTime?       @map("approved_at")
+  approvedBy          String?         @map("approved_by")
+  publishedAt         DateTime?       @map("published_at")
+  publishedBy         String?         @map("published_by")
+  lockedAt            DateTime?       @map("locked_at")
+  createdBy           String?         @map("created_by")
+  updatedBy           String?         @map("updated_by")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
 
   history ResultHistory[]
 
@@ -3576,22 +3651,22 @@ model ResultProcess {
 /// Append-only trail of result lifecycle events (calculation, approval, publication, locking,
 /// recalculation â€¦). `details` holds the delta of the event.
 model ResultHistory {
-  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String        @map("tenant_id") @db.Uuid
-  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  sessionId  String        @map("session_id") @db.Uuid
-  session    ExamSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  processId  String?       @map("process_id") @db.Uuid
-  process    ResultProcess? @relation(fields: [processId], references: [id], onDelete: SetNull)
-  studentId  String?       @map("student_id") @db.Uuid
-  student    Student?      @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sessionId   String         @map("session_id") @db.Uuid
+  session     ExamSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  processId   String?        @map("process_id") @db.Uuid
+  process     ResultProcess? @relation(fields: [processId], references: [id], onDelete: SetNull)
+  studentId   String?        @map("student_id") @db.Uuid
+  student     Student?       @relation(fields: [studentId], references: [id], onDelete: SetNull)
   /// Event verb: CALCULATED / APPROVED / PUBLISHED / UNPUBLISHED / LOCKED / UNLOCKED / REJECTED.
-  event      String
-  fromState  ResultState?
-  toState    ResultState?
-  details    Json?
-  actorUserId String?      @map("actor_user_id") @db.Uuid
-  createdAt  DateTime      @default(now()) @map("created_at")
+  event       String
+  fromState   ResultState?
+  toState     ResultState?
+  details     Json?
+  actorUserId String?        @map("actor_user_id") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at")
 
   @@index([tenantId, sessionId])
   @@index([tenantId, studentId])
@@ -3649,6 +3724,7 @@ model FeeHead {
 
   structureLines FeeStructureLine[] @relation("FeeHeadLines")
   concessions    FeeConcession[]
+  hostels        Hostel[]
 
   @@unique([tenantId, code])
   @@index([tenantId, isActive])
@@ -3688,7 +3764,7 @@ model FeeStructure {
   updatedAt          DateTime           @updatedAt @map("updated_at")
   deletedAt          DateTime?          @map("deleted_at")
 
-  lines         FeeStructureLine[] @relation("FeeStructureLines")
+  lines         FeeStructureLine[]     @relation("FeeStructureLines")
   assignments   StudentFeeAssignment[] @relation("StructureAssignments")
   generatedFees StudentFee[]           @relation("FeeStructureGeneratedFees")
 
@@ -3757,29 +3833,29 @@ model StudentFeeAssignment {
 /// Totals are cached on the demand so lists/reports don't aggregate per row; the authoritative
 /// per-line state lives on StudentFee and drives the cache refresh after every mutation.
 model FeeDemand {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  assignmentId     String    @map("assignment_id") @db.Uuid
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assignmentId     String               @map("assignment_id") @db.Uuid
   assignment       StudentFeeAssignment @relation("AssignmentDemands", fields: [assignmentId], references: [id], onDelete: Cascade)
-  studentId        String    @map("student_id") @db.Uuid
-  student          Student   @relation("StudentDemands", fields: [studentId], references: [id], onDelete: Cascade)
-  termId           String?   @map("term_id") @db.Uuid
-  term             Term?     @relation(fields: [termId], references: [id], onDelete: SetNull)
-  demandNumber     String    @map("demand_number")
-  installmentIndex Int       @default(1) @map("installment_index")
-  issueDate        DateTime  @map("issue_date") @db.Date
-  dueDate          DateTime  @map("due_date") @db.Date
-  status           FeeStatus @default(ISSUED)
-  totalCents       Int       @map("total_cents")
-  paidCents        Int       @default(0) @map("paid_cents")
-  waivedCents      Int       @default(0) @map("waived_cents")
-  lateFeeCents     Int       @default(0) @map("late_fee_cents")
+  studentId        String               @map("student_id") @db.Uuid
+  student          Student              @relation("StudentDemands", fields: [studentId], references: [id], onDelete: Cascade)
+  termId           String?              @map("term_id") @db.Uuid
+  term             Term?                @relation(fields: [termId], references: [id], onDelete: SetNull)
+  demandNumber     String               @map("demand_number")
+  installmentIndex Int                  @default(1) @map("installment_index")
+  issueDate        DateTime             @map("issue_date") @db.Date
+  dueDate          DateTime             @map("due_date") @db.Date
+  status           FeeStatus            @default(ISSUED)
+  totalCents       Int                  @map("total_cents")
+  paidCents        Int                  @default(0) @map("paid_cents")
+  waivedCents      Int                  @default(0) @map("waived_cents")
+  lateFeeCents     Int                  @default(0) @map("late_fee_cents")
   notes            String?
-  createdBy        String?   @map("created_by")
-  updatedBy        String?   @map("updated_by")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  createdBy        String?              @map("created_by")
+  updatedBy        String?              @map("updated_by")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
 
   lines       StudentFee[]
   concessions FeeConcession[]
@@ -3813,7 +3889,7 @@ model FeeConcession {
   percentBps   Int?                @map("percent_bps")
   amountCents  Int?                @map("amount_cents")
   /// How much of this concession has actually been applied to the ledger so far.
-  appliedCents  Int                @default(0) @map("applied_cents")
+  appliedCents Int                 @default(0) @map("applied_cents")
   /// Per-line split actually applied ([{ studentFeeId, amountCents }]) so REVOKE can reverse
   /// exactly the reduction that was applied rather than guessing from current balances.
   distribution Json?
@@ -3906,7 +3982,7 @@ model StudentExam {
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
 
-  results StudentResult[]
+  results            StudentResult[]
   resultCalculations ResultCalculation[]
   resultProcesses    ResultProcess[]
 
@@ -3914,8 +3990,8 @@ model StudentExam {
   /// created by the exams result-publication flow rather than the student-360 editor. Nullable so
   /// manual per-student exam rows keep working unchanged; the unique below makes the publication
   /// flow idempotent (one 360 exam row per student per session).
-  sessionId String?       @map("session_id") @db.Uuid
-  session   ExamSession?  @relation("StudentExamSessions", fields: [sessionId], references: [id], onDelete: SetNull)
+  sessionId String?      @map("session_id") @db.Uuid
+  session   ExamSession? @relation("StudentExamSessions", fields: [sessionId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, studentId, sessionId])
   @@index([tenantId])
@@ -3953,7 +4029,7 @@ model StudentResult {
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  resultCalculationId String?           @unique @map("result_calculation_id") @db.Uuid
+  resultCalculationId String?            @unique @map("result_calculation_id") @db.Uuid
   resultCalculation   ResultCalculation? @relation(fields: [resultCalculationId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
@@ -3966,43 +4042,43 @@ model StudentResult {
 /// (request â†’ generate â†’ approve â†’ issue), with tamper-evident QR verification,
 /// numbering chains, reissue lineage and append-only history.
 model StudentCertificate {
-  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String            @map("tenant_id") @db.Uuid
-  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId         String            @map("student_id") @db.Uuid
-  student           Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  certificateType   CertificateType   @map("certificate_type")
-  certificateNumber String?           @map("certificate_number")
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String               @map("tenant_id") @db.Uuid
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId         String               @map("student_id") @db.Uuid
+  student           Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  certificateType   CertificateType      @map("certificate_type")
+  certificateNumber String?              @map("certificate_number")
   title             String?
-  requestDate       DateTime          @map("request_date")
-  status            CertificateStatus @default(REQUESTED)
+  requestDate       DateTime             @map("request_date")
+  status            CertificateStatus    @default(REQUESTED)
   /// The template whose branded layout / field config / numbering produced this document.
-  templateId        String?           @map("template_id") @db.Uuid
+  templateId        String?              @map("template_id") @db.Uuid
   template          CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   /// Random verifier token encoded into the QR; resolves to the public verify page.
-  qrToken           String?           @unique @map("qr_token")
+  qrToken           String?              @unique @map("qr_token")
   /// Immutable snapshot of branded, student & type-specific fields baked at generation time,
   /// so verification reflects exactly what was printed (independent of later edits).
-  contentJson       Json?             @map("content_json")
-  generatedAt       DateTime?         @map("generated_at")
-  generatedByUserId String?           @map("generated_by_user_id") @db.Uuid
-  approvedAt        DateTime?         @map("approved_at")
-  approvedByUserId  String?           @map("approved_by_user_id") @db.Uuid
-  issuedAt          DateTime?         @map("issued_at")
-  issuedByUserId    String?           @map("issued_by_user_id") @db.Uuid
-  storageKey        String?           @map("storage_key")
-  revokedAt         DateTime?         @map("revoked_at")
-  revokedByUserId   String?           @map("revoked_by_user_id") @db.Uuid
-  revokeReason      String?           @map("revoke_reason")
-  reissuedFromId    String?           @map("reissued_from_id") @db.Uuid
-  reissuedFrom      StudentCertificate? @relation("CertificateReissue", fields: [reissuedFromId], references: [id], onDelete: SetNull)
+  contentJson       Json?                @map("content_json")
+  generatedAt       DateTime?            @map("generated_at")
+  generatedByUserId String?              @map("generated_by_user_id") @db.Uuid
+  approvedAt        DateTime?            @map("approved_at")
+  approvedByUserId  String?              @map("approved_by_user_id") @db.Uuid
+  issuedAt          DateTime?            @map("issued_at")
+  issuedByUserId    String?              @map("issued_by_user_id") @db.Uuid
+  storageKey        String?              @map("storage_key")
+  revokedAt         DateTime?            @map("revoked_at")
+  revokedByUserId   String?              @map("revoked_by_user_id") @db.Uuid
+  revokeReason      String?              @map("revoke_reason")
+  reissuedFromId    String?              @map("reissued_from_id") @db.Uuid
+  reissuedFrom      StudentCertificate?  @relation("CertificateReissue", fields: [reissuedFromId], references: [id], onDelete: SetNull)
   reissues          StudentCertificate[] @relation("CertificateReissue")
   remarks           String?
-  createdBy         String?           @map("created_by")
-  createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
+  createdBy         String?              @map("created_by")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
 
-  history           CertificateHistoryRow[]
+  history CertificateHistoryRow[]
 
   @@unique([tenantId, certificateNumber])
   @@index([tenantId])
@@ -4015,27 +4091,27 @@ model StudentCertificate {
 /// Reusable issuance template: branded layout, dynamic-field config, numbering chain
 /// and (optionally) its QR payload used to print identical documents at scale.
 model CertificateTemplate {
-  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String          @map("tenant_id") @db.Uuid
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  code           String
-  name           String
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String          @map("tenant_id") @db.Uuid
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code            String
+  name            String
   certificateType CertificateType @map("certificate_type")
   /// Human-authored field map consumed by the generate step: `{ "student_fullname": "fullName", ... }`.
-  fieldConfigJson Json?          @map("field_config_json")
+  fieldConfigJson Json?           @map("field_config_json")
   /// Branding: colors / logoUrl / headerText / footerText / watermark / signedBy.
-  brandingJson   Json?           @map("branding_json")
+  brandingJson    Json?           @map("branding_json")
   /// Numbering: `{ prefix, start, padding, perType }`.
-  numberingJson  Json?           @map("numbering_json")
+  numberingJson   Json?           @map("numbering_json")
   /// Whether the QR (verify token) is embedded on the printed document.
-  qrEnabled      Boolean         @default(true) @map("qr_enabled")
-  isDefault      Boolean         @default(false) @map("is_default")
-  isActive       Boolean         @default(true) @map("is_active")
-  createdBy      String?         @map("created_by")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  qrEnabled       Boolean         @default(true) @map("qr_enabled")
+  isDefault       Boolean         @default(false) @map("is_default")
+  isActive        Boolean         @default(true) @map("is_active")
+  createdBy       String?         @map("created_by")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
 
-  certificates   StudentCertificate[]
+  certificates StudentCertificate[]
 
   @@unique([tenantId, code])
   @@index([tenantId, certificateType])
@@ -4045,16 +4121,16 @@ model CertificateTemplate {
 /// Append-only state transition log for a certificate document (request â†’ generate â†’
 /// approve â†’ issue â†’ revoke â†’ reissue). Every write path appends a row here.
 model CertificateHistoryRow {
-  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String            @map("tenant_id") @db.Uuid
-  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  certificateId String            @map("certificate_id") @db.Uuid
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String             @map("tenant_id") @db.Uuid
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  certificateId String             @map("certificate_id") @db.Uuid
   certificate   StudentCertificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
-  fromStatus    CertificateStatus @map("from_status")
-  toStatus      CertificateStatus @map("to_status")
-  actorUserId   String?           @map("actor_user_id") @db.Uuid
-  detailJson    Json?             @map("detail_json")
-  createdAt     DateTime          @default(now()) @map("created_at")
+  fromStatus    CertificateStatus  @map("from_status")
+  toStatus      CertificateStatus  @map("to_status")
+  actorUserId   String?            @map("actor_user_id") @db.Uuid
+  detailJson    Json?              @map("detail_json")
+  createdAt     DateTime           @default(now()) @map("created_at")
 
   @@index([tenantId, certificateId])
   @@map("certificate_history_rows")
@@ -4067,39 +4143,39 @@ model CertificateHistoryRow {
 /// copy's status stays in sync here, the member anchors circulation scope, and LibraryFine /
 /// LibraryTransaction carry the fine and per-copy history.
 model StudentLibraryLoan {
-  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String            @map("tenant_id") @db.Uuid
-  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId      String?           @map("student_id") @db.Uuid
-  student        Student?          @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String            @map("tenant_id") @db.Uuid
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId       String?           @map("student_id") @db.Uuid
+  student         Student?          @relation(fields: [studentId], references: [id], onDelete: SetNull)
   /// Catalog links â€” set by the library module for catalog-issued loans; null for the legacy
   /// free-form student-360 quick loans.
-  copyId         String?           @map("copy_id") @db.Uuid
-  copy           LibraryCopy?      @relation(fields: [copyId], references: [id], onDelete: SetNull)
-  memberId       String?           @map("member_id") @db.Uuid
-  member         LibraryMember?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  itemTitle      String            @map("item_title")
-  itemAuthor     String?           @map("item_author")
-  itemCode       String?           @map("item_code")
-  itemType       String?           @map("item_type")
-  borrowedAt     DateTime          @map("borrowed_at")
-  dueDate        DateTime?         @map("due_date")
-  returnedAt     DateTime?         @map("returned_at")
-  status         LibraryLoanStatus @default(ISSUED)
+  copyId          String?           @map("copy_id") @db.Uuid
+  copy            LibraryCopy?      @relation(fields: [copyId], references: [id], onDelete: SetNull)
+  memberId        String?           @map("member_id") @db.Uuid
+  member          LibraryMember?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  itemTitle       String            @map("item_title")
+  itemAuthor      String?           @map("item_author")
+  itemCode        String?           @map("item_code")
+  itemType        String?           @map("item_type")
+  borrowedAt      DateTime          @map("borrowed_at")
+  dueDate         DateTime?         @map("due_date")
+  returnedAt      DateTime?         @map("returned_at")
+  status          LibraryLoanStatus @default(ISSUED)
   /// How many times this loan was renewed (extending the due date); bounded by the library config.
-  renewalCount   Int               @default(0) @map("renewal_count")
-  lastRenewedAt  DateTime?         @map("last_renewed_at")
+  renewalCount    Int               @default(0) @map("renewal_count")
+  lastRenewedAt   DateTime?         @map("last_renewed_at")
   /// Physical state the copy came back in â€” free-form ('GOOD' | 'DAMAGED' | ...) so the tenant's
   /// own vocabulary drives it.
-  returnCondition String?          @map("return_condition")
-  returnedById   String?           @map("returned_by_id") @db.Uuid
+  returnCondition String?           @map("return_condition")
+  returnedById    String?           @map("returned_by_id") @db.Uuid
   /// Denormalized snapshot of any fine balance tied to this loan; LibraryFine is the system of record.
-  fineCents      Int               @default(0) @map("fine_cents")
-  remarks        String?
-  createdBy      String?           @map("created_by")
-  updatedBy      String?           @map("updated_by")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
+  fineCents       Int               @default(0) @map("fine_cents")
+  remarks         String?
+  createdBy       String?           @map("created_by")
+  updatedBy       String?           @map("updated_by")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
 
   fines        LibraryFine[]
   transactions LibraryTransaction[]
@@ -4113,30 +4189,303 @@ model StudentLibraryLoan {
   @@map("student_library_loans")
 }
 
-/// Hostel allocation/booking for this student across their stay.
-model StudentHostelBooking {
+/// ---- Hostel Management ---------------------------------------------------
+/// Hostel hierarchy: Hostel > HostelBuilding > HostelFloor > HostelRoom > HostelBed.
+/// Hostels optionally pin a FeeHead so rent charges route through the shared student fee
+/// ledger (StudentFee.hostelBookingId) instead of a parallel billing table. Warden/complaint/
+/// visitor rows are hosted on the hostel; occupancy + student stay history live on
+/// StudentHostelBooking (see above).
+
+/// A physical hostel (residence hall) on a campus that owns buildings/floors/rooms/beds.
+model Hostel {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String           @map("tenant_id") @db.Uuid
+  tenant              Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId            String           @map("campus_id") @db.Uuid
+  campus              Campus           @relation(fields: [campusId], references: [id], onDelete: Restrict)
+  code                String
+  name                String
+  genderType          HostelGenderType @default(COED) @map("gender_type")
+  /// Primary warden for the hostel (a tenant user id). Used as the default complaint assignee
+  /// and for daily-operation notifications until an explicit assignee is chosen.
+  wardenUserId        String?          @map("warden_user_id") @db.Uuid
+  description         String?
+  /// When set, rent charges generated by this hostel's bookings use this head (code/name);
+  /// otherwise the module falls back to a "hostel_rent"/"Hostel Rent" pseudo-head.
+  feeHeadId           String?          @map("fee_head_id") @db.Uuid
+  feeHead             FeeHead?         @relation(fields: [feeHeadId], references: [id], onDelete: SetNull)
+  chargeRentOnCheckIn Boolean          @default(true) @map("charge_rent_on_check_in")
+  isActive            Boolean          @default(true) @map("is_active")
+  createdBy           String?          @map("created_by")
+  updatedBy           String?          @map("updated_by")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  deletedAt           DateTime?        @map("deleted_at")
+
+  buildings  HostelBuilding[]
+  wardens    HostelWarden[]
+  complaints HostelComplaint[]
+  visitors   HostelVisitor[]
+  bookings   StudentHostelBooking[]
+
+  @@unique([tenantId, campusId, code])
+  @@index([tenantId])
+  @@index([campusId])
+  @@index([tenantId, deletedAt])
+  @@map("hostels")
+}
+
+model HostelBuilding {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  hostelId  String    @map("hostel_id") @db.Uuid
+  hostel    Hostel    @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  code      String
+  name      String
+  isActive  Boolean   @default(true) @map("is_active")
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  floors   HostelFloor[]
+  bookings StudentHostelBooking[]
+
+  @@unique([tenantId, hostelId, code])
+  @@index([tenantId])
+  @@index([hostelId])
+  @@index([tenantId, deletedAt])
+  @@map("hostel_buildings")
+}
+
+model HostelFloor {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String         @map("tenant_id") @db.Uuid
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  buildingId  String         @map("building_id") @db.Uuid
+  building    HostelBuilding @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  /// Physical floor number *within* its building (1..n); for basements use 0 or negative.
+  floorNumber Int            @map("floor_number")
+  name        String?
+  isActive    Boolean        @default(true) @map("is_active")
+  createdBy   String?        @map("created_by")
+  updatedBy   String?        @map("updated_by")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  deletedAt   DateTime?      @map("deleted_at")
+
+  rooms    HostelRoom[]
+  bookings StudentHostelBooking[]
+
+  @@unique([tenantId, buildingId, floorNumber])
+  @@index([tenantId])
+  @@index([buildingId])
+  @@index([tenantId, deletedAt])
+  @@map("hostel_floors")
+}
+
+model HostelRoom {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String            @map("tenant_id") @db.Uuid
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  floorId          String            @map("floor_id") @db.Uuid
+  floor            HostelFloor       @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  code             String
+  name             String?
+  sharing          HostelRoomSharing @default(SINGLE) @map("sharing")
+  bedCapacity      Int               @default(1) @map("bed_capacity")
+  /// Default monthly rent (in paise). A bed's own monthlyRentCents overrides this; a booking's
+  /// monthlyRentCents is snapshotted at allocation-time from the bed then the room.
+  monthlyRentCents Int               @default(0) @map("monthly_rent_cents")
+  hasAttachedBath  Boolean           @default(false) @map("has_attached_bath")
+  notes            String?
+  isActive         Boolean           @default(true) @map("is_active")
+  createdBy        String?           @map("created_by")
+  updatedBy        String?           @map("updated_by")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  deletedAt        DateTime?         @map("deleted_at")
+
+  beds       HostelBed[]
+  bookings   StudentHostelBooking[]
+  complaints HostelComplaint[]
+
+  @@unique([tenantId, floorId, code])
+  @@index([tenantId])
+  @@index([floorId])
+  @@index([tenantId, deletedAt])
+  @@map("hostel_rooms")
+}
+
+/// A single sleeping place in a room. Status is service-maintained: RESERVED when a booking is
+/// allocated but not yet checked in, OCCUPIED once checked in, AVAILABLE after checkout/cancel,
+/// MAINTENANCE when offline. Beds are never hard-deleted because bookings reference them.
+model HostelBed {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String          @map("tenant_id") @db.Uuid
+  tenant           Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  roomId           String          @map("room_id") @db.Uuid
+  room             HostelRoom      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  code             String
+  status           HostelBedStatus @default(AVAILABLE)
+  monthlyRentCents Int?            @map("monthly_rent_cents")
+  notes            String?
+  isActive         Boolean         @default(true) @map("is_active")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  deletedAt        DateTime?       @map("deleted_at")
+
+  bookings StudentHostelBooking[]
+
+  @@unique([tenantId, roomId, code])
+  @@index([tenantId])
+  @@index([roomId])
+  @@index([tenantId, status])
+  @@index([tenantId, deletedAt])
+  @@map("hostel_beds")
+}
+
+/// Named warden/assistant assignments on a hostel (userId is a tenant staff member — referenced
+/// as a plain Uuid, matching Student.userId style, to avoid loading the whole User graph).
+model HostelWarden {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String           @map("tenant_id") @db.Uuid
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  hostelId   String           @map("hostel_id") @db.Uuid
+  hostel     Hostel           @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  userId     String           @map("user_id") @db.Uuid
+  role       HostelWardenRole @default(WARDEN)
+  isActive   Boolean          @default(true) @map("is_active")
+  assignedBy String?          @map("assigned_by")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  @@unique([tenantId, hostelId, userId, role])
+  @@index([tenantId])
+  @@index([hostelId])
+  @@index([userId])
+  @@map("hostel_wardens")
+}
+
+model HostelComplaint {
+  id               String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                  @map("tenant_id") @db.Uuid
+  tenant           Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  hostelId         String                  @map("hostel_id") @db.Uuid
+  hostel           Hostel                  @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  studentId        String?                 @map("student_id") @db.Uuid
+  student          Student?                @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  roomId           String?                 @map("room_id") @db.Uuid
+  room             HostelRoom?             @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  category         HostelComplaintCategory
+  priority         SupportTicketPriority   @default(MEDIUM)
+  status           HostelComplaintStatus   @default(OPEN)
+  subject          String
+  description      String
+  assignedToUserId String?                 @map("assigned_to_user_id") @db.Uuid
+  assignedAt       DateTime?               @map("assigned_at")
+  resolvedByUserId String?                 @map("resolved_by_user_id") @db.Uuid
+  resolutionNotes  String?                 @map("resolution_notes")
+  resolvedAt       DateTime?               @map("resolved_at")
+  closedAt         DateTime?               @map("closed_at")
+  createdBy        String?                 @map("created_by")
+  updatedBy        String?                 @map("updated_by")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([hostelId])
+  @@index([studentId])
+  @@index([tenantId, status])
+  @@map("hostel_complaints")
+}
+
+/// Visitor logbook for a hostel: who entered (towards which student/room), when, and whether
+/// they have exited. GENERAL visitors and school-gate use cases are out of scope — this is the
+/// residential log that wardens review for security.
+model HostelVisitor {
   id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId         String              @map("tenant_id") @db.Uuid
   tenant           Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId        String              @map("student_id") @db.Uuid
-  student          Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  hostelName       String              @map("hostel_name")
-  roomNumber       String              @map("room_number")
-  bedNumber        String?             @map("bed_number")
-  allocationDate   DateTime?           @map("allocation_date")
-  checkInDate      DateTime?           @map("check_in_date")
-  checkOutDate     DateTime?           @map("check_out_date")
-  status           HostelBookingStatus @default(REQUESTED)
-  monthlyRentCents Int?                @map("monthly_rent_cents")
-  remarks          String?
-  createdBy        String?             @map("created_by")
-  updatedBy        String?             @map("updated_by")
+  hostelId         String              @map("hostel_id") @db.Uuid
+  hostel           Hostel              @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  visitorName      String              @map("visitor_name")
+  phone            String?
+  email            String?
+  idProofType      String?             @map("id_proof_type")
+  idProofNumber    String?             @map("id_proof_number")
+  purpose          String?
+  studentId        String?             @map("student_id") @db.Uuid
+  student          Student?            @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  /// Free-text target (e.g. "Room 204") used when no linked student record exists.
+  visitorLabel     String?             @map("visitor_label")
+  checkInAt        DateTime            @map("check_in_at")
+  checkOutAt       DateTime?           @map("check_out_at")
+  status           HostelVisitorStatus @default(INSIDE)
+  recordedByUserId String?             @map("recorded_by_user_id") @db.Uuid
+  notes            String?
   createdAt        DateTime            @default(now()) @map("created_at")
   updatedAt        DateTime            @updatedAt @map("updated_at")
 
   @@index([tenantId])
+  @@index([hostelId])
   @@index([studentId])
   @@index([tenantId, status])
+  @@map("hostel_visitors")
+}
+
+/// Hostel allocation/booking for this student across their stay. Post-hostel-module bookings
+/// carry structured references (hostel/building/floor/room/bed — all optional so pre-existing
+/// free-text student-360 rows and outside bookkeeping stay representable) AND denormalized
+/// hostelName/roomNumber/bedNumber snapshots so the student 360 profile keeps rendering without
+/// a join. Transfers close the old booking (status CHECKED_OUT) and open a new one linked via
+/// previousBookingId, so room history and student hostel history are both derived from this one
+/// append-only row set.
+model StudentHostelBooking {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId         String                @map("student_id") @db.Uuid
+  student           Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  hostelId          String?               @map("hostel_id") @db.Uuid
+  hostel            Hostel?               @relation(fields: [hostelId], references: [id], onDelete: SetNull)
+  buildingId        String?               @map("building_id") @db.Uuid
+  building          HostelBuilding?       @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  floorId           String?               @map("floor_id") @db.Uuid
+  floor             HostelFloor?          @relation(fields: [floorId], references: [id], onDelete: SetNull)
+  roomId            String?               @map("room_id") @db.Uuid
+  room              HostelRoom?           @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  bedId             String?               @map("bed_id") @db.Uuid
+  bed               HostelBed?            @relation(fields: [bedId], references: [id], onDelete: SetNull)
+  /// Set on a transfer-created booking to point at the booking it replaced — builds the
+  /// per-student "who lived where, when" chain without a separate transfer table.
+  previousBookingId String?               @map("previous_booking_id") @db.Uuid
+  previousBooking   StudentHostelBooking? @relation("HostelTransferChain", fields: [previousBookingId], references: [id], onDelete: SetNull)
+  hostelName        String                @map("hostel_name")
+  roomNumber        String                @map("room_number")
+  bedNumber         String?               @map("bed_number")
+  allocationDate    DateTime?             @map("allocation_date")
+  checkInDate       DateTime?             @map("check_in_date")
+  checkOutDate      DateTime?             @map("check_out_date")
+  status            HostelBookingStatus   @default(REQUESTED)
+  monthlyRentCents  Int?                  @map("monthly_rent_cents")
+  remarks           String?
+  createdBy         String?               @map("created_by")
+  updatedBy         String?               @map("updated_by")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  subsequentBookings StudentHostelBooking[] @relation("HostelTransferChain")
+  feeCharges         StudentFee[]
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([tenantId, status])
+  @@index([hostelId])
+  @@index([roomId])
+  @@index([bedId])
   @@map("student_hostel_bookings")
 }
 
@@ -5604,19 +5953,19 @@ enum LibrarySequenceKind {
 
 /// Catalog category â€” optionally tree-shaped via parentId.
 model LibraryCategory {
-  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String             @map("tenant_id") @db.Uuid
-  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String           @map("tenant_id") @db.Uuid
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   code        String
   name        String
   description String?
-  parentId    String?            @map("parent_id") @db.Uuid
-  parent      LibraryCategory?   @relation("LibraryCategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
-  createdBy   String?            @map("created_by")
-  updatedBy   String?            @map("updated_by")
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
-  deletedAt   DateTime?          @map("deleted_at")
+  parentId    String?          @map("parent_id") @db.Uuid
+  parent      LibraryCategory? @relation("LibraryCategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  createdBy   String?          @map("created_by")
+  updatedBy   String?          @map("updated_by")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  deletedAt   DateTime?        @map("deleted_at")
 
   children LibraryCategory[] @relation("LibraryCategoryChildren")
   books    LibraryBook[]
@@ -5680,32 +6029,32 @@ model LibraryAuthor {
 
 /// Title-level catalog record. A book is "the title"; physical availability lives on LibraryCopy.
 model LibraryBook {
-  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId              String    @map("tenant_id") @db.Uuid
-  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  isbn                  String?
-  title                 String
-  subtitle              String?
-  language              String?   @default("English")
-  edition               String?
-  pageCount             Int?      @map("page_count")
-  publicationYear       Int?      @map("publication_year")
-  description           String?
-  coverStorageKey       String?   @map("cover_storage_key")
-  categoryId            String    @map("category_id") @db.Uuid
-  category              LibraryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  publisherId           String?   @map("publisher_id") @db.Uuid
-  publisher             LibraryPublisher? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String            @map("tenant_id") @db.Uuid
+  tenant               Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  isbn                 String?
+  title                String
+  subtitle             String?
+  language             String?           @default("English")
+  edition              String?
+  pageCount            Int?              @map("page_count")
+  publicationYear      Int?              @map("publication_year")
+  description          String?
+  coverStorageKey      String?           @map("cover_storage_key")
+  categoryId           String            @map("category_id") @db.Uuid
+  category             LibraryCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  publisherId          String?           @map("publisher_id") @db.Uuid
+  publisher            LibraryPublisher? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
   /// What a lost/damaged copy costs to replace â€” used when the library assesses LOST/DAMAGE fines.
-  replacementCostCents  Int?      @map("replacement_cost_cents")
+  replacementCostCents Int?              @map("replacement_cost_cents")
   /// Default loan window for copies of this title; overridable per loan.
-  maxLoanDays           Int       @default(14) @map("max_loan_days")
-  isActive              Boolean   @default(true) @map("is_active")
-  createdBy             String?   @map("created_by")
-  updatedBy             String?   @map("updated_by")
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
-  deletedAt             DateTime? @map("deleted_at")
+  maxLoanDays          Int               @default(14) @map("max_loan_days")
+  isActive             Boolean           @default(true) @map("is_active")
+  createdBy            String?           @map("created_by")
+  updatedBy            String?           @map("updated_by")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+  deletedAt            DateTime?         @map("deleted_at")
 
   authors      LibraryBookAuthor[]
   copies       LibraryCopy[]
@@ -5738,24 +6087,24 @@ model LibraryBookAuthor {
 /// A physical, individually-identifiable copy of a book. barcode (and accessionNumber) are the
 /// scanner-facing ids; QR self-service pages embed `{ tenantSlug, copyBarcode }`.
 model LibraryCopy {
-  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String               @map("tenant_id") @db.Uuid
-  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  bookId            String               @map("book_id") @db.Uuid
-  book              LibraryBook          @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  accessionNumber   String               @map("accession_number")
-  barcode           String
-  shelfLocation     String?              @map("shelf_location")
-  acquisitionType   String?              @map("acquisition_type")
-  acquisitionDate   DateTime?            @map("acquisition_date")
-  purchasePriceCents Int?                @map("purchase_price_cents")
-  condition         LibraryCopyCondition @default(GOOD)
-  status            LibraryCopyStatus    @default(AVAILABLE)
-  notes             String?
-  createdBy         String?              @map("created_by")
-  updatedBy         String?              @map("updated_by")
-  createdAt         DateTime             @default(now()) @map("created_at")
-  updatedAt         DateTime             @updatedAt @map("updated_at")
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String               @map("tenant_id") @db.Uuid
+  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  bookId             String               @map("book_id") @db.Uuid
+  book               LibraryBook          @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  accessionNumber    String               @map("accession_number")
+  barcode            String
+  shelfLocation      String?              @map("shelf_location")
+  acquisitionType    String?              @map("acquisition_type")
+  acquisitionDate    DateTime?            @map("acquisition_date")
+  purchasePriceCents Int?                 @map("purchase_price_cents")
+  condition          LibraryCopyCondition @default(GOOD)
+  status             LibraryCopyStatus    @default(AVAILABLE)
+  notes              String?
+  createdBy          String?              @map("created_by")
+  updatedBy          String?              @map("updated_by")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
 
   loans        StudentLibraryLoan[]
   reservations LibraryReservation[]
@@ -5772,29 +6121,29 @@ model LibraryCopy {
 /// student's OWN scope); a User link lets faculty/staff (or self-service accounts) borrow too.
 /// soft-deleted via deletedAt (loans/reservations/fines stay).
 model LibraryMember {
-  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId        String             @map("tenant_id") @db.Uuid
-  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  memberNumber    String             @map("member_number")
-  studentId       String?            @map("student_id") @db.Uuid
-  student         Student?           @relation(fields: [studentId], references: [id], onDelete: SetNull)
-  userId          String?            @map("user_id") @db.Uuid
-  user            User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
-  fullName        String             @map("full_name")
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String              @map("tenant_id") @db.Uuid
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  memberNumber    String              @map("member_number")
+  studentId       String?             @map("student_id") @db.Uuid
+  student         Student?            @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  userId          String?             @map("user_id") @db.Uuid
+  user            User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  fullName        String              @map("full_name")
   email           String?
   phone           String?
-  memberType      LibraryMemberType  @default(STUDENT) @map("member_type")
+  memberType      LibraryMemberType   @default(STUDENT) @map("member_type")
   status          LibraryMemberStatus @default(ACTIVE)
   /// Per-member loan cap override of the LibraryConfig default.
-  maxLoans        Int?               @map("max_loans")
-  membershipStart DateTime?          @map("membership_start")
-  membershipEnd   DateTime?          @map("membership_end")
+  maxLoans        Int?                @map("max_loans")
+  membershipStart DateTime?           @map("membership_start")
+  membershipEnd   DateTime?           @map("membership_end")
   notes           String?
-  createdBy       String?            @map("created_by")
-  updatedBy       String?            @map("updated_by")
-  createdAt       DateTime           @default(now()) @map("created_at")
-  updatedAt       DateTime           @updatedAt @map("updated_at")
-  deletedAt       DateTime?          @map("deleted_at")
+  createdBy       String?             @map("created_by")
+  updatedBy       String?             @map("updated_by")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  deletedAt       DateTime?           @map("deleted_at")
 
   loans        StudentLibraryLoan[]
   reservations LibraryReservation[]
@@ -5814,26 +6163,26 @@ model LibraryMember {
 /// WAITING â†’ READY (copy assigned / became available) â†’ FULFILLED (issued on that loan) /
 /// CANCELLED / EXPIRED (holdUntil passed unused).
 model LibraryReservation {
-  id          String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String                  @map("tenant_id") @db.Uuid
-  tenant      Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  bookId      String                  @map("book_id") @db.Uuid
-  book        LibraryBook             @relation(fields: [bookId], references: [id], onDelete: Restrict)
-  copyId      String?                 @map("copy_id") @db.Uuid
-  copy        LibraryCopy?            @relation(fields: [copyId], references: [id], onDelete: SetNull)
-  memberId    String                  @map("member_id") @db.Uuid
-  member      LibraryMember           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  id          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String                   @map("tenant_id") @db.Uuid
+  tenant      Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  bookId      String                   @map("book_id") @db.Uuid
+  book        LibraryBook              @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  copyId      String?                  @map("copy_id") @db.Uuid
+  copy        LibraryCopy?             @relation(fields: [copyId], references: [id], onDelete: SetNull)
+  memberId    String                   @map("member_id") @db.Uuid
+  member      LibraryMember            @relation(fields: [memberId], references: [id], onDelete: Cascade)
   status      LibraryReservationStatus @default(WAITING)
-  reservedAt  DateTime                @default(now()) @map("reserved_at")
+  reservedAt  DateTime                 @default(now()) @map("reserved_at")
   /// When a READY hold lapses unattended (LibraryConfig.reservationHoldDays).
-  holdUntil   DateTime?               @map("hold_until")
-  fulfilledAt DateTime?               @map("fulfilled_at")
-  cancelledBy String?                 @map("cancelled_by") @db.Uuid
-  cancelledAt DateTime?               @map("cancelled_at")
+  holdUntil   DateTime?                @map("hold_until")
+  fulfilledAt DateTime?                @map("fulfilled_at")
+  cancelledBy String?                  @map("cancelled_by") @db.Uuid
+  cancelledAt DateTime?                @map("cancelled_at")
   notes       String?
-  createdBy   String?                 @map("created_by")
-  createdAt   DateTime                @default(now()) @map("created_at")
-  updatedAt   DateTime                @updatedAt @map("updated_at")
+  createdBy   String?                  @map("created_by")
+  createdAt   DateTime                 @default(now()) @map("created_at")
+  updatedAt   DateTime                 @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, status])
@@ -5846,25 +6195,25 @@ model LibraryReservation {
 /// Overdue fines start as a running estimate and are finalized on return; LOST/DAMAGE fines are
 /// assessed against the book's replacement cost. Settled by PAID or WAIVED.
 model LibraryFine {
-  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String           @map("tenant_id") @db.Uuid
-  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  loanId         String?          @map("loan_id") @db.Uuid
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String              @map("tenant_id") @db.Uuid
+  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  loanId         String?             @map("loan_id") @db.Uuid
   loan           StudentLibraryLoan? @relation(fields: [loanId], references: [id], onDelete: SetNull)
-  memberId       String           @map("member_id") @db.Uuid
-  member         LibraryMember    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  memberId       String              @map("member_id") @db.Uuid
+  member         LibraryMember       @relation(fields: [memberId], references: [id], onDelete: Cascade)
   type           LibraryFineType
-  amountCents    Int              @map("amount_cents")
-  paidCents      Int              @default(0) @map("paid_cents")
-  status         LibraryFineStatus @default(PENDING)
+  amountCents    Int                 @map("amount_cents")
+  paidCents      Int                 @default(0) @map("paid_cents")
+  status         LibraryFineStatus   @default(PENDING)
   reason         String?
-  paidAt         DateTime?        @map("paid_at")
-  paidByUserId   String?          @map("paid_by_user_id") @db.Uuid
-  waivedAt       DateTime?        @map("waived_at")
-  waivedByUserId String?          @map("waived_by_user_id") @db.Uuid
-  createdBy      String?          @map("created_by")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  paidAt         DateTime?           @map("paid_at")
+  paidByUserId   String?             @map("paid_by_user_id") @db.Uuid
+  waivedAt       DateTime?           @map("waived_at")
+  waivedByUserId String?             @map("waived_by_user_id") @db.Uuid
+  createdBy      String?             @map("created_by")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, memberId, status])
@@ -5877,21 +6226,21 @@ model LibraryFine {
 /// RENEWED on circulation actions, DAMAGED/LOST/WITHDRAWN on condition/status changes. Feeds
 /// the inventory tab and report aggregates without a separate cross-model timeline query.
 model LibraryTransaction {
-  id          String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String                @map("tenant_id") @db.Uuid
-  tenant      Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  copyId      String                @map("copy_id") @db.Uuid
-  copy        LibraryCopy           @relation(fields: [copyId], references: [id], onDelete: Cascade)
-  loanId      String?               @map("loan_id") @db.Uuid
-  loan        StudentLibraryLoan?   @relation(fields: [loanId], references: [id], onDelete: SetNull)
-  memberId    String?               @map("member_id") @db.Uuid
-  member      LibraryMember?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  id          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String                 @map("tenant_id") @db.Uuid
+  tenant      Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  copyId      String                 @map("copy_id") @db.Uuid
+  copy        LibraryCopy            @relation(fields: [copyId], references: [id], onDelete: Cascade)
+  loanId      String?                @map("loan_id") @db.Uuid
+  loan        StudentLibraryLoan?    @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  memberId    String?                @map("member_id") @db.Uuid
+  member      LibraryMember?         @relation(fields: [memberId], references: [id], onDelete: SetNull)
   type        LibraryTransactionType
-  occurredAt  DateTime              @default(now()) @map("occurred_at")
-  actorUserId String?               @map("actor_user_id") @db.Uuid
+  occurredAt  DateTime               @default(now()) @map("occurred_at")
+  actorUserId String?                @map("actor_user_id") @db.Uuid
   notes       String?
   metadata    Json?
-  createdAt   DateTime              @default(now()) @map("created_at")
+  createdAt   DateTime               @default(now()) @map("created_at")
 
   @@index([tenantId])
   @@index([tenantId, copyId, occurredAt])
