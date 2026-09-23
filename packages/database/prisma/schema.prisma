@@ -1,34 +1,34 @@
-// College ERP SaaS — Foundation + Organization domains
+// College ERP SaaS â€” Foundation + Organization domains
 //
 // Foundation (Phase 1): tenants, users, roles, permissions, user_roles, sessions, login_events
-// — the SaaS control plane and tenant identity/RBAC core.
+// â€” the SaaS control plane and tenant identity/RBAC core.
 // Organization: campuses, departments, academic_years, terms, rooms PLUS buildings, sections,
-// batches — master data every later academic/admissions/attendance/exam module anchors to. The
+// batches â€” master data every later academic/admissions/attendance/exam module anchors to. The
 // schema, RBAC permissions, and tenant-isolation wiring are complete, AND a full CRUD API module
-// (search/filter/import/export + scoped permissions) ships with it — see apps/api's organization
-// module — so later work has a stable, usable foundation to build on.
+// (search/filter/import/export + scoped permissions) ships with it â€” see apps/api's organization
+// module â€” so later work has a stable, usable foundation to build on.
 //
 // Conventions applied across every model in this file:
-// - Primary keys are database-generated UUIDs (`gen_random_uuid()`, native to Postgres 13+ —
+// - Primary keys are database-generated UUIDs (`gen_random_uuid()`, native to Postgres 13+ â€”
 //   pgcrypto is enabled defensively in the migration for older Postgres compatibility), not
 //   cuid()s, per this project's "production-grade" requirement.
-// - Every tenant-owned model carries a real, required, indexed, FK'd tenantId column — even
-//   where derivable through a parent relation — so tenant-isolation enforcement (see
+// - Every tenant-owned model carries a real, required, indexed, FK'd tenantId column â€” even
+//   where derivable through a parent relation â€” so tenant-isolation enforcement (see
 //   packages/database/src/client.ts) can be mechanical (driven off the DMMF) rather than bespoke
 //   per model. Tenant relations use onDelete: Restrict; tenants are status-transitioned, not
 //   hard-deleted.
 // - createdBy/updatedBy are plain nullable UUID columns, not enforced Prisma relations: the
 //   actor may be a tenant User OR a PlatformUser (see PlatformAuditLog, which already
-//   disambiguates actor type for the full audit trail) — these columns are a lightweight
+//   disambiguates actor type for the full audit trail) â€” these columns are a lightweight
 //   "who touched this last" convenience, not the system of record for authorship.
 // - Soft deletion (deletedAt) is added where records are reference/master data that other rows
-//   go on to point at (campuses, departments, academic years, terms, rooms, custom roles) —
+//   go on to point at (campuses, departments, academic years, terms, rooms, custom roles) â€”
 //   hard-deleting these would orphan history. It's deliberately NOT added to Tenant/User (their
 //   status enums already model "gone" without a second, competing concept) or to join/log tables
 //   (an assignment's existence is itself binary; sessions/login events are immutable).
 // - Known trade-off: Prisma's schema DSL has no partial/filtered unique index support, so
 //   `@@unique([tenantId, code])`-style constraints on soft-deletable models apply even to
-//   soft-deleted rows — a soft-deleted campus/department/etc.'s code stays reserved rather than
+//   soft-deleted rows â€” a soft-deleted campus/department/etc.'s code stays reserved rather than
 //   becoming reusable. Acceptable for now; revisit with a hand-written partial index migration
 //   if code reuse after deletion becomes a real product requirement.
 
@@ -60,7 +60,7 @@ enum BillingCycle {
 
 /// SUSPENDED is distinct from PAST_DUE: PAST_DUE is a billing grace period (the tenant still has
 /// access while a payment is chased), SUSPENDED is a deliberate access cutoff (manual admin
-/// action — see SaasService.suspendSubscription) or Tenant.status mirroring a tenant-level
+/// action â€” see SaasService.suspendSubscription) or Tenant.status mirroring a tenant-level
 /// suspension. Both differ from CANCELED (final, requester-initiated end of service) and EXPIRED
 /// (the current billing period elapsed with nothing to renew it).
 enum SubscriptionStatus {
@@ -73,7 +73,7 @@ enum SubscriptionStatus {
 }
 
 /// CUSTOM makes negotiated/one-off pricing an explicit, queryable line-item type rather than
-/// overloading BASE — e.g. a hand-negotiated discount or a one-time setup fee for a specific
+/// overloading BASE â€” e.g. a hand-negotiated discount or a one-time setup fee for a specific
 /// tenant, never derived from the Plan's own catalog pricing.
 enum SubscriptionItemType {
   BASE
@@ -150,11 +150,11 @@ enum PermissionAction {
 }
 
 /// What a role's grant of a permission is narrowed to. The TYPE lives on RolePermission (part
-/// of the role's definition — e.g. "HOD's students.view is department-scoped" is a fact about
+/// of the role's definition â€” e.g. "HOD's students.view is department-scoped" is a fact about
 /// the HOD role, not about any one assignment); the concrete VALUE (which department) lives on
-/// UserRole (bound per assignment — Dr. Smith's HOD assignment is for the CS department, Dr.
+/// UserRole (bound per assignment â€” Dr. Smith's HOD assignment is for the CS department, Dr.
 /// Jones's is for Physics, same role). OWN means "records the acting user is themselves the
-/// subject of" (a student viewing their own grades) — enforced by the owning module's queries
+/// subject of" (a student viewing their own grades) â€” enforced by the owning module's queries
 /// once that module exists, not by RBAC itself.
 enum PermissionScopeType {
   GLOBAL
@@ -165,10 +165,10 @@ enum PermissionScopeType {
 }
 
 /// A single, structured, typed timeline distinct from PlatformAuditLog's generic CRUD/action
-/// trail — purpose-built for a "Security" feed (MFA changes, backup-code use, device trust,
+/// trail â€” purpose-built for a "Security" feed (MFA changes, backup-code use, device trust,
 /// suspicious logins, lockouts, password changes). Polymorphic actor (nullable tenantId/userId/
 /// platformUserId), same convention as PlatformAuditLog, because it is the one security concept
-/// that spans BOTH the tenant-user and platform-admin realms — every other new security model in
+/// that spans BOTH the tenant-user and platform-admin realms â€” every other new security model in
 /// this file stays tenant-scoped-only (see the User/PlatformUser section header for the scoping
 /// rationale).
 enum SecurityEventType {
@@ -206,7 +206,7 @@ enum InvoiceStatus {
 }
 
 /// Lifecycle of a payment attempt against an invoice: PENDING (recorded, awaiting settlement),
-/// SUCCEEDED (reconciled — marks the invoice PAID on transition), FAILED (rejection — the
+/// SUCCEEDED (reconciled â€” marks the invoice PAID on transition), FAILED (rejection â€” the
 /// invoice stays open and can be retried within the grace period), REFUNDED (post-settlement
 /// reversal; the invoice stays PAID).
 enum PaymentStatus {
@@ -241,7 +241,7 @@ enum SupportTicketPriority {
   URGENT
 }
 
-/// BOOLEAN entitlements are on/off (mirrors the existing FeatureFlag semantics — "can this
+/// BOOLEAN entitlements are on/off (mirrors the existing FeatureFlag semantics â€” "can this
 /// tenant see the admissions module at all"). QUANTITY entitlements carry a numeric limit
 /// (e.g. "max 5 campuses", "max 2000 students") that a module can check against a live count.
 enum EntitlementType {
@@ -249,10 +249,10 @@ enum EntitlementType {
   QUANTITY
 }
 
-/// Where a materialized Entitlement row's value came from — recorded so EntitlementsService.
+/// Where a materialized Entitlement row's value came from â€” recorded so EntitlementsService.
 /// recompute() can safely delete-and-rebuild PLAN/PLAN_MODULE/SUBSCRIPTION_ITEM-sourced rows on
 /// every plan/subscription change while leaving TENANT_OVERRIDE rows (a platform admin's manual,
-/// one-off grant for a specific tenant) untouched — the same override-survives-recompute contract
+/// one-off grant for a specific tenant) untouched â€” the same override-survives-recompute contract
 /// TenantFeatureFlag already has with Plan.planFeatures, just generalized to also cover quantities.
 enum EntitlementSource {
   PLAN
@@ -261,7 +261,7 @@ enum EntitlementSource {
   SUBSCRIPTION_ITEM
 }
 
-/// Category a WorkflowState falls into — lets the engine ask "is this instance done, and how"
+/// Category a WorkflowState falls into â€” lets the engine ask "is this instance done, and how"
 /// generically (no module needs to hardcode which specific state codes count as "approved" for
 /// its own workflow) rather than by comparing against a hardcoded state code string.
 enum WorkflowStateCategory {
@@ -288,7 +288,7 @@ enum WorkflowTransitionAction {
 
 /// NONE: the transition fires automatically with no approval step (e.g. straight-through
 /// submission). SEQUENTIAL: WorkflowTransitionApprover slots are satisfied one at a time in
-/// sequenceOrder — the next slot's task is only created once the current one is approved.
+/// sequenceOrder â€” the next slot's task is only created once the current one is approved.
 /// PARALLEL: every slot's task is created at once; WorkflowTransition.parallelRule decides when
 /// enough decisions have come in to resolve the transition.
 enum WorkflowApprovalMode {
@@ -308,7 +308,7 @@ enum WorkflowParallelRule {
 }
 
 /// Who can act on a WorkflowTransitionApprover slot. ROLE (the common, non-hardcoded case):
-/// anyone holding the given tenant Role — narrowed to WorkflowInstance.context[scopeField] via
+/// anyone holding the given tenant Role â€” narrowed to WorkflowInstance.context[scopeField] via
 /// the SAME UserRole scope columns the hierarchical RBAC system already uses (no separate
 /// approver-scope concept). SPECIFIC_USER: a single named user id, for the rare singleton
 /// approver (e.g. "the Principal", when that's one specific account rather than a role).
@@ -477,6 +477,18 @@ model Tenant {
   resultHistory                ResultHistory[]
   certificateTemplates         CertificateTemplate[]
   certificateHistoryRows       CertificateHistoryRow[]
+  libraryConfigs               LibraryConfig[]
+  librarySequences             LibrarySequence[]
+  libraryCategories            LibraryCategory[]
+  libraryPublishers            LibraryPublisher[]
+  libraryAuthors               LibraryAuthor[]
+  libraryBooks                 LibraryBook[]
+  libraryBookAuthors           LibraryBookAuthor[]
+  libraryCopies                LibraryCopy[]
+  libraryMembers               LibraryMember[]
+  libraryReservations          LibraryReservation[]
+  libraryFines                 LibraryFine[]
+  libraryTransactions          LibraryTransaction[]
 
   @@index([status])
   @@map("tenants")
@@ -529,11 +541,11 @@ model Subscription {
   @@map("subscriptions")
 }
 
-/// moduleKey is only set on items that grant an entitlement — ADDON_MODULE (a catalog module
+/// moduleKey is only set on items that grant an entitlement â€” ADDON_MODULE (a catalog module
 /// purchased directly on this subscription rather than bundled via Plan.planModules) and CUSTOM
 /// items representing a negotiated one-off feature grant. It is null for BASE/PER_STUDENT/
 /// PER_CAMPUS items, which are pure billing quantities (student/campus counts) with nothing to
-/// materialize as an Entitlement — see EntitlementsService.recompute.
+/// materialize as an Entitlement â€” see EntitlementsService.recompute.
 model SubscriptionItem {
   id             String               @id @default(cuid())
   tenantId       String               @map("tenant_id") @db.Uuid
@@ -579,10 +591,10 @@ model PlanFeatureFlag {
   @@map("plan_feature_flags")
 }
 
-/// A named add-on capacity/module bundled into a Plan — e.g. "5 extra campuses" or "library
-/// module" — distinct from PlanFeatureFlag (a plain boolean on/off toggle). moduleKey is a
+/// A named add-on capacity/module bundled into a Plan â€” e.g. "5 extra campuses" or "library
+/// module" â€” distinct from PlanFeatureFlag (a plain boolean on/off toggle). moduleKey is a
 /// free-form catalog key (not an FK to FeatureFlag) since a module can grant a QUANTITY limit
-/// that no boolean FeatureFlag models today. No tenantId — like Plan/PlanFeatureFlag this is
+/// that no boolean FeatureFlag models today. No tenantId â€” like Plan/PlanFeatureFlag this is
 /// pure catalog data, only ever read/written through PlatformPrismaService.
 model PlanModule {
   id         String          @id @default(cuid())
@@ -630,14 +642,14 @@ model UsageEvent {
 
 /// The single materialized source of truth entitlement resolution reads from (see
 /// EntitlementsService.recompute, called whenever a tenant's subscription/plan/plan-modules
-/// change) — TenantFeaturesService.getEffectiveFeatures/isEnabled read Entitlement rows instead
+/// change) â€” TenantFeaturesService.getEffectiveFeatures/isEnabled read Entitlement rows instead
 /// of live-joining Plan.planFeatures, so a plan swap or module grant takes effect on the very
 /// next request with no code deployment. `key` is either a FeatureFlag.key (BOOLEAN, sourced
 /// from PLAN/TENANT_OVERRIDE) or a PlanModule.moduleKey (BOOLEAN or QUANTITY, sourced from
 /// PLAN_MODULE/SUBSCRIPTION_ITEM). `effectiveUntil` is set to the owning Subscription's
 /// currentPeriodEnd at recompute time so an expired subscription's entitlements self-heal
 /// (queries filter on effectiveUntil) without the worker needing to run any entitlement logic
-/// itself — see EntitlementsService.isEntitled/getEffectiveFeatures. TENANT_OVERRIDE rows have
+/// itself â€” see EntitlementsService.isEntitled/getEffectiveFeatures. TENANT_OVERRIDE rows have
 /// effectiveUntil = null (they don't expire with a billing period) and are the only source
 /// recompute() preserves rather than deletes-and-rebuilds.
 model Entitlement {
@@ -650,7 +662,7 @@ model Entitlement {
   /// Only meaningful when type = QUANTITY. Null for BOOLEAN.
   limitValue     Int?              @map("limit_value")
   source         EntitlementSource
-  /// The Plan.id, PlanModule.id, or SubscriptionItem.id this row was materialized from —
+  /// The Plan.id, PlanModule.id, or SubscriptionItem.id this row was materialized from â€”
   /// informational only (recompute always regenerates from the live subscription, never reads
   /// this back), null for TENANT_OVERRIDE.
   sourceRef      String?           @map("source_ref")
@@ -667,9 +679,9 @@ model Entitlement {
 
 /// Platform-generated billing record for one tenant's subscription period. Always written
 /// through PlatformPrismaService with an explicit tenantId (same convention as
-/// Subscription/UsageEvent above) — tenant admins never create or edit these, only view their
+/// Subscription/UsageEvent above) â€” tenant admins never create or edit these, only view their
 /// own via the tenant self-service read endpoint. No payment-gateway integration exists yet
-/// (Phase 6+) — `markPaid`/`void` are manual platform-admin reconciliation actions.
+/// (Phase 6+) â€” `markPaid`/`void` are manual platform-admin reconciliation actions.
 model Invoice {
   id                      String        @id @default(cuid())
   tenantId                String        @map("tenant_id") @db.Uuid
@@ -691,7 +703,7 @@ model Invoice {
   createdByPlatformUserId String?       @map("created_by_platform_user_id")
   /// MinIO/S3 key of the generated invoice PDF (always under the owning tenant's prefix, so
   /// StorageService's tenant-key assertion applies). Null until the first time the PDF is
-  /// rendered — generation is lazy and re-runnable, so a failed upload never bricks a download.
+  /// rendered â€” generation is lazy and re-runnable, so a failed upload never bricks a download.
   pdfStorageKey           String?       @map("pdf_storage_key")
   createdAt               DateTime      @default(now()) @map("created_at")
   updatedAt               DateTime      @updatedAt @map("updated_at")
@@ -707,7 +719,7 @@ model Invoice {
 /// A single payment attempt against a subscription invoice. Every invoice lines up N payments
 /// (typically one, but retries produce sequential attempts; the lifecycle sweep also records
 /// auto-charges). Payments are platform control-plane data (like Subscription/Invoice): always
-/// reached through PlatformPrismaService with explicit tenantId/invoiceId filtering — never the
+/// reached through PlatformPrismaService with explicit tenantId/invoiceId filtering â€” never the
 /// tenant-guard extension.
 model Payment {
   id                      String        @id @default(cuid())
@@ -779,10 +791,10 @@ model InvoiceLineItem {
 }
 
 /// Support request tracked by the platform ops team. tenantId is OPTIONAL (same convention as
-/// LoginEvent/PlatformAuditLog) — a ticket can be tenant-specific (raised by a tenant user, or by
+/// LoginEvent/PlatformAuditLog) â€” a ticket can be tenant-specific (raised by a tenant user, or by
 /// a platform admin on a tenant's behalf) or a general platform issue with no tenant at all.
 /// Always accessed via PlatformPrismaService with explicit tenantId filtering when a tenant
-/// context is involved — never the tenant-guard extension (this is control-plane data).
+/// context is involved â€” never the tenant-guard extension (this is control-plane data).
 model SupportTicket {
   id                       String                @id @default(cuid())
   tenantId                 String?               @map("tenant_id") @db.Uuid
@@ -822,18 +834,18 @@ model SupportTicketComment {
 
 /// The single centralized, append-only audit trail for both platform- and tenant-level
 /// sensitive actions across every module (auth, RBAC, users, tenants, subscriptions, documents,
-/// notifications, security config, and — once built — the business modules like
+/// notifications, security config, and â€” once built â€” the business modules like
 /// students/fees/payments/exams). `module` classifies WHICH subsystem produced the entry (see
 /// packages/auth's AUDIT_MODULES) so the searchable audit UI can filter by it independently of
 /// `action`/`entityType`. `requestId` correlates every entry written during the same inbound
 /// HTTP request (see apps/api's RequestIdMiddleware) even across multiple audit writes in one
 /// handler. `actorEmail` is a denormalized snapshot of the actor's email AT THE TIME of the
-/// action — captured once by AuditService itself (not threaded through every call site) so the
+/// action â€” captured once by AuditService itself (not threaded through every call site) so the
 /// trail stays human-readable even if the underlying user is later renamed, deactivated, or the
 /// tenant is long gone.
 /// Known DB-level control not expressible in the Prisma schema DSL: a BEFORE UPDATE OR DELETE
 /// trigger (added by migration 20260907170000_add_centralized_immutable_audit_log) rejects any
-/// attempt to mutate or remove a row here, even via raw SQL or a future application bug —
+/// attempt to mutate or remove a row here, even via raw SQL or a future application bug â€”
 /// AuditService itself also only ever INSERTs (no update/delete method exists on it).
 model PlatformAuditLog {
   id                  String     @id @default(cuid())
@@ -843,10 +855,10 @@ model PlatformAuditLog {
   actorType           String     @map("actor_type")
   actorUserId         String?    @map("actor_user_id") @db.Uuid
   actorPlatformUserId String?    @map("actor_platform_user_id")
-  /// Denormalized snapshot, not a live relation — see model doc comment.
+  /// Denormalized snapshot, not a live relation â€” see model doc comment.
   actorEmail          String?    @map("actor_email")
   action              String
-  /// Which subsystem produced this entry — see packages/auth's AUDIT_MODULES.
+  /// Which subsystem produced this entry â€” see packages/auth's AUDIT_MODULES.
   module              String     @default("platform")
   entityType          String     @map("entity_type")
   entityId            String?    @map("entity_id")
@@ -854,7 +866,7 @@ model PlatformAuditLog {
   after               Json?
   ipAddress           String?    @map("ip_address")
   userAgent           String?    @map("user_agent")
-  /// Correlates every audit entry written during the same inbound HTTP request — see
+  /// Correlates every audit entry written during the same inbound HTTP request â€” see
   /// apps/api's RequestIdMiddleware. Null for entries written outside an HTTP request (seed
   /// scripts, background jobs).
   requestId           String?    @map("request_id")
@@ -884,7 +896,7 @@ model PlatformUser {
   /// MFA/TOTP for the platform-admin realm mirrors the tenant-user realm's mechanism (same
   /// packages/auth core, same AES-256-GCM-at-rest encryption) since PlatformUser is the
   /// highest-privilege account in the whole system. Deliberately NOT extended with trusted
-  /// devices / suspicious-login detection / password history — see PlatformMfaService's doc
+  /// devices / suspicious-login detection / password history â€” see PlatformMfaService's doc
   /// comment for that scope boundary.
   mfaEnabled          Boolean          @default(false) @map("mfa_enabled")
   mfaSecretEncrypted  String?          @map("mfa_secret_encrypted")
@@ -927,9 +939,9 @@ model User {
   lastLoginAt         DateTime?  @map("last_login_at")
   failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
   lockedUntil         DateTime?  @map("locked_until")
-  /// TOTP secret is encrypted at rest (AES-256-GCM, apps/api's MfaSecretCipher) — unlike
+  /// TOTP secret is encrypted at rest (AES-256-GCM, apps/api's MfaSecretCipher) â€” unlike
   /// refresh/reset tokens it must be decryptable to verify a 6-digit code, so it can't be a
-  /// one-way hash. mfaEnabled flips true only after enroll+confirm succeeds (see MfaService) —
+  /// one-way hash. mfaEnabled flips true only after enroll+confirm succeeds (see MfaService) â€”
   /// a secret can exist mid-enrollment without mfaEnabled being true yet.
   mfaEnabled          Boolean    @default(false) @map("mfa_enabled")
   mfaSecretEncrypted  String?    @map("mfa_secret_encrypted")
@@ -959,6 +971,7 @@ model User {
   deviceMappings          AttendanceDeviceUser[]        @relation("UserDeviceMappings")
   deviceLogs              AttendanceDeviceLog[]         @relation("UserDeviceLogs")
   examInvigilatorAssignments ExamInvigilatorAssignment[]
+  libraryMembers             LibraryMember[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1011,7 +1024,7 @@ model RolePermission {
   role         Role                @relation(fields: [roleId], references: [id])
   permissionId String              @map("permission_id") @db.Uuid
   permission   Permission          @relation(fields: [permissionId], references: [id])
-  /// What kind of scope this role's grant of this permission operates under — see
+  /// What kind of scope this role's grant of this permission operates under â€” see
   /// PermissionScopeType. The concrete scope VALUE (which campus/department/program) is bound
   /// per user assignment on UserRole, not here.
   scopeType    PermissionScopeType @default(GLOBAL) @map("scope_type")
@@ -1087,7 +1100,7 @@ model LoginEvent {
 }
 
 /// Single-use, short-lived token for the forgot/reset-password flow. Only the SHA-256 hash is
-/// stored (same convention as refresh tokens) — the raw value exists only in the link sent to
+/// stored (same convention as refresh tokens) â€” the raw value exists only in the link sent to
 /// the user. A successful reset revokes every active Session for the user (see
 /// PasswordResetService), so a stolen old session can't outlive a password change.
 model PasswordResetToken {
@@ -1107,7 +1120,7 @@ model PasswordResetToken {
 }
 
 /// Single-use, short-lived token for confirming a user's email address. Verification is
-/// tracked (emailVerifiedAt) but deliberately does NOT block login (see UsersService.invite) —
+/// tracked (emailVerifiedAt) but deliberately does NOT block login (see UsersService.invite) â€”
 /// an admin who invites a user with a known-good email and sets their password has already
 /// vouched for the account; gating login on verification is left for a future self-registration
 /// flow where nobody has vouched for the email yet.
@@ -1132,15 +1145,15 @@ model EmailVerificationToken {
 // extension auto-scopes them like any other tenant-owned model WHEN accessed through a
 // request-scoped TenantScopedPrismaClient. Several of the services that own these tables also
 // run pre-authentication (the MFA challenge step of login itself, before a session/JWT exists),
-// where no request-scoped tenant context is available yet — those call sites deliberately go
+// where no request-scoped tenant context is available yet â€” those call sites deliberately go
 // through PlatformPrismaService with an explicit tenantId on every query instead, the same
 // established pattern AuthService/PasswordResetService/EmailVerificationService already use for
 // User/Session/token rows. Deliberately NOT extended to the platform-admin realm (beyond MFA
-// itself, see PlatformUser/PlatformMfaBackupCode) — see PlatformMfaService's doc comment.
+// itself, see PlatformUser/PlatformMfaBackupCode) â€” see PlatformMfaService's doc comment.
 // ---------------------------------------------------------------------------
 
 /// Single-use recovery codes for when a user's authenticator device is unavailable. Hashed with
-/// SHA-256 (packages/auth's high-entropy-opaque-value convention), not bcrypt — these are
+/// SHA-256 (packages/auth's high-entropy-opaque-value convention), not bcrypt â€” these are
 /// crypto-random, never user-chosen, so bcrypt's slow-by-design property buys nothing here.
 model MfaBackupCode {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1157,7 +1170,7 @@ model MfaBackupCode {
   @@map("mfa_backup_codes")
 }
 
-/// Platform-admin-realm equivalent of MfaBackupCode — a separate table (no tenantId at all)
+/// Platform-admin-realm equivalent of MfaBackupCode â€” a separate table (no tenantId at all)
 /// rather than a polymorphic column on the tenant-realm table, matching this schema's existing
 /// Session/PlatformSession precedent of parallel realm-specific models.
 model PlatformMfaBackupCode {
@@ -1172,7 +1185,7 @@ model PlatformMfaBackupCode {
   @@map("platform_mfa_backup_codes")
 }
 
-/// "Remember this device" — set only after a full MFA challenge succeeds (never as a substitute
+/// "Remember this device" â€” set only after a full MFA challenge succeeds (never as a substitute
 /// for MFA, only as a way to skip re-prompting for `trustedDeviceDays`). deviceTokenHash follows
 /// the opaque-token/SHA-256 convention; the raw token lives only in an httpOnly cookie.
 model TrustedDevice {
@@ -1195,7 +1208,7 @@ model TrustedDevice {
 }
 
 /// Stores each REPLACED password hash (not the current one, which lives on User.passwordHash)
-/// so a future change can be checked against the last N — see SecuritySettingsService's
+/// so a future change can be checked against the last N â€” see SecuritySettingsService's
 /// passwordHistoryCount. Rows beyond the configured count are pruned on each password change.
 model PasswordHistory {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1234,11 +1247,11 @@ model SecurityEvent {
   @@map("security_events")
 }
 
-/// Tenant-level security policy — one row per tenant (created lazily on first read/write with
+/// Tenant-level security policy â€” one row per tenant (created lazily on first read/write with
 /// defaults, see SecuritySettingsService). Every threshold is nullable so "unset" cleanly means
 /// "inherit the platform default" (PlatformSecuritySettings) rather than needing a sentinel
 /// value. mfaRequired only takes effect if the tenant's plan grants FEATURE_KEYS.MFA AND
-/// PlatformSecuritySettings.mfaGloballyEnabled is true — enforced in SecuritySettingsService, not
+/// PlatformSecuritySettings.mfaGloballyEnabled is true â€” enforced in SecuritySettingsService, not
 /// the DB.
 model TenantSecuritySettings {
   id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1259,7 +1272,7 @@ model TenantSecuritySettings {
   @@map("tenant_security_settings")
 }
 
-/// Tenant-specific configuration engine — a single JSONB document per tenant storing every
+/// Tenant-specific configuration engine â€” a single JSONB document per tenant storing every
 /// configurable aspect of the institution: branding, academic calendar, grading, attendance,
 /// fee structure, admissions, numbering formats, certificate/notification templates, etc.
 /// Created lazily on first read with empty defaults; the `data` JSON field carries all values
@@ -1278,7 +1291,7 @@ model TenantConfiguration {
   @@map("tenant_configurations")
 }
 
-/// Control-plane singleton (one row; SecuritySettingsService finds-or-creates it) — global
+/// Control-plane singleton (one row; SecuritySettingsService finds-or-creates it) â€” global
 /// defaults applied wherever a tenant hasn't overridden, plus platform-realm-only toggles
 /// (mfaRequiredForPlatformAdmins) and kill switches a platform admin can flip without a deploy.
 model PlatformSecuritySettings {
@@ -1298,7 +1311,7 @@ model PlatformSecuritySettings {
 }
 
 // ---------------------------------------------------------------------------
-// Organization (master data — campuses, departments, programs, academic_years,
+// Organization (master data â€” campuses, departments, programs, academic_years,
 // terms, rooms, buildings, sections, batches). CRUD API lives in apps/api's
 // organization module; the schema, RBAC permissions, and tenant isolation are
 // enforced here and mirrored in packages/auth's permission catalog.
@@ -1541,7 +1554,7 @@ model Building {
 }
 
 /// A cohort of students admitted to a Program for a given AcademicYear (e.g. "B.Tech 2024
-/// Batch"). academicYearId is the year the cohort started — optional because the admissions
+/// Batch"). academicYearId is the year the cohort started â€” optional because the admissions
 /// module (which will actually tick batches forward) is a later pass.
 model Batch {
   id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -1612,7 +1625,7 @@ model Section {
 }
 
 // ---------------------------------------------------------------------------
-// Student 360 (Phase 2) — the full student domain: profile, guardians, documents,
+// Student 360 (Phase 2) â€” the full student domain: profile, guardians, documents,
 // admissions/academic/enrollment history, attendance, fees/payments, exams/results,
 // certificates, library, hostel, transport, holds, status history, communications, and an
 // append-only activity timeline. Every model is tenant-owned (required tenantId) and anchors
@@ -1807,7 +1820,7 @@ enum ResultOutcome {
 }
 
 /// Lifecycle of an exam session (a whole examination for a program/term, e.g. "End-Term
-/// Nov 2026"). DRAFT → SCHEDULED → IN_PROGRESS → COMPLETED; CANCELLED is an administrative
+/// Nov 2026"). DRAFT â†’ SCHEDULED â†’ IN_PROGRESS â†’ COMPLETED; CANCELLED is an administrative
 /// dead-end. Distinct from ExamStatus (SCHEDULED/IN_PROGRESS/COMPLETED), which stays as the
 /// per-student sitting status on the student-360 StudentExam rows this module still reuses.
 enum ExamSessionStatus {
@@ -1861,8 +1874,8 @@ enum ExamEligibilityRuleType {
   OPEN_BACKLOG
 }
 
-/// Marks-entry workflow: DRAFT (entered, editable) → SUBMITTED (locked, awaiting moderation) →
-/// MODERATED (checked, awaiting approval) → APPROVED (final; eligible for results publication).
+/// Marks-entry workflow: DRAFT (entered, editable) â†’ SUBMITTED (locked, awaiting moderation) â†’
+/// MODERATED (checked, awaiting approval) â†’ APPROVED (final; eligible for results publication).
 enum ExamMarksStatus {
   DRAFT
   SUBMITTED
@@ -1877,8 +1890,8 @@ enum ExamRevaluationStatus {
   REJECTED
 }
 
-/// Lifecycle of a computed result process (results module) — one row per student per exam
-/// session. CALCULATED → PENDING_APPROVAL → APPROVED → PUBLISHED → LOCKED; PUBLISHED may be
+/// Lifecycle of a computed result process (results module) â€” one row per student per exam
+/// session. CALCULATED â†’ PENDING_APPROVAL â†’ APPROVED â†’ PUBLISHED â†’ LOCKED; PUBLISHED may be
 /// UNPUBLISHED (back to APPROVED) and LOCKED may be UNLOCKED (back to PUBLISHED), both as
 /// administrator corrections. Recalculation after PUBLISHED is refused while locked.
 enum ResultState {
@@ -1972,7 +1985,7 @@ enum CommunicationDirection {
 }
 
 // ---------------------------------------------------------------------------
-// Notifications (minimal vertical slice proving tenant-aware background jobs —
+// Notifications (minimal vertical slice proving tenant-aware background jobs â€”
 // see apps/api's NotificationsModule and apps/worker's NotificationsProcessor).
 // Templates/broadcasts/delivery-provider integrations are Phase 8+; this is the
 // tenant-isolation-correct dispatch mechanism only.
@@ -2000,7 +2013,7 @@ model Notification {
 }
 
 // ---------------------------------------------------------------------------
-// Documents (tenant-scoped file metadata — see apps/api's StorageService/
+// Documents (tenant-scoped file metadata â€” see apps/api's StorageService/
 // DocumentsModule). storageKey always embeds the owning tenantId as a path
 // prefix; StorageService refuses to sign a URL for a key outside the caller's
 // tenant prefix regardless of what this table says, so tenant isolation for
@@ -2029,13 +2042,13 @@ model Document {
 }
 
 // ---------------------------------------------------------------------------
-// Workflow engine — a single, reusable, tenant-configurable state-machine +
+// Workflow engine â€” a single, reusable, tenant-configurable state-machine +
 // approval-chain engine. It knows nothing about admissions/fees/exams/etc.:
 // each future business module attaches to it purely by starting a
 // WorkflowInstance against its own entityType/entityId and a
-// WorkflowDefinition the tenant configured for that entityType — approval
+// WorkflowDefinition the tenant configured for that entityType â€” approval
 // chains are DATA (rows below), never a hardcoded per-module code path.
-// Audit trail is NOT duplicated here — every lifecycle event (definition
+// Audit trail is NOT duplicated here â€” every lifecycle event (definition
 // created/activated, instance started, task decided, transition fired,
 // escalation, completion) is written through the existing centralized
 // AuditService/PlatformAuditLog (module = 'workflows').
@@ -2048,12 +2061,12 @@ model WorkflowDefinition {
   code        String
   name        String
   description String?
-  /// Free-form string the future business module chooses (e.g. "FeeRefund", "LeaveRequest") —
+  /// Free-form string the future business module chooses (e.g. "FeeRefund", "LeaveRequest") â€”
   /// never an enum, so a new consumer never needs a schema change to plug into the engine.
   entityType  String    @map("entity_type")
   version     Int       @default(1)
   /// At most one ACTIVE definition per (tenantId, entityType) is enforced at the application
-  /// layer (WorkflowDefinitionsService), not a DB constraint — Prisma has no partial unique index
+  /// layer (WorkflowDefinitionsService), not a DB constraint â€” Prisma has no partial unique index
   /// support (see this file's header "Known trade-off" note); activating a new version
   /// deactivates the previous one in the same transaction.
   isActive    Boolean   @default(true) @map("is_active")
@@ -2110,12 +2123,12 @@ model WorkflowTransition {
   toStateId            String                   @map("to_state_id") @db.Uuid
   toState              WorkflowState            @relation("WorkflowTransitionToState", fields: [toStateId], references: [id])
   action               WorkflowTransitionAction
-  /// When more than one transition shares the same (fromState, action) — e.g. "auto-escalate to
-  /// the Principal above ₹50,000, otherwise to the HOD" — conditions are evaluated in descending
+  /// When more than one transition shares the same (fromState, action) â€” e.g. "auto-escalate to
+  /// the Principal above â‚¹50,000, otherwise to the HOD" â€” conditions are evaluated in descending
   /// priority order and the first whose conditionExpression matches the instance's context wins.
   priority             Int                      @default(0)
   /// A tiny, safe JSON condition tree (see apps/api's condition-evaluator.ts) evaluated against
-  /// WorkflowInstance.context — never a stored code string, so there is nothing here that could
+  /// WorkflowInstance.context â€” never a stored code string, so there is nothing here that could
   /// execute arbitrary logic. Null means "always eligible".
   conditionExpression  Json?                    @map("condition_expression")
   approvalMode         WorkflowApprovalMode     @default(NONE) @map("approval_mode")
@@ -2124,7 +2137,7 @@ model WorkflowTransition {
   /// Hours after a task tied to this transition is created before it's considered overdue. Null
   /// means no deadline (never escalates).
   deadlineHours        Int?                     @map("deadline_hours")
-  /// Role an overdue task escalates to — plain string, not a Role relation, because the target
+  /// Role an overdue task escalates to â€” plain string, not a Role relation, because the target
   /// role is resolved by code within whichever tenant the instance belongs to at escalation time
   /// (same reason Permission-catalog references are strings elsewhere in this schema).
   escalationRoleCode   String?                  @map("escalation_role_code")
@@ -2141,8 +2154,8 @@ model WorkflowTransition {
 }
 
 /// One "slot" an approval must pass through. Multiple rows sharing the same transitionId model
-/// either a SEQUENTIAL chain (ordered by sequenceOrder — e.g. HOD then Accountant) or a PARALLEL
-/// panel (all created together — e.g. any two of three Exam Board members). See
+/// either a SEQUENTIAL chain (ordered by sequenceOrder â€” e.g. HOD then Accountant) or a PARALLEL
+/// panel (all created together â€” e.g. any two of three Exam Board members). See
 /// WorkflowApproverType for what a slot resolves to.
 model WorkflowTransitionApprover {
   id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -2156,7 +2169,7 @@ model WorkflowTransitionApprover {
   /// A specific tenant User.id (when approverType = SPECIFIC_USER).
   specificUserId String?              @map("specific_user_id") @db.Uuid
   /// Key to read out of WorkflowInstance.context and match against the resolved user's UserRole
-  /// scope columns (e.g. "departmentId" -> scopeDepartmentId) — reuses the hierarchical RBAC
+  /// scope columns (e.g. "departmentId" -> scopeDepartmentId) â€” reuses the hierarchical RBAC
   /// scope system verbatim rather than inventing a parallel one. Null means GLOBAL-only holders
   /// of the role are eligible.
   scopeField     String?              @map("scope_field")
@@ -2181,7 +2194,7 @@ model WorkflowInstance {
   currentStateId String                 @map("current_state_id") @db.Uuid
   currentState   WorkflowState          @relation(fields: [currentStateId], references: [id])
   status         WorkflowInstanceStatus @default(IN_PROGRESS)
-  /// Arbitrary snapshot the starting module provides (e.g. { amount, departmentId }) — the only
+  /// Arbitrary snapshot the starting module provides (e.g. { amount, departmentId }) â€” the only
   /// thing condition evaluation and approver-scope resolution ever look at. Updated on
   /// resubmission with whatever the resubmitter provides.
   context        Json?
@@ -2192,7 +2205,7 @@ model WorkflowInstance {
 
   tasks WorkflowApprovalTask[]
 
-  /// One workflow instance per business record, forever — a resubmission reopens THIS instance
+  /// One workflow instance per business record, forever â€” a resubmission reopens THIS instance
   /// (see WorkflowEngineService.resubmit) rather than spawning a duplicate.
   @@unique([tenantId, entityType, entityId])
   @@index([tenantId])
@@ -2212,7 +2225,7 @@ model WorkflowApprovalTask {
   approverSlotId      String?                     @map("approver_slot_id") @db.Uuid
   approverSlot        WorkflowTransitionApprover? @relation(fields: [approverSlotId], references: [id])
   /// Populated at creation for SPECIFIC_USER slots; for ROLE slots stays null until the decision
-  /// is made (any matching role/scope holder may decide a pending ROLE task — see
+  /// is made (any matching role/scope holder may decide a pending ROLE task â€” see
   /// WorkflowApproverResolutionService), then records who actually acted.
   assignedUserId      String?                     @map("assigned_user_id") @db.Uuid
   status              WorkflowTaskStatus          @default(PENDING)
@@ -2222,11 +2235,11 @@ model WorkflowApprovalTask {
   decidedAt           DateTime?                   @map("decided_at")
   comment             String?
   escalatedAt         DateTime?                   @map("escalated_at")
-  /// Set by the escalation sweep (apps/worker) alongside escalatedAt — widens who may decide
+  /// Set by the escalation sweep (apps/worker) alongside escalatedAt â€” widens who may decide
   /// this task to ALSO include holders of this role, without revoking the original approver's
   /// ability to (status stays PENDING; escalation adds an eligible decider, it doesn't replace
   /// one). No approverSlot row exists for this widened eligibility since it isn't part of the
-  /// definition's configured chain — it's a runtime SLA response.
+  /// definition's configured chain â€” it's a runtime SLA response.
   escalatedToRoleCode String?                     @map("escalated_to_role_code")
   createdAt           DateTime                    @default(now()) @map("created_at")
 
@@ -2265,7 +2278,7 @@ model Student {
   dateOfBirth           DateTime?     @map("date_of_birth")
   nationality           String?       @default("Indian")
   category              String?
-  /// Current contact information — quick access on the profile/cards. Full communication
+  /// Current contact information â€” quick access on the profile/cards. Full communication
   /// history lives in StudentCommunication; guardians live in Guardian.
   email                 String?
   alternateEmail        String?       @map("alternate_email")
@@ -2285,7 +2298,7 @@ model Student {
   permanentCountry      String?       @default("India") @map("permanent_country")
   profilePhotoKey       String?       @map("profile_photo_key")
   status                StudentStatus @default(APPLICANT)
-  /// Current placement snapshot — an at-a-glance "where is this student now". The full,
+  /// Current placement snapshot â€” an at-a-glance "where is this student now". The full,
   /// year-by-year picture lives in StudentEnrollment.
   programId             String?       @map("program_id") @db.Uuid
   program               Program?      @relation(fields: [programId], references: [id], onDelete: SetNull)
@@ -2322,6 +2335,7 @@ model Student {
   results               StudentResult[]
   certificates          StudentCertificate[]
   libraryLoans          StudentLibraryLoan[]
+  libraryMembers        LibraryMember[]
   hostelBookings        StudentHostelBooking[]
   transportPasses       StudentTransportPass[]
   holds                 StudentHold[]
@@ -2391,7 +2405,7 @@ model StudentDocument {
   tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   studentId        String                @map("student_id") @db.Uuid
   student          Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  /// e.g. ID_PROOF / ACADEMIC / ADDRESS_PROOF / PHOTO / OTHER — free-form so the tenant's
+  /// e.g. ID_PROOF / ACADEMIC / ADDRESS_PROOF / PHOTO / OTHER â€” free-form so the tenant's
   /// admissions document checklist (TenantConfiguration) drives what categories exist.
   category         String
   documentName     String                @map("document_name")
@@ -2413,7 +2427,7 @@ model StudentDocument {
   @@map("student_documents")
 }
 
-/// Admission history — every admission/application round this student went through (can be
+/// Admission history â€” every admission/application round this student went through (can be
 /// more than one: applied, got an offer, deferred, re-admitted). mode is a free-form string
 /// (MERIT / MANAGEMENT / LATERAL / DIRECT) so tenant policies don't require a schema change.
 model StudentAdmission {
@@ -2444,7 +2458,7 @@ model StudentAdmission {
   @@map("student_admissions")
 }
 
-/// Academic (prior-education) history — institutions/certificates the student earned before
+/// Academic (prior-education) history â€” institutions/certificates the student earned before
 /// (or alongside) the current program: higher-secondary board marksheet, prior degree, etc.
 model StudentAcademicRecord {
   id                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -2474,7 +2488,7 @@ model StudentAcademicRecord {
   @@map("student_academic_records")
 }
 
-/// Enrollment history — one row per academic year the student was enrolled in a program
+/// Enrollment history â€” one row per academic year the student was enrolled in a program
 /// (with the section/batch they sat in that year). This is the "which cohort, which year"
 /// picture; the admission record captures the application side.
 model StudentEnrollment {
@@ -2547,9 +2561,9 @@ model StudentAttendance {
   @@map("student_attendance")
 }
 
-/// A single held attendance session — one class/day/period to be marked for a roster. Anchors
+/// A single held attendance session â€” one class/day/period to be marked for a roster. Anchors
 /// on the term/courseOffering/section (any combination) plus a date and optional time window,
-/// and may snapshot the timetable entry it was raised from. Lifecycle OPEN → CLOSED (explicit);
+/// and may snapshot the timetable entry it was raised from. Lifecycle OPEN â†’ CLOSED (explicit);
 /// CLOSED sessions with records are the "classes held" denominator for percentage/shortage
 /// reporting.
 model AttendanceSession {
@@ -2631,7 +2645,7 @@ model AttendanceCorrectionRequest {
   @@map("attendance_correction_requests")
 }
 
-/// Faculty/staff attendance — one row per user per day with optional check-in/out times. status
+/// Faculty/staff attendance â€” one row per user per day with optional check-in/out times. status
 /// reuses AttendanceStatus so the taxonomy stays a single enum; sessionId links the mark to a
 /// marked attendance session when captured that way.
 model FacultyAttendance {
@@ -2663,7 +2677,7 @@ model FacultyAttendance {
 /// HTTP/API gateway). The model is deliberately VENDOR-NEUTRAL: vendor, model and protocol are
 /// free-form strings and every vendor talks to the ERP through the same normalized event
 /// pipeline (AttendanceDeviceLog). Specific vendor wire-protocols slot in as registered adapters
-/// (see attendance-devices service / device-adapters) keyed by protocol+vendor — the ERP never
+/// (see attendance-devices service / device-adapters) keyed by protocol+vendor â€” the ERP never
 /// depends on a specific biometric vendor. Secrets (device push token, vendor comm key) are kept
 /// AES-256-GCM encrypted at rest (DEVICE_SECRET_KEY), mirroring the mfa secret cipher pattern.
 model AttendanceDevice {
@@ -2676,7 +2690,7 @@ model AttendanceDevice {
   /// (attendance.qr / attendance.biometric / attendance.basic) the device needs to be usable.
   deviceType         String    @map("device_type")
   /// Vendor identifier (e.g. 'ZKTeco', 'BioMetricAttend', 'Generic'). Free-form on purpose so a
-  /// new vendor never needs a schema change — only a registered adapter.
+  /// new vendor never needs a schema change â€” only a registered adapter.
   vendor             String    @default("Generic")
   model              String?
   /// Wire protocol for pulling/pushing events: HTTP_PULL (server polls an URL), HTTP_PUSH
@@ -2716,7 +2730,7 @@ model AttendanceDevice {
 }
 
 /// Mapping between a device-side person identifier (fingerprint template id, RFID/card number,
-/// mobile registration id) and an ERP person — a Student or a User (staff/faculty). Kept per
+/// mobile registration id) and an ERP person â€” a Student or a User (staff/faculty). Kept per
 /// device so the same external id can mean different people on different devices.
 model AttendanceDeviceUser {
   id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -2746,11 +2760,11 @@ model AttendanceDeviceUser {
   @@map("attendance_device_users")
 }
 
-/// Raw normalized event received from an attendance device — the single ingest+reconciliation
+/// Raw normalized event received from an attendance device â€” the single ingest+reconciliation
 /// pipeline for QR / biometric / RFID / API integrations. Every incoming event becomes exactly
 /// one row here (unique dedupeKey enforced at the DB), then the processor resolves the device
 /// person mapping and applies the mark to the matching open attendance session (student) or
-/// daily faculty log (staff) — or marks the event UNMAPPED/REJECTED for reconciliation.
+/// daily faculty log (staff) â€” or marks the event UNMAPPED/REJECTED for reconciliation.
 model AttendanceDeviceLog {
   id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId         String             @map("tenant_id") @db.Uuid
@@ -2766,7 +2780,7 @@ model AttendanceDeviceLog {
   capturedAt       DateTime           @map("captured_at")
   receivedAt       DateTime           @default(now()) @map("received_at")
   ingestSource     String             @default("API") @map("ingest_source")
-  /// Deterministic identity hash (deviceId|externalPersonId|eventType|capturedAt) — the DB-level
+  /// Deterministic identity hash (deviceId|externalPersonId|eventType|capturedAt) â€” the DB-level
   /// unique index on (tenantId, dedupeKey) is the hard duplicate-prevention boundary.
   dedupeKey        String?            @map("dedupe_key")
   rawPayload       Json               @map("raw_payload")
@@ -2793,7 +2807,7 @@ model AttendanceDeviceLog {
 /// every create/update/payment from amountCents vs paidCents+waivedCents; OVERDUE is derived
 /// at read time when dueDate has passed and the line isn't yet PAID.
 ///
-/// When issued through the fees module (FeeStructure → StudentFeeAssignment → FeeDemand) each
+/// When issued through the fees module (FeeStructure â†’ StudentFeeAssignment â†’ FeeDemand) each
 /// line carries its originating structure/line/demand and installment index so the demand's
 /// totals and late-fee accrual can be reconciled back to the catalog that produced them.
 model StudentFee {
@@ -2900,24 +2914,24 @@ model StudentFeeAllocation {
 }
 
 // ---------------------------------------------------------------------------
-// Exams (Phase 7) — a complete examination surface built on the Organization/Academics and
+// Exams (Phase 7) â€” a complete examination surface built on the Organization/Academics and
 // Student 360 foundations:
 //
-//   ExamSession             → one examination cycle for a program/term (reuses ExamType; a
+//   ExamSession             â†’ one examination cycle for a program/term (reuses ExamType; a
 //                             SUPPLEMENTARY session links back to the failed base session).
-//   ExamSubject             → one paper within a session, anchored on the academics Course
+//   ExamSubject             â†’ one paper within a session, anchored on the academics Course
 //                             catalog with its own marks/duration/date/time + default room.
-//   ExamEligibilityRule     → data-driven eligibility knobs evaluated against student data.
-//   ExamRegistration        → a student registered to sit a session (auto-eligible via rules).
-//   ExamHallTicket          → one admit card per registration with per-subject line-item
+//   ExamEligibilityRule     â†’ data-driven eligibility knobs evaluated against student data.
+//   ExamRegistration        â†’ a student registered to sit a session (auto-eligible via rules).
+//   ExamHallTicket          â†’ one admit card per registration with per-subject line-item
 //                             snapshots (ExamHallTicketSubject copies code/name/marks/venue/seat
 //                             at print time so the issued ticket is immutable).
-//   ExamSeatingPlan         → a room + label for a subject; ExamSeatAllocation assigns each
-//                             registration a seat (ALLOCATED → PRESENT/ABSENT gate for marks).
-//   ExamInvigilatorAssignment → user + role + optional room for a subject paper.
-//   ExamMarksEntry          → per-registration per-subject marks with DRAFT → SUBMITTED →
-//                             MODERATED → APPROVED workflow and grace marks.
-//   ExamRevaluationRequest  → request → UNDER_REVIEW → RESOLVED/REJECTED; RESOLVED may revise
+//   ExamSeatingPlan         â†’ a room + label for a subject; ExamSeatAllocation assigns each
+//                             registration a seat (ALLOCATED â†’ PRESENT/ABSENT gate for marks).
+//   ExamInvigilatorAssignment â†’ user + role + optional room for a subject paper.
+//   ExamMarksEntry          â†’ per-registration per-subject marks with DRAFT â†’ SUBMITTED â†’
+//                             MODERATED â†’ APPROVED workflow and grace marks.
+//   ExamRevaluationRequest  â†’ request â†’ UNDER_REVIEW â†’ RESOLVED/REJECTED; RESOLVED may revise
 //                             marks which flow back to the marks entry + published result.
 //
 // Results are NOT stored twice: publishing a COMPLETED session syncs the APPROVED marks into the
@@ -3301,29 +3315,29 @@ model ExamRevaluationRequest {
 }
 
 // ---------------------------------------------------------------------------
-// Results calculation engine (Phase 7, part 2) — a configurable result-calculation layer that
-// sits on top of the exams module (exams keeps marks capture: DRAFT → SUBMITTED → MODERATED →
+// Results calculation engine (Phase 7, part 2) â€” a configurable result-calculation layer that
+// sits on top of the exams module (exams keeps marks capture: DRAFT â†’ SUBMITTED â†’ MODERATED â†’
 // APPROVED, revaluation, and the student-360 StudentExam/StudentResult sync). Nothing about how
-// a grade is derived is hard-coded here: grading schemes (grades → grade points, pass rules,
+// a grade is derived is hard-coded here: grading schemes (grades â†’ grade points, pass rules,
 // grace-marks policy, GPA weighting) are tenant data, any paper may be split into weighted
 // assessment components, and every computed result is snapshotted so results are reproducible
 // and auditable.
 //
-//   GradingScheme        → tenant-level, configurable grading policy (pass rule, grade scale,
+//   GradingScheme        â†’ tenant-level, configurable grading policy (pass rule, grade scale,
 //                          grace policy, GPA weighting/scale, rounding).
-//   GradeScale           → one band: percentage window ↔ letter grade ↔ grade point.
-//   AssessmentComponent  → optional session- or paper-level exam components with weightages
+//   GradeScale           â†’ one band: percentage window â†” letter grade â†” grade point.
+//   AssessmentComponent  â†’ optional session- or paper-level exam components with weightages
 //                          (e.g. Internal 30% + End-Term 70% + Practical 20%).
-//   ExamComponentMark    → a student's marks in one component of one paper.
-//   ResultCalculation    → the computed, snapshotted result of one student in one paper
+//   ExamComponentMark    â†’ a student's marks in one component of one paper.
+//   ResultCalculation    â†’ the computed, snapshotted result of one student in one paper
 //                          (weighted/effective marks, grade, grade point, outcome, schema used).
-//   ResultProcess        → one student's whole-session result state machine, GPA, CGPA and
-//                          standing (CALCULATED → APPROVED → PUBLISHED → LOCKED).
-//   ResultHistory        → an append-only trail of calculation/approval/publication/lock events.
+//   ResultProcess        â†’ one student's whole-session result state machine, GPA, CGPA and
+//                          standing (CALCULATED â†’ APPROVED â†’ PUBLISHED â†’ LOCKED).
+//   ResultHistory        â†’ an append-only trail of calculation/approval/publication/lock events.
 // ---------------------------------------------------------------------------
 
 /// Tenant-level, configurable grading scheme used by the result engine. Grading is entirely
-/// data-driven — no institution's scheme is baked in. A session either names a scheme or falls
+/// data-driven â€” no institution's scheme is baked in. A session either names a scheme or falls
 /// back to the tenant's default (created on first use and editable from the UI).
 model GradingScheme {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -3390,7 +3404,7 @@ model GradeScale {
 }
 
 /// Optional, configurable assessment components for a session (e.g. Internal 30, End-Term 70).
-/// subjectId null ⇒ the component applies to every paper in the session; otherwise only to that
+/// subjectId null â‡’ the component applies to every paper in the session; otherwise only to that
 /// paper. When any component applies to a paper, a student's component marks are aggregated
 /// (weighted by `weightage`) onto the paper's own maxMarks; papers without components keep the
 /// single entered marks value.
@@ -3404,7 +3418,7 @@ model AssessmentComponent {
   subject    ExamSubject?  @relation("SubjectComponents", fields: [subjectId], references: [id], onDelete: Cascade)
   code       String
   name       String
-  /// Free taxonomy (INTERNAL / THEORY / PRACTICAL / PROJECT / VIVA / OTHER) — keeps paper kinds
+  /// Free taxonomy (INTERNAL / THEORY / PRACTICAL / PROJECT / VIVA / OTHER) â€” keeps paper kinds
   /// configurable without enums.
   kind       String        @default("THEORY")
   /// Percentage weight of this component in the paper's total (may exceed the default 100 total
@@ -3507,8 +3521,8 @@ model ResultCalculation {
   @@map("result_calculations")
 }
 
-/// One student's whole-session result process: state machine (CALCULATED → APPROVED → PUBLISHED
-/// → LOCKED), aggregated marks, credits, GPA and standing. CGPA (`cgpa`) is captured at
+/// One student's whole-session result process: state machine (CALCULATED â†’ APPROVED â†’ PUBLISHED
+/// â†’ LOCKED), aggregated marks, credits, GPA and standing. CGPA (`cgpa`) is captured at
 /// calculation time across every previously published/locked process of the student.
 model ResultProcess {
   id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -3560,7 +3574,7 @@ model ResultProcess {
 }
 
 /// Append-only trail of result lifecycle events (calculation, approval, publication, locking,
-/// recalculation …). `details` holds the delta of the event.
+/// recalculation â€¦). `details` holds the delta of the event.
 model ResultHistory {
   id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId   String        @map("tenant_id") @db.Uuid
@@ -3586,24 +3600,24 @@ model ResultHistory {
 }
 
 // ---------------------------------------------------------------------------
-// Fees & Finance (Phase 14) — a complete fee-billing surface built on top of the Student 360
+// Fees & Finance (Phase 14) â€” a complete fee-billing surface built on top of the Student 360
 // fee ledger. StudentFee stays the single demand-line table and StudentPayment the receipt/
 // ledger entry the students module already owns; this module adds the catalog + planning +
 // workflow layers around them:
 //
-//   FeeHead            → the tenant's fee catalog (code-denormalized on StudentFee later).
-//   FeeStructure       → a fee template scoped to academic year/term/program/section with
+//   FeeHead            â†’ the tenant's fee catalog (code-denormalized on StudentFee later).
+//   FeeStructure       â†’ a fee template scoped to academic year/term/program/section with
 //                        installment + late-fee rules.
-//   FeeStructureLine   → one head within a structure with its amount override.
-//   StudentFeeAssignment → binding a structure to a student (per term); generation materializes
+//   FeeStructureLine   â†’ one head within a structure with its amount override.
+//   StudentFeeAssignment â†’ binding a structure to a student (per term); generation materializes
 //                        the structure's lines into StudentFee rows grouped under FeeDemands.
-//   FeeDemand           → an issued demand (one installment) grouping its StudentFee lines;
+//   FeeDemand           â†’ an issued demand (one installment) grouping its StudentFee lines;
 //                        numbered per tenant via FeeSequence (kind DEMAND).
-//   FeeConcession       → scholarship/waiver/concession request against a demand or single line;
+//   FeeConcession       â†’ scholarship/waiver/concession request against a demand or single line;
 //                        APPROVED applies to the ledger via StudentFee.waivedCents.
-//   FeeRefund           → refund workflow against a StudentPayment; PROCESSED reverses the
+//   FeeRefund           â†’ refund workflow against a StudentPayment; PROCESSED reverses the
 //                        allocation transactionally (reuses student-records semantics).
-//   FeeSequence         → atomic per-tenant counters for receipt / demand / refund numbering.
+//   FeeSequence         â†’ atomic per-tenant counters for receipt / demand / refund numbering.
 //
 // Money invariants: every amount is integer minor units (paise/cents). Payments never exceed a
 // line's outstanding balance unless explicitly permitted; payment allocation and status
@@ -3685,7 +3699,7 @@ model FeeStructure {
 }
 
 /// A single head within a FeeStructure, priced for that structure. Referencing FeeHead.code/name
-/// is optional — amounts are authoritative here and are snapshotted onto generated StudentFee
+/// is optional â€” amounts are authoritative here and are snapshotted onto generated StudentFee
 /// rows (headCode/headName) so demand history survives catalog edits.
 model FeeStructureLine {
   id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -3820,8 +3834,8 @@ model FeeConcession {
 }
 
 /// Refund workflow against a single StudentPayment (which may be a partial payment itself).
-/// REQUESTED → APPROVED → PROCESSED; PROCESSED reverses the payment's ledger allocation in the
-/// same transaction (StudentFee.paidCents −= refunded, demand/line status recomputed, the
+/// REQUESTED â†’ APPROVED â†’ PROCESSED; PROCESSED reverses the payment's ledger allocation in the
+/// same transaction (StudentFee.paidCents âˆ’= refunded, demand/line status recomputed, the
 /// StudentPayment marked REFUNDED when fully refunded) and writes a refundNumber receipt.
 model FeeRefund {
   id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -3949,7 +3963,7 @@ model StudentResult {
 }
 
 /// Certificate / transcript documents and their issuance lifecycle
-/// (request → generate → approve → issue), with tamper-evident QR verification,
+/// (request â†’ generate â†’ approve â†’ issue), with tamper-evident QR verification,
 /// numbering chains, reissue lineage and append-only history.
 model StudentCertificate {
   id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -4028,8 +4042,8 @@ model CertificateTemplate {
   @@map("certificate_templates")
 }
 
-/// Append-only state transition log for a certificate document (request → generate →
-/// approve → issue → revoke → reissue). Every write path appends a row here.
+/// Append-only state transition log for a certificate document (request â†’ generate â†’
+/// approve â†’ issue â†’ revoke â†’ reissue). Every write path appends a row here.
 model CertificateHistoryRow {
   id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String            @map("tenant_id") @db.Uuid
@@ -4046,32 +4060,56 @@ model CertificateHistoryRow {
   @@map("certificate_history_rows")
 }
 
-/// Library loans for this student (items are free-form strings — the dedicated library
-/// catalog module is a later phase and will attach its own catalog item ids here).
+/// Library loans for this student. Before the dedicated library catalog module existed these were
+/// free-form string records (itemTitle/itemAuthor/itemCode/itemType â€” still supported for the
+/// student-360 "quick loan" flow). The library module now writes the same model with a real
+/// copyId/memberId link so circulation, inventory and fines are unified on ONE loan table: the
+/// copy's status stays in sync here, the member anchors circulation scope, and LibraryFine /
+/// LibraryTransaction carry the fine and per-copy history.
 model StudentLibraryLoan {
-  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String            @map("tenant_id") @db.Uuid
-  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId  String            @map("student_id") @db.Uuid
-  student    Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  itemTitle  String            @map("item_title")
-  itemAuthor String?           @map("item_author")
-  itemCode   String?           @map("item_code")
-  itemType   String?           @map("item_type")
-  borrowedAt DateTime          @map("borrowed_at")
-  dueDate    DateTime?         @map("due_date")
-  returnedAt DateTime?         @map("returned_at")
-  status     LibraryLoanStatus @default(ISSUED)
-  fineCents  Int               @default(0) @map("fine_cents")
-  remarks    String?
-  createdBy  String?           @map("created_by")
-  updatedBy  String?           @map("updated_by")
-  createdAt  DateTime          @default(now()) @map("created_at")
-  updatedAt  DateTime          @updatedAt @map("updated_at")
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String            @map("tenant_id") @db.Uuid
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId      String?           @map("student_id") @db.Uuid
+  student        Student?          @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  /// Catalog links â€” set by the library module for catalog-issued loans; null for the legacy
+  /// free-form student-360 quick loans.
+  copyId         String?           @map("copy_id") @db.Uuid
+  copy           LibraryCopy?      @relation(fields: [copyId], references: [id], onDelete: SetNull)
+  memberId       String?           @map("member_id") @db.Uuid
+  member         LibraryMember?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  itemTitle      String            @map("item_title")
+  itemAuthor     String?           @map("item_author")
+  itemCode       String?           @map("item_code")
+  itemType       String?           @map("item_type")
+  borrowedAt     DateTime          @map("borrowed_at")
+  dueDate        DateTime?         @map("due_date")
+  returnedAt     DateTime?         @map("returned_at")
+  status         LibraryLoanStatus @default(ISSUED)
+  /// How many times this loan was renewed (extending the due date); bounded by the library config.
+  renewalCount   Int               @default(0) @map("renewal_count")
+  lastRenewedAt  DateTime?         @map("last_renewed_at")
+  /// Physical state the copy came back in â€” free-form ('GOOD' | 'DAMAGED' | ...) so the tenant's
+  /// own vocabulary drives it.
+  returnCondition String?          @map("return_condition")
+  returnedById   String?           @map("returned_by_id") @db.Uuid
+  /// Denormalized snapshot of any fine balance tied to this loan; LibraryFine is the system of record.
+  fineCents      Int               @default(0) @map("fine_cents")
+  remarks        String?
+  createdBy      String?           @map("created_by")
+  updatedBy      String?           @map("updated_by")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  fines        LibraryFine[]
+  transactions LibraryTransaction[]
 
   @@index([tenantId])
   @@index([studentId])
+  @@index([copyId])
+  @@index([memberId])
   @@index([tenantId, status])
+  @@index([tenantId, dueDate, status])
   @@map("student_library_loans")
 }
 
@@ -4130,7 +4168,7 @@ model StudentTransportPass {
   @@map("student_transport_passes")
 }
 
-/// A hold/flag on the student's record (academic/financial/administrative/etc.) — e.g.
+/// A hold/flag on the student's record (academic/financial/administrative/etc.) â€” e.g.
 /// blocks a transcript request until a fee is resolved. Holds are lifted, never deleted.
 model StudentHold {
   id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -4176,7 +4214,7 @@ model StudentStatusHistory {
   @@map("student_status_history")
 }
 
-/// Communication history with the student / their guardians (calls, emails, SMS, meetings…).
+/// Communication history with the student / their guardians (calls, emails, SMS, meetingsâ€¦).
 model StudentCommunication {
   id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId          String                 @map("tenant_id") @db.Uuid
@@ -4207,7 +4245,7 @@ model StudentCommunication {
 /// Append-only activity timeline for Student 360. eventType is a free-form string (e.g.
 /// student.created / student.status_changed / fee.payment_recorded / hold.placed) so modules
 /// can log events without a schema change; entityType/entityId point at the related row
-/// (payment, hold, certificate…). The timeline endpoint unions these with status-history rows.
+/// (payment, hold, certificateâ€¦). The timeline endpoint unions these with status-history rows.
 model StudentActivity {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId    String   @map("tenant_id") @db.Uuid
@@ -4229,14 +4267,14 @@ model StudentActivity {
   @@map("student_activities")
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ADMISSIONS (module ADMISSIONS) — the pre-student recruitment lifecycle:
-// Enquiry → Application → Documents → Verification → Merit → Counselling →
-// Selection → Offer → Payment → Enrollment (auto-creates the Student record).
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ADMISSIONS (module ADMISSIONS) â€” the pre-student recruitment lifecycle:
+// Enquiry â†’ Application â†’ Documents â†’ Verification â†’ Merit â†’ Counselling â†’
+// Selection â†’ Offer â†’ Payment â†’ Enrollment (auto-creates the Student record).
 // Applicant-facing rows live here; once a student is enrolled the pipeline data
 // is copied into the Student 360 sub-resources (StudentAdmission, documents,
 // academic records, fee/payment ledger) so admissions stays applicant-centric.
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 enum AdmissionSessionStatus {
   OPEN
@@ -4276,9 +4314,9 @@ enum AdmissionOfferStatus {
   EXPIRED
 }
 
-/// A recruitment round for an academic year. Holds the pipeline’s defaults — fees,
+/// A recruitment round for an academic year. Holds the pipelineâ€™s defaults â€” fees,
 /// dates, seat offers per program (AdmissionProgramOffer) and the dynamic document
-/// checklist — so an institution can run parallel sessions (UG merit, lateral, midday).
+/// checklist â€” so an institution can run parallel sessions (UG merit, lateral, midday).
 model AdmissionSession {
   id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId            String                 @map("tenant_id") @db.Uuid
@@ -4293,7 +4331,7 @@ model AdmissionSession {
   admissionFeeCents   Int                    @default(0) @map("admission_fee_cents")
   status              AdmissionSessionStatus @default(OPEN)
   /// Drag of required document categories (strings) for this session; merged with the
-  /// per-program override. Defaults to the module’s DEFAULT_DOCUMENT_CHECKLIST.
+  /// per-program override. Defaults to the moduleâ€™s DEFAULT_DOCUMENT_CHECKLIST.
   requiredDocuments   Json?                  @map("required_documents")
   source              String?                @default("FRONT_DESK")
   meritPublishedAt    DateTime?              @map("merit_published_at")
@@ -4317,7 +4355,7 @@ model AdmissionSession {
 
 /// A program offered in a session with seat + fee configuration (the seat matrix).
 /// filledSeats is incremented at offer-allocation and freed on decline/cancel; a seat
-/// can’t be offered past capacity (status flips FULL).
+/// canâ€™t be offered past capacity (status flips FULL).
 model AdmissionProgramOffer {
   id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId            String                 @map("tenant_id") @db.Uuid
@@ -4348,7 +4386,7 @@ model AdmissionProgramOffer {
   @@map("admission_program_offers")
 }
 
-/// A pre-application contact — website/web form, walk-in, referral… converted once an
+/// A pre-application contact â€” website/web form, walk-in, referralâ€¦ converted once an
 /// actual application is created from it (source of the enquiry funnel report).
 model AdmissionEnquiry {
   id                       String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -4378,7 +4416,7 @@ model AdmissionEnquiry {
   @@map("admission_enquiries")
 }
 
-/// The applicant’s application — the heart of the pipeline. Structured identity columns
+/// The applicantâ€™s application â€” the heart of the pipeline. Structured identity columns
 /// mirror Student; extra form answers live in `data` (the dynamic application form driven
 /// by TenantConfiguration or the module defaults). guardian is a single JSON object kept
 /// in sync with the Guardian row created at enrollment.
@@ -4426,10 +4464,10 @@ model AdmissionApplication {
 
   meritScore     Float?
   meritRank      Int?                  @map("merit_rank")
-  /// Breakdown of the merit computation (component name → points) so reviewers can see and
+  /// Breakdown of the merit computation (component name â†’ points) so reviewers can see and
   /// dispute exactly how a score was derived. Non-null once meritScored.
   scoreBreakdown Json?                 @map("score_breakdown")
-  /// When this application matches an existing one (email/phone/name+dob), it’s flagged as a
+  /// When this application matches an existing one (email/phone/name+dob), itâ€™s flagged as a
   /// duplicate; points to the canonical application of record.
   duplicateOfId  String?               @map("duplicate_of_id") @db.Uuid
   duplicateOf    AdmissionApplication? @relation("AdmissionApplicationDuplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
@@ -4554,7 +4592,7 @@ model AdmissionCounsellingSlot {
 }
 
 /// An offer letter issued to a SELECTED applicant (seats are held at issuance and freed on
-/// decline/cancel). Offers are accepted → FEE_PAID → ENROLLED.
+/// decline/cancel). Offers are accepted â†’ FEE_PAID â†’ ENROLLED.
 model AdmissionOffer {
   id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId          String               @map("tenant_id") @db.Uuid
@@ -4581,9 +4619,9 @@ model AdmissionOffer {
   @@map("admission_offers")
 }
 
-/// Applicant-side payment for the admission fee (the applicant isn’t a student yet, so it
-/// can’t live on the student ledger). Reuses the global PaymentMethod/PaymentStatus enums.
-/// On enrollment it’s copied to the created Student’s fee ledger.
+/// Applicant-side payment for the admission fee (the applicant isnâ€™t a student yet, so it
+/// canâ€™t live on the student ledger). Reuses the global PaymentMethod/PaymentStatus enums.
+/// On enrollment itâ€™s copied to the created Studentâ€™s fee ledger.
 model AdmissionFeePayment {
   id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId         String               @map("tenant_id") @db.Uuid
@@ -4741,11 +4779,11 @@ enum AdmissionMessageChannel {
 }
 
 // ---------------------------------------------------------------------------
-// Academics (Phase 4) — course catalog, curricula & curriculum versions, course
+// Academics (Phase 4) â€” course catalog, curricula & curriculum versions, course
 // offerings (with faculty assignment), student course registration, academic
 // advising, academic progression / promotion / backlogs, and the academic
 // calendar. Reuses Foundation/Organization master data (Program, AcademicYear,
-// Term — the semester anchor, Campus, Department, Section, Batch) and Student
+// Term â€” the semester anchor, Campus, Department, Section, Batch) and Student
 // 360 (Student, StudentEnrollment). Faculty are User rows (HR module not built
 // yet), so offerings/advising reference userId. Business rules (prerequisite
 // satisfaction, registration windows/capacity/waitlist, promotion thresholds)
@@ -5203,16 +5241,16 @@ model AcademicCalendarEvent {
 }
 
 // ---------------------------------------------------------------------------
-// Timetable (Phase 4) — weekly timetable construction on top of Foundation/
+// Timetable (Phase 4) â€” weekly timetable construction on top of Foundation/
 // Organization (Term, Campus, Room, Section, Building) and Academics (CourseOffering,
-// CourseOfferingFaculty): the weekly grid (Timetable → TimetablePeriod), assigned sessions
+// CourseOfferingFaculty): the weekly grid (Timetable â†’ TimetablePeriod), assigned sessions
 // (TimetableEntry), non-teaching days (TimetableHoliday), recurring faculty busy/unavailable
 // times (FacultyAvailability), detected collisions (TimetableConflict), date-specific faculty
 // swaps (TimetableSubstitution), and an append-only change log (TimetableHistory). The week
 // model is day-of-week + numbered period slots; a timetable belongs to one term and one campus,
 // and entries anchor to the offering's section (copied at write time so section conflicts work
 // even when a future offering's sectionId is cleared). Conflict detection is a hard service-level
-// gate on every write plus an explicit recheck sweep that materializes TimetableConflict rows —
+// gate on every write plus an explicit recheck sweep that materializes TimetableConflict rows â€”
 // there are deliberately no DB unique constraints on the entry cells so consumption ordering and
 // manual fixes are possible with the sweep as the source of truth.
 // ---------------------------------------------------------------------------
@@ -5247,7 +5285,7 @@ enum SubstitutionStatus {
 
 /// A weekly timetable for a term on a campus. workingDays stores the active 0-6 weekday set;
 /// the period grid lives in TimetablePeriod; assigned sessions live in TimetableEntry. Status
-/// moves DRAFT → GENERATED → PUBLISHED → ARCHIVED (generation and publication are explicit).
+/// moves DRAFT â†’ GENERATED â†’ PUBLISHED â†’ ARCHIVED (generation and publication are explicit).
 model Timetable {
   id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String          @map("tenant_id") @db.Uuid
@@ -5259,7 +5297,7 @@ model Timetable {
   name          String
   code          String?
   status        TimetableStatus @default(DRAFT)
-  /// ISO weekday numbers (0 = Sunday … 6 = Saturday) on which the timetable runs.
+  /// ISO weekday numbers (0 = Sunday â€¦ 6 = Saturday) on which the timetable runs.
   workingDays   Json            @map("working_days")
   generatedAt   DateTime?       @map("generated_at")
   publishedAt   DateTime?       @map("published_at")
@@ -5476,4 +5514,421 @@ model TimetableHistory {
   @@index([tenantId, timetableId])
   @@index([tenantId, timetableId, createdAt])
   @@map("timetable_history")
+}
+
+// ---------------------------------------------------------------------------
+// Library (module: library) â€” a full catalog (books, authors, publishers, categories),
+// physical copies with barcode/QR identity and condition tracking, members (anchored to
+// Student and/or User), circulation (issue / return / renewal / reservation), fines
+// (overdue / lost / damage), notifications, per-copy inventory transactions, a tenant
+// config knob, sequence allocators, and report aggregates. Circulation writes reuse the
+// existing StudentLibraryLoan table (see its doc comment) so no parallel loans model exists.
+// Every model is tenant-owned; the tenant-guard client scopes them automatically.
+// ---------------------------------------------------------------------------
+
+enum LibraryMemberType {
+  STUDENT
+  FACULTY
+  STAFF
+  OTHER
+}
+
+enum LibraryMemberStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+/// Circulation state of a physical copy. RESERVED is a hold against a reservation; LOST and
+/// DAMAGED are terminal item states (the loan gets LOST / returned DAMAGED and fines apply).
+enum LibraryCopyStatus {
+  AVAILABLE
+  ISSUED
+  RESERVED
+  LOST
+  DAMAGED
+  WITHDRAWN
+}
+
+/// Physical condition, independent of circulation status.
+enum LibraryCopyCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+enum LibraryReservationStatus {
+  WAITING
+  READY
+  FULFILLED
+  CANCELLED
+  EXPIRED
+}
+
+enum LibraryFineType {
+  OVERDUE
+  LOST
+  DAMAGE
+  OTHER
+}
+
+enum LibraryFineStatus {
+  PENDING
+  PAID
+  WAIVED
+}
+
+/// Append-only per-copy inventory/circulation events â€” powers the inventory history tab and
+/// report aggregates (most borrowed, returns, damages, losses).
+enum LibraryTransactionType {
+  ADDED
+  ISSUED
+  RETURNED
+  RENEWED
+  LOST
+  DAMAGED
+  RESERVED
+  READY
+  FULFILLED
+  CANCELLED
+  WITHDRAWN
+}
+
+enum LibrarySequenceKind {
+  MEMBER
+  COPY
+}
+
+/// Catalog category â€” optionally tree-shaped via parentId.
+model LibraryCategory {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String             @map("tenant_id") @db.Uuid
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  description String?
+  parentId    String?            @map("parent_id") @db.Uuid
+  parent      LibraryCategory?   @relation("LibraryCategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  createdBy   String?            @map("created_by")
+  updatedBy   String?            @map("updated_by")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  deletedAt   DateTime?          @map("deleted_at")
+
+  children LibraryCategory[] @relation("LibraryCategoryChildren")
+  books    LibraryBook[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+  @@map("library_categories")
+}
+
+model LibraryPublisher {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  addressLine String?   @map("address_line")
+  city        String?
+  country     String?   @default("India")
+  phone       String?
+  email       String?
+  website     String?
+  createdBy   String?   @map("created_by")
+  updatedBy   String?   @map("updated_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  books LibraryBook[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+  @@map("library_publishers")
+}
+
+model LibraryAuthor {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code      String
+  firstName String    @map("first_name")
+  lastName  String?   @map("last_name")
+  /// Denormalized full name for lists/reports (same convention as Student.fullName).
+  fullName  String    @map("full_name")
+  bio       String?
+  createdBy String?   @map("created_by")
+  updatedBy String?   @map("updated_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  bookLinks LibraryBookAuthor[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, fullName])
+  @@index([tenantId, deletedAt])
+  @@map("library_authors")
+}
+
+/// Title-level catalog record. A book is "the title"; physical availability lives on LibraryCopy.
+model LibraryBook {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String    @map("tenant_id") @db.Uuid
+  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  isbn                  String?
+  title                 String
+  subtitle              String?
+  language              String?   @default("English")
+  edition               String?
+  pageCount             Int?      @map("page_count")
+  publicationYear       Int?      @map("publication_year")
+  description           String?
+  coverStorageKey       String?   @map("cover_storage_key")
+  categoryId            String    @map("category_id") @db.Uuid
+  category              LibraryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  publisherId           String?   @map("publisher_id") @db.Uuid
+  publisher             LibraryPublisher? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  /// What a lost/damaged copy costs to replace â€” used when the library assesses LOST/DAMAGE fines.
+  replacementCostCents  Int?      @map("replacement_cost_cents")
+  /// Default loan window for copies of this title; overridable per loan.
+  maxLoanDays           Int       @default(14) @map("max_loan_days")
+  isActive              Boolean   @default(true) @map("is_active")
+  createdBy             String?   @map("created_by")
+  updatedBy             String?   @map("updated_by")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  authors      LibraryBookAuthor[]
+  copies       LibraryCopy[]
+  reservations LibraryReservation[]
+
+  @@index([tenantId])
+  @@index([tenantId, title])
+  @@index([tenantId, isbn])
+  @@index([tenantId, categoryId])
+  @@index([tenantId, deletedAt])
+  @@map("library_books")
+}
+
+/// Book â†” author join (many-to-many), tenant-owned for mechanical isolation.
+model LibraryBookAuthor {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String        @map("tenant_id") @db.Uuid
+  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  bookId    String        @map("book_id") @db.Uuid
+  book      LibraryBook   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  authorId  String        @map("author_id") @db.Uuid
+  author    LibraryAuthor @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@unique([tenantId, bookId, authorId])
+  @@index([tenantId, authorId])
+  @@map("library_book_authors")
+}
+
+/// A physical, individually-identifiable copy of a book. barcode (and accessionNumber) are the
+/// scanner-facing ids; QR self-service pages embed `{ tenantSlug, copyBarcode }`.
+model LibraryCopy {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String               @map("tenant_id") @db.Uuid
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  bookId            String               @map("book_id") @db.Uuid
+  book              LibraryBook          @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  accessionNumber   String               @map("accession_number")
+  barcode           String
+  shelfLocation     String?              @map("shelf_location")
+  acquisitionType   String?              @map("acquisition_type")
+  acquisitionDate   DateTime?            @map("acquisition_date")
+  purchasePriceCents Int?                @map("purchase_price_cents")
+  condition         LibraryCopyCondition @default(GOOD)
+  status            LibraryCopyStatus    @default(AVAILABLE)
+  notes             String?
+  createdBy         String?              @map("created_by")
+  updatedBy         String?              @map("updated_by")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  loans        StudentLibraryLoan[]
+  reservations LibraryReservation[]
+  transactions LibraryTransaction[]
+
+  @@unique([tenantId, barcode])
+  @@unique([tenantId, accessionNumber])
+  @@index([tenantId])
+  @@index([tenantId, bookId, status])
+  @@map("library_copies")
+}
+
+/// A library patron. Prefer anchoring to a Student (libraryLoans/circulation then ride the
+/// student's OWN scope); a User link lets faculty/staff (or self-service accounts) borrow too.
+/// soft-deleted via deletedAt (loans/reservations/fines stay).
+model LibraryMember {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String             @map("tenant_id") @db.Uuid
+  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  memberNumber    String             @map("member_number")
+  studentId       String?            @map("student_id") @db.Uuid
+  student         Student?           @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  userId          String?            @map("user_id") @db.Uuid
+  user            User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  fullName        String             @map("full_name")
+  email           String?
+  phone           String?
+  memberType      LibraryMemberType  @default(STUDENT) @map("member_type")
+  status          LibraryMemberStatus @default(ACTIVE)
+  /// Per-member loan cap override of the LibraryConfig default.
+  maxLoans        Int?               @map("max_loans")
+  membershipStart DateTime?          @map("membership_start")
+  membershipEnd   DateTime?          @map("membership_end")
+  notes           String?
+  createdBy       String?            @map("created_by")
+  updatedBy       String?            @map("updated_by")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  deletedAt       DateTime?          @map("deleted_at")
+
+  loans        StudentLibraryLoan[]
+  reservations LibraryReservation[]
+  fines        LibraryFine[]
+  transactions LibraryTransaction[]
+
+  @@unique([tenantId, memberNumber])
+  @@unique([tenantId, studentId])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, memberType])
+  @@index([tenantId, deletedAt])
+  @@map("library_members")
+}
+
+/// A member's claim on a title (or, once a librarian assigns one, on a specific copy).
+/// WAITING â†’ READY (copy assigned / became available) â†’ FULFILLED (issued on that loan) /
+/// CANCELLED / EXPIRED (holdUntil passed unused).
+model LibraryReservation {
+  id          String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String                  @map("tenant_id") @db.Uuid
+  tenant      Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  bookId      String                  @map("book_id") @db.Uuid
+  book        LibraryBook             @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  copyId      String?                 @map("copy_id") @db.Uuid
+  copy        LibraryCopy?            @relation(fields: [copyId], references: [id], onDelete: SetNull)
+  memberId    String                  @map("member_id") @db.Uuid
+  member      LibraryMember           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  status      LibraryReservationStatus @default(WAITING)
+  reservedAt  DateTime                @default(now()) @map("reserved_at")
+  /// When a READY hold lapses unattended (LibraryConfig.reservationHoldDays).
+  holdUntil   DateTime?               @map("hold_until")
+  fulfilledAt DateTime?               @map("fulfilled_at")
+  cancelledBy String?                 @map("cancelled_by") @db.Uuid
+  cancelledAt DateTime?               @map("cancelled_at")
+  notes       String?
+  createdBy   String?                 @map("created_by")
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, memberId, status])
+  @@index([tenantId, bookId, status])
+  @@map("library_reservations")
+}
+
+/// Fines system of record â€” assessed for overdue (per LibraryConfig), lost or damaged copies.
+/// Overdue fines start as a running estimate and are finalized on return; LOST/DAMAGE fines are
+/// assessed against the book's replacement cost. Settled by PAID or WAIVED.
+model LibraryFine {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  loanId         String?          @map("loan_id") @db.Uuid
+  loan           StudentLibraryLoan? @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  memberId       String           @map("member_id") @db.Uuid
+  member         LibraryMember    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  type           LibraryFineType
+  amountCents    Int              @map("amount_cents")
+  paidCents      Int              @default(0) @map("paid_cents")
+  status         LibraryFineStatus @default(PENDING)
+  reason         String?
+  paidAt         DateTime?        @map("paid_at")
+  paidByUserId   String?          @map("paid_by_user_id") @db.Uuid
+  waivedAt       DateTime?        @map("waived_at")
+  waivedByUserId String?          @map("waived_by_user_id") @db.Uuid
+  createdBy      String?          @map("created_by")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, memberId, status])
+  @@index([tenantId, status])
+  @@index([loanId])
+  @@map("library_fines")
+}
+
+/// Append-only per-copy inventory/circulation ledger â€” ADDED on acquisition, ISSUED/RETURNED/
+/// RENEWED on circulation actions, DAMAGED/LOST/WITHDRAWN on condition/status changes. Feeds
+/// the inventory tab and report aggregates without a separate cross-model timeline query.
+model LibraryTransaction {
+  id          String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String                @map("tenant_id") @db.Uuid
+  tenant      Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  copyId      String                @map("copy_id") @db.Uuid
+  copy        LibraryCopy           @relation(fields: [copyId], references: [id], onDelete: Cascade)
+  loanId      String?               @map("loan_id") @db.Uuid
+  loan        StudentLibraryLoan?   @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  memberId    String?               @map("member_id") @db.Uuid
+  member      LibraryMember?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  type        LibraryTransactionType
+  occurredAt  DateTime              @default(now()) @map("occurred_at")
+  actorUserId String?               @map("actor_user_id") @db.Uuid
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime              @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([tenantId, copyId, occurredAt])
+  @@index([tenantId, occurredAt])
+  @@map("library_transactions")
+}
+
+/// Library-wide operating knobs â€” a single row per tenant, created lazily by the library module.
+model LibraryConfig {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId               String   @unique @map("tenant_id") @db.Uuid
+  tenant                 Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  defaultLoanDays        Int      @default(14) @map("default_loan_days")
+  maxLoansPerMember      Int      @default(5) @map("max_loans_per_member")
+  renewalLimit           Int      @default(2) @map("renewal_limit")
+  overdueFinePerDayCents Int      @default(100) @map("overdue_fine_per_day_cents")
+  reservationHoldDays    Int      @default(2) @map("reservation_hold_days")
+  createdBy              String?  @map("created_by")
+  updatedBy              String?  @map("updated_by")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("library_configs")
+}
+
+/// Atomic per-tenant counter rows for member-number / copy-accession numbering (mirrors
+/// FeeSequence). Allocation is update-increment inside the caller's $transaction.
+model LibrarySequence {
+  id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String              @map("tenant_id") @db.Uuid
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  kind      LibrarySequenceKind
+  prefix    String
+  nextValue Int                 @default(1) @map("next_value")
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+
+  @@unique([tenantId, kind, prefix])
+  @@map("library_sequences")
 }

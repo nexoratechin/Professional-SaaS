@@ -31,6 +31,7 @@ import { AttendancePage } from './routes/attendance';
 import { ExamsPage } from './routes/exams';
 import { CertificatesPage } from './routes/certificates';
 import { CertificateVerifyPage } from './routes/certificate-verify';
+import { LibraryPage } from './routes/library';
 
 function ProfileRoute() {
   const { id } = useParams<{ id: string }>();
@@ -187,6 +188,14 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <CertificatesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/library"
+          element={
+            <ProtectedRoute>
+              <LibraryPage />
             </ProtectedRoute>
           }
         />
