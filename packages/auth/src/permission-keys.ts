@@ -215,6 +215,14 @@ export const PERMISSION_KEYS = {
   INVENTORY_DELETE: 'inventory.delete',
   INVENTORY_MANAGE: 'inventory.manage',
 
+  // --- Helpdesk / Feedback ---
+  HELPDESK_VIEW: 'helpdesk.view',
+  HELPDESK_CREATE: 'helpdesk.create',
+  HELPDESK_UPDATE: 'helpdesk.update',
+  HELPDESK_DELETE: 'helpdesk.delete',
+  HELPDESK_EXPORT: 'helpdesk.export',
+  HELPDESK_MANAGE: 'helpdesk.manage',
+
   // --- Reports / Analytics ---
   REPORTS_VIEW: 'reports.view',
   REPORTS_EXPORT: 'reports.export',
@@ -447,6 +455,18 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
     [PERMISSION_KEYS.INVENTORY_DELETE, DELETE, 'Remove inventory/asset records.'],
     [PERMISSION_KEYS.INVENTORY_MANAGE, MANAGE, 'Full inventory management.'],
   ]),
+  ...modulePermissions('helpdesk', [
+    [PERMISSION_KEYS.HELPDESK_VIEW, VIEW, 'View helpdesk tickets, categories, departments, and SLA policies.'],
+    [PERMISSION_KEYS.HELPDESK_CREATE, CREATE, 'Raise helpdesk tickets and add comments/attachments.'],
+    [PERMISSION_KEYS.HELPDESK_UPDATE, UPDATE, 'Update, assign, resolve, close, and reopen helpdesk tickets.'],
+    [PERMISSION_KEYS.HELPDESK_DELETE, DELETE, 'Delete helpdesk tickets.'],
+    [PERMISSION_KEYS.HELPDESK_EXPORT, EXPORT, 'Export helpdesk reports.'],
+    [
+      PERMISSION_KEYS.HELPDESK_MANAGE,
+      MANAGE,
+      'Full helpdesk management: SLA policies, escalation, categories, departments, and ticket administration.',
+    ],
+  ]),
   ...modulePermissions('reports', [
     [PERMISSION_KEYS.REPORTS_VIEW, VIEW, 'View management/operational reports and dashboards.'],
     [PERMISSION_KEYS.REPORTS_EXPORT, EXPORT, 'Export reports.'],
@@ -548,6 +568,9 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.NOTIFICATIONS_VIEW },
       { key: K.WORKFLOWS_VIEW },
       { key: K.WORKFLOWS_APPROVE },
+      { key: K.HELPDESK_VIEW },
+      { key: K.HELPDESK_MANAGE },
+      { key: K.HELPDESK_EXPORT },
     ],
   },
   {
@@ -678,6 +701,8 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.USERS_MANAGE },
       { key: K.WORKFLOWS_VIEW },
       { key: K.WORKFLOWS_APPROVE },
+      { key: K.HELPDESK_VIEW },
+      { key: K.HELPDESK_MANAGE },
     ],
   },
   {

@@ -3,6 +3,7 @@ export const QUEUE_NAMES = {
   WORKFLOW_ESCALATION: 'workflow-escalation',
   SUBSCRIPTION_LIFECYCLE: 'subscription-lifecycle',
   TRANSPORT_GPS_SWEEP: 'transport-gps-sweep',
+  HELPDESK_SLA: 'helpdesk-sla',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -47,3 +48,11 @@ export type SubscriptionLifecycleSweepJobData = Record<string, never>;
  * clients. Never a job scoped to a single tenant up front.
  */
 export type TransportGpsSweepJobData = Record<string, never>;
+
+/**
+ * Same cross-tenant maintenance-sweep shape: HelpdeskSlaSweepProcessor finds every tenant's
+ * tickets past their response/resolution SLA (via the unscoped platform client), then escalates
+ * each one through a per-tenant client and queues notifications. Never a job scoped to a single
+ * tenant up front.
+ */
+export type HelpdeskSlaSweepJobData = Record<string, never>;

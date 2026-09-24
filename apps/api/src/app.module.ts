@@ -37,6 +37,7 @@ import { WorkflowModule } from './modules/workflow/workflow.module';
 import { HrModule } from './modules/hr/hr.module';
 import { PlacementsModule } from './modules/placements/placements.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { HelpdeskModule } from './modules/helpdesk/helpdesk.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
     HrModule,
     PlacementsModule,
     InventoryModule,
+    HelpdeskModule,
     BillingModule,
     SupportModule,
     PlatformOpsModule,

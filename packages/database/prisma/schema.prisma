@@ -349,215 +349,225 @@ model Tenant {
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
-  subscriptions                Subscription[]
-  subscriptionItems            SubscriptionItem[]
-  featureOverrides             TenantFeatureFlag[]
-  usageEvents                  UsageEvent[]
-  users                        User[]
-  roles                        Role[]
-  rolePermissions              RolePermission[]
-  userRoles                    UserRole[]
-  sessions                     Session[]
-  loginEvents                  LoginEvent[]
-  auditLogs                    PlatformAuditLog[]
-  campuses                     Campus[]
-  departments                  Department[]
-  programs                     Program[]
-  academicYears                AcademicYear[]
-  terms                        Term[]
-  rooms                        Room[]
-  buildings                    Building[]
-  sections                     Section[]
-  batches                      Batch[]
-  notifications                Notification[]
-  documents                    Document[]
-  passwordResetTokens          PasswordResetToken[]
-  emailVerificationTokens      EmailVerificationToken[]
-  mfaBackupCodes               MfaBackupCode[]
-  trustedDevices               TrustedDevice[]
-  passwordHistory              PasswordHistory[]
-  securityEvents               SecurityEvent[]
-  securitySettings             TenantSecuritySettings?
-  configuration                TenantConfiguration?
-  workflowDefinitions          WorkflowDefinition[]
-  workflowStates               WorkflowState[]
-  workflowTransitions          WorkflowTransition[]
-  workflowTransitionApprovers  WorkflowTransitionApprover[]
-  workflowInstances            WorkflowInstance[]
-  workflowApprovalTasks        WorkflowApprovalTask[]
-  invoices                     Invoice[]
-  invoiceLineItems             InvoiceLineItem[]
-  payments                     Payment[]
-  supportTickets               SupportTicket[]
-  entitlements                 Entitlement[]
-  students                     Student[]
-  guardians                    Guardian[]
-  studentDocuments             StudentDocument[]
-  studentAdmissions            StudentAdmission[]
-  studentAcademicRecords       StudentAcademicRecord[]
-  studentEnrollments           StudentEnrollment[]
-  studentAttendance            StudentAttendance[]
-  studentFees                  StudentFee[]
-  studentPayments              StudentPayment[]
-  studentExams                 StudentExam[]
-  studentResults               StudentResult[]
-  studentCertificates          StudentCertificate[]
-  studentLibraryLoans          StudentLibraryLoan[]
-  studentHostelBookings        StudentHostelBooking[]
-  studentTransportPasses       StudentTransportPass[]
-  studentHolds                 StudentHold[]
-  studentStatusHistory         StudentStatusHistory[]
-  studentCommunications        StudentCommunication[]
-  studentActivities            StudentActivity[]
-  admissionSessions            AdmissionSession[]
-  admissionPrograms            AdmissionProgramOffer[]
-  admissionEnquiries           AdmissionEnquiry[]
-  admissionApplications        AdmissionApplication[]
-  admissionDocuments           AdmissionDocument[]
-  admissionQualifications      AdmissionQualification[]
-  admissionCounsellingSlots    AdmissionCounsellingSlot[]
-  admissionOffers              AdmissionOffer[]
-  admissionFeePayments         AdmissionFeePayment[]
-  admissionActivities          AdmissionActivity[]
-  admissionFormFields          AdmissionFormField[]
-  admissionEligibilityRules    AdmissionEligibilityRule[]
-  admissionMessages            AdmissionMessage[]
-  courses                      Course[]
-  coursePrerequisites          CoursePrerequisite[]
-  curricula                    Curriculum[]
-  curriculumVersions           CurriculumVersion[]
-  curriculumCourses            CurriculumCourse[]
-  courseOfferings              CourseOffering[]
-  courseOfferingFaculty        CourseOfferingFaculty[]
-  courseRegistrations          CourseRegistration[]
-  academicAdvisingRecords      AcademicAdvisingRecord[]
-  academicProgressionRecords   AcademicProgressionRecord[]
-  courseBacklogs               CourseBacklog[]
-  academicCalendarEvents       AcademicCalendarEvent[]
-  timetables                   Timetable[]
-  timetablePeriods             TimetablePeriod[]
-  timetableEntries             TimetableEntry[]
-  timetableHolidays            TimetableHoliday[]
-  facultyAvailability          FacultyAvailability[]
-  timetableConflicts           TimetableConflict[]
-  timetableSubstitutions       TimetableSubstitution[]
-  timetableHistory             TimetableHistory[]
-  attendanceSessions           AttendanceSession[]
-  attendanceCorrectionRequests AttendanceCorrectionRequest[]
-  facultyAttendance            FacultyAttendance[]
-  attendanceDevices            AttendanceDevice[]
-  attendanceDeviceUsers        AttendanceDeviceUser[]
-  attendanceDeviceLogs         AttendanceDeviceLog[]
-  feeHeads                     FeeHead[]
-  feeStructures                FeeStructure[]
-  feeStructureLines            FeeStructureLine[]
-  studentFeeAssignments        StudentFeeAssignment[]
-  feeDemands                   FeeDemand[]
-  feeConcessions               FeeConcession[]
-  feeRefunds                   FeeRefund[]
-  feeSequences                 FeeSequence[]
-  feeAllocations               StudentFeeAllocation[]
-  examSessions                 ExamSession[]
-  examSubjects                 ExamSubject[]
-  examEligibilityRules         ExamEligibilityRule[]
-  examRegistrations            ExamRegistration[]
-  examHallTickets              ExamHallTicket[]
-  examHallTicketSubjects       ExamHallTicketSubject[]
-  examSeatingPlans             ExamSeatingPlan[]
-  examSeatAllocations          ExamSeatAllocation[]
-  examInvigilatorAssignments   ExamInvigilatorAssignment[]
-  examMarksEntries             ExamMarksEntry[]
-  examRevaluationRequests      ExamRevaluationRequest[]
-  gradingSchemes               GradingScheme[]
-  gradeScales                  GradeScale[]
-  assessmentComponents         AssessmentComponent[]
-  examComponentMarks           ExamComponentMark[]
-  resultCalculations           ResultCalculation[]
-  resultProcesses              ResultProcess[]
-  resultHistory                ResultHistory[]
-  certificateTemplates         CertificateTemplate[]
-  certificateHistoryRows       CertificateHistoryRow[]
-  libraryConfigs               LibraryConfig[]
-  librarySequences             LibrarySequence[]
-  libraryCategories            LibraryCategory[]
-  libraryPublishers            LibraryPublisher[]
-  libraryAuthors               LibraryAuthor[]
-  libraryBooks                 LibraryBook[]
-  libraryBookAuthors           LibraryBookAuthor[]
-  libraryCopies                LibraryCopy[]
-  libraryMembers               LibraryMember[]
-  libraryReservations          LibraryReservation[]
-  libraryFines                 LibraryFine[]
-  libraryTransactions          LibraryTransaction[]
-  hostels                      Hostel[]
-  hostelBuildings              HostelBuilding[]
-  hostelFloors                 HostelFloor[]
-  hostelRooms                  HostelRoom[]
-  hostelBeds                   HostelBed[]
-  hostelWardens                HostelWarden[]
-  hostelComplaints             HostelComplaint[]
-  hostelVisitors               HostelVisitor[]
-  transportVehicles            TransportVehicle[]
-  transportVehicleDocuments    TransportVehicleDocument[]
-  transportDrivers             TransportDriver[]
-  transportDriverAssignments   TransportDriverAssignment[]
-  transportRoutes              TransportRoute[]
-  transportStops               TransportStop[]
-  transportTrips               TransportTrip[]
-  transportTripStops           TransportTripStop[]
-  transportMaintenanceRecords  TransportMaintenanceRecord[]
-  transportGpsPositions        TransportGPSPosition[]
-  transportAlerts              TransportAlert[]
-  transportGpsConfig           TransportGpsConfig[]
-  employees                    Employee[]
-  hrDesignations               HrDesignation[]
-  employeeJoinings             EmployeeJoining[]
-  employeeExits                EmployeeExit[]
-  employeeDocuments            EmployeeDocument[]
-  facultyWorkloads             FacultyWorkload[]
-  leaveTypes                   LeaveType[]
-  leaveBalances                LeaveBalance[]
-  leaveApplications            LeaveApplication[]
-  performanceReviews           EmployeePerformanceReview[]
-  salaryStructures             SalaryStructure[]
-  payrollRuns                  PayrollRun[]
-  payrollRunLines              PayrollRunLine[]
-  placementCompanies           PlacementCompany[]
-  placementContacts           PlacementContact[]
-  placementDrives             PlacementDrive[]
-  placementPositions          PlacementPosition[]
-  placementEligibility        PlacementEligibility[]
-  placementResumes            PlacementResume[]
-  placementApplications       PlacementApplication[]
-  placementRounds             PlacementRound[]
-  placementRoundResults       PlacementRoundResult[]
-  placementSelections         PlacementSelection[]
-  placementOffers             PlacementOffer[]
-  placementJoinings           PlacementJoining[]
-  placementOutcomes           PlacementOutcome[]
-  inventorySequences          InventorySequence[]
-  inventoryVendors            InventoryVendor[]
-  inventoryCategories         InventoryCategory[]
-  inventoryProducts           InventoryProduct[]
-  inventoryLocations          InventoryLocation[]
-  inventoryStockItems         InventoryStockItem[]
-  inventoryStockMovements     InventoryStockMovement[]
-  inventoryPurchaseRequests   InventoryPurchaseRequest[]
-  inventoryPurchaseRequestItems InventoryPurchaseRequestItem[]
-  inventoryPurchaseOrders     InventoryPurchaseOrder[]
-  inventoryPurchaseOrderItems InventoryPurchaseOrderItem[]
-  inventoryGoodsReceipts      InventoryGoodsReceipt[]
-  inventoryGoodsReceiptItems  InventoryGoodsReceiptItem[]
-  inventoryStockTransfers     InventoryStockTransfer[]
-  inventoryStockTransferItems InventoryStockTransferItem[]
-  inventoryStockAdjustments   InventoryStockAdjustment[]
-  inventoryStockAdjustmentItems InventoryStockAdjustmentItem[]
-  inventoryAssets             InventoryAsset[]
-  inventoryAssetAssignments   InventoryAssetAssignment[]
-  inventoryAssetMaintenance   InventoryAssetMaintenance[]
-  inventoryAssetWarrantyClaims InventoryAssetWarrantyClaim[]
+  subscriptions                     Subscription[]
+  subscriptionItems                 SubscriptionItem[]
+  featureOverrides                  TenantFeatureFlag[]
+  usageEvents                       UsageEvent[]
+  users                             User[]
+  roles                             Role[]
+  rolePermissions                   RolePermission[]
+  userRoles                         UserRole[]
+  sessions                          Session[]
+  loginEvents                       LoginEvent[]
+  auditLogs                         PlatformAuditLog[]
+  campuses                          Campus[]
+  departments                       Department[]
+  programs                          Program[]
+  academicYears                     AcademicYear[]
+  terms                             Term[]
+  rooms                             Room[]
+  buildings                         Building[]
+  sections                          Section[]
+  batches                           Batch[]
+  notifications                     Notification[]
+  documents                         Document[]
+  passwordResetTokens               PasswordResetToken[]
+  emailVerificationTokens           EmailVerificationToken[]
+  mfaBackupCodes                    MfaBackupCode[]
+  trustedDevices                    TrustedDevice[]
+  passwordHistory                   PasswordHistory[]
+  securityEvents                    SecurityEvent[]
+  securitySettings                  TenantSecuritySettings?
+  configuration                     TenantConfiguration?
+  workflowDefinitions               WorkflowDefinition[]
+  workflowStates                    WorkflowState[]
+  workflowTransitions               WorkflowTransition[]
+  workflowTransitionApprovers       WorkflowTransitionApprover[]
+  workflowInstances                 WorkflowInstance[]
+  workflowApprovalTasks             WorkflowApprovalTask[]
+  invoices                          Invoice[]
+  invoiceLineItems                  InvoiceLineItem[]
+  payments                          Payment[]
+  supportTickets                    SupportTicket[]
+  entitlements                      Entitlement[]
+  students                          Student[]
+  guardians                         Guardian[]
+  studentDocuments                  StudentDocument[]
+  studentAdmissions                 StudentAdmission[]
+  studentAcademicRecords            StudentAcademicRecord[]
+  studentEnrollments                StudentEnrollment[]
+  studentAttendance                 StudentAttendance[]
+  studentFees                       StudentFee[]
+  studentPayments                   StudentPayment[]
+  studentExams                      StudentExam[]
+  studentResults                    StudentResult[]
+  studentCertificates               StudentCertificate[]
+  studentLibraryLoans               StudentLibraryLoan[]
+  studentHostelBookings             StudentHostelBooking[]
+  studentTransportPasses            StudentTransportPass[]
+  studentHolds                      StudentHold[]
+  studentStatusHistory              StudentStatusHistory[]
+  studentCommunications             StudentCommunication[]
+  studentActivities                 StudentActivity[]
+  admissionSessions                 AdmissionSession[]
+  admissionPrograms                 AdmissionProgramOffer[]
+  admissionEnquiries                AdmissionEnquiry[]
+  admissionApplications             AdmissionApplication[]
+  admissionDocuments                AdmissionDocument[]
+  admissionQualifications           AdmissionQualification[]
+  admissionCounsellingSlots         AdmissionCounsellingSlot[]
+  admissionOffers                   AdmissionOffer[]
+  admissionFeePayments              AdmissionFeePayment[]
+  admissionActivities               AdmissionActivity[]
+  admissionFormFields               AdmissionFormField[]
+  admissionEligibilityRules         AdmissionEligibilityRule[]
+  admissionMessages                 AdmissionMessage[]
+  courses                           Course[]
+  coursePrerequisites               CoursePrerequisite[]
+  curricula                         Curriculum[]
+  curriculumVersions                CurriculumVersion[]
+  curriculumCourses                 CurriculumCourse[]
+  courseOfferings                   CourseOffering[]
+  courseOfferingFaculty             CourseOfferingFaculty[]
+  courseRegistrations               CourseRegistration[]
+  academicAdvisingRecords           AcademicAdvisingRecord[]
+  academicProgressionRecords        AcademicProgressionRecord[]
+  courseBacklogs                    CourseBacklog[]
+  academicCalendarEvents            AcademicCalendarEvent[]
+  timetables                        Timetable[]
+  timetablePeriods                  TimetablePeriod[]
+  timetableEntries                  TimetableEntry[]
+  timetableHolidays                 TimetableHoliday[]
+  facultyAvailability               FacultyAvailability[]
+  timetableConflicts                TimetableConflict[]
+  timetableSubstitutions            TimetableSubstitution[]
+  timetableHistory                  TimetableHistory[]
+  attendanceSessions                AttendanceSession[]
+  attendanceCorrectionRequests      AttendanceCorrectionRequest[]
+  facultyAttendance                 FacultyAttendance[]
+  attendanceDevices                 AttendanceDevice[]
+  attendanceDeviceUsers             AttendanceDeviceUser[]
+  attendanceDeviceLogs              AttendanceDeviceLog[]
+  feeHeads                          FeeHead[]
+  feeStructures                     FeeStructure[]
+  feeStructureLines                 FeeStructureLine[]
+  studentFeeAssignments             StudentFeeAssignment[]
+  feeDemands                        FeeDemand[]
+  feeConcessions                    FeeConcession[]
+  feeRefunds                        FeeRefund[]
+  feeSequences                      FeeSequence[]
+  feeAllocations                    StudentFeeAllocation[]
+  examSessions                      ExamSession[]
+  examSubjects                      ExamSubject[]
+  examEligibilityRules              ExamEligibilityRule[]
+  examRegistrations                 ExamRegistration[]
+  examHallTickets                   ExamHallTicket[]
+  examHallTicketSubjects            ExamHallTicketSubject[]
+  examSeatingPlans                  ExamSeatingPlan[]
+  examSeatAllocations               ExamSeatAllocation[]
+  examInvigilatorAssignments        ExamInvigilatorAssignment[]
+  examMarksEntries                  ExamMarksEntry[]
+  examRevaluationRequests           ExamRevaluationRequest[]
+  gradingSchemes                    GradingScheme[]
+  gradeScales                       GradeScale[]
+  assessmentComponents              AssessmentComponent[]
+  examComponentMarks                ExamComponentMark[]
+  resultCalculations                ResultCalculation[]
+  resultProcesses                   ResultProcess[]
+  resultHistory                     ResultHistory[]
+  certificateTemplates              CertificateTemplate[]
+  certificateHistoryRows            CertificateHistoryRow[]
+  libraryConfigs                    LibraryConfig[]
+  librarySequences                  LibrarySequence[]
+  libraryCategories                 LibraryCategory[]
+  libraryPublishers                 LibraryPublisher[]
+  libraryAuthors                    LibraryAuthor[]
+  libraryBooks                      LibraryBook[]
+  libraryBookAuthors                LibraryBookAuthor[]
+  libraryCopies                     LibraryCopy[]
+  libraryMembers                    LibraryMember[]
+  libraryReservations               LibraryReservation[]
+  libraryFines                      LibraryFine[]
+  libraryTransactions               LibraryTransaction[]
+  hostels                           Hostel[]
+  hostelBuildings                   HostelBuilding[]
+  hostelFloors                      HostelFloor[]
+  hostelRooms                       HostelRoom[]
+  hostelBeds                        HostelBed[]
+  hostelWardens                     HostelWarden[]
+  hostelComplaints                  HostelComplaint[]
+  hostelVisitors                    HostelVisitor[]
+  transportVehicles                 TransportVehicle[]
+  transportVehicleDocuments         TransportVehicleDocument[]
+  transportDrivers                  TransportDriver[]
+  transportDriverAssignments        TransportDriverAssignment[]
+  transportRoutes                   TransportRoute[]
+  transportStops                    TransportStop[]
+  transportTrips                    TransportTrip[]
+  transportTripStops                TransportTripStop[]
+  transportMaintenanceRecords       TransportMaintenanceRecord[]
+  transportGpsPositions             TransportGPSPosition[]
+  transportAlerts                   TransportAlert[]
+  transportGpsConfig                TransportGpsConfig[]
+  employees                         Employee[]
+  hrDesignations                    HrDesignation[]
+  employeeJoinings                  EmployeeJoining[]
+  employeeExits                     EmployeeExit[]
+  employeeDocuments                 EmployeeDocument[]
+  facultyWorkloads                  FacultyWorkload[]
+  leaveTypes                        LeaveType[]
+  leaveBalances                     LeaveBalance[]
+  leaveApplications                 LeaveApplication[]
+  performanceReviews                EmployeePerformanceReview[]
+  salaryStructures                  SalaryStructure[]
+  payrollRuns                       PayrollRun[]
+  payrollRunLines                   PayrollRunLine[]
+  placementCompanies                PlacementCompany[]
+  placementContacts                 PlacementContact[]
+  placementDrives                   PlacementDrive[]
+  placementPositions                PlacementPosition[]
+  placementEligibility              PlacementEligibility[]
+  placementResumes                  PlacementResume[]
+  placementApplications             PlacementApplication[]
+  placementRounds                   PlacementRound[]
+  placementRoundResults             PlacementRoundResult[]
+  placementSelections               PlacementSelection[]
+  placementOffers                   PlacementOffer[]
+  placementJoinings                 PlacementJoining[]
+  placementOutcomes                 PlacementOutcome[]
+  inventorySequences                InventorySequence[]
+  inventoryVendors                  InventoryVendor[]
+  inventoryCategories               InventoryCategory[]
+  inventoryProducts                 InventoryProduct[]
+  inventoryLocations                InventoryLocation[]
+  inventoryStockItems               InventoryStockItem[]
+  inventoryStockMovements           InventoryStockMovement[]
+  inventoryPurchaseRequests         InventoryPurchaseRequest[]
+  inventoryPurchaseRequestItems     InventoryPurchaseRequestItem[]
+  inventoryPurchaseOrders           InventoryPurchaseOrder[]
+  inventoryPurchaseOrderItems       InventoryPurchaseOrderItem[]
+  inventoryGoodsReceipts            InventoryGoodsReceipt[]
+  inventoryGoodsReceiptItems        InventoryGoodsReceiptItem[]
+  inventoryStockTransfers           InventoryStockTransfer[]
+  inventoryStockTransferItems       InventoryStockTransferItem[]
+  inventoryStockAdjustments         InventoryStockAdjustment[]
+  inventoryStockAdjustmentItems     InventoryStockAdjustmentItem[]
+  inventoryAssets                   InventoryAsset[]
+  inventoryAssetAssignments         InventoryAssetAssignment[]
+  inventoryAssetMaintenance         InventoryAssetMaintenance[]
+  inventoryAssetWarrantyClaims      InventoryAssetWarrantyClaim[]
   inventoryAssetDepreciationEntries InventoryAssetDepreciationEntry[]
-  inventoryAssetDisposals     InventoryAssetDisposal[]
+  inventoryAssetDisposals           InventoryAssetDisposal[]
+  helpdeskSequences                 HelpdeskSequence[]
+  helpdeskDepartments               HelpdeskDepartment[]
+  helpdeskCategories                HelpdeskCategory[]
+  helpdeskSlaPolicies               HelpdeskSlaPolicy[]
+  helpdeskTickets                   HelpdeskTicket[]
+  helpdeskTicketComments            HelpdeskTicketComment[]
+  helpdeskTicketAttachments         HelpdeskTicketAttachment[]
+  helpdeskTicketHistory             HelpdeskTicketHistory[]
+  helpdeskEscalations               HelpdeskEscalation[]
+  helpdeskFeedback                  HelpdeskFeedback[]
 
   @@index([status])
   @@map("tenants")
@@ -1042,12 +1052,12 @@ model User {
   examInvigilatorAssignments ExamInvigilatorAssignment[]
   libraryMembers             LibraryMember[]
   transportDrivers           TransportDriver[]
-  employeeProfile            Employee?                          @relation("UserEmployeeProfile")
-  hrUploadedDocuments        EmployeeDocument[]                 @relation("HrDocumentUploaders")
-  hrLeaveDecisions           LeaveApplication[]                 @relation("LeaveApplicationApprovers")
-  hrReviewedPerformances     EmployeePerformanceReview[]        @relation("PerformanceReviewers")
-  hrProcessedPayrollRuns     PayrollRun[]                       @relation("PayrollRunProcessors")
-  hrApprovedPayrollRuns      PayrollRun[]                       @relation("PayrollRunApprovers")
+  employeeProfile            Employee?                     @relation("UserEmployeeProfile")
+  hrUploadedDocuments        EmployeeDocument[]            @relation("HrDocumentUploaders")
+  hrLeaveDecisions           LeaveApplication[]            @relation("LeaveApplicationApprovers")
+  hrReviewedPerformances     EmployeePerformanceReview[]   @relation("PerformanceReviewers")
+  hrProcessedPayrollRuns     PayrollRun[]                  @relation("PayrollRunProcessors")
+  hrApprovedPayrollRuns      PayrollRun[]                  @relation("PayrollRunApprovers")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1410,19 +1420,19 @@ model Campus {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  departments           Department[]
-  buildings             Building[]
-  rooms                 Room[]
-  roleScopeUsers        UserRole[]
-  students              Student[]
-  admissionApplications AdmissionApplication[]
-  courseOfferings       CourseOffering[]
-  timetables            Timetable[]            @relation("CampusTimetables")
-  hostels               Hostel[]
-  transportVehicles     TransportVehicle[]
-  transportRoutes       TransportRoute[]
-  employees             Employee[]             @relation("EmployeeCampuses")
-  inventoryLocations    InventoryLocation[]
+  departments               Department[]
+  buildings                 Building[]
+  rooms                     Room[]
+  roleScopeUsers            UserRole[]
+  students                  Student[]
+  admissionApplications     AdmissionApplication[]
+  courseOfferings           CourseOffering[]
+  timetables                Timetable[]                @relation("CampusTimetables")
+  hostels                   Hostel[]
+  transportVehicles         TransportVehicle[]
+  transportRoutes           TransportRoute[]
+  employees                 Employee[]                 @relation("EmployeeCampuses")
+  inventoryLocations        InventoryLocation[]
   inventoryAssetAssignments InventoryAssetAssignment[] @relation("InventoryAssetCampusAssignees")
 
   @@unique([tenantId, code])
@@ -1447,11 +1457,11 @@ model Department {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  programs       Program[]
-  roleScopeUsers UserRole[]
-  courses        Course[]
-  employees      Employee[]        @relation("EmployeeDepartments")
-  hrDesignations HrDesignation[]   @relation("DepartmentHrDesignations")
+  programs                  Program[]
+  roleScopeUsers            UserRole[]
+  courses                   Course[]
+  employees                 Employee[]                 @relation("EmployeeDepartments")
+  hrDesignations            HrDesignation[]            @relation("DepartmentHrDesignations")
   inventoryPurchaseRequests InventoryPurchaseRequest[]
   inventoryAssetAssignments InventoryAssetAssignment[] @relation("InventoryAssetDepartmentAssignees")
 
@@ -1633,7 +1643,7 @@ model Building {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  rooms            Room[]
+  rooms              Room[]
   inventoryLocations InventoryLocation[]
 
   @@unique([tenantId, campusId, code])
@@ -2612,12 +2622,12 @@ model Student {
   resultCalculations    ResultCalculation[]
   resultProcesses       ResultProcess[]
   resultHistory         ResultHistory[]
-  placementResumes          PlacementResume[]
-  placementEligibility      PlacementEligibility[]
-  placementApplications     PlacementApplication[]
-  placementSelections       PlacementSelection[]
-  placementOffers           PlacementOffer[]
-  placementOutcomes         PlacementOutcome[]
+  placementResumes      PlacementResume[]
+  placementEligibility  PlacementEligibility[]
+  placementApplications PlacementApplication[]
+  placementSelections   PlacementSelection[]
+  placementOffers       PlacementOffer[]
+  placementOutcomes     PlacementOutcome[]
 
   @@unique([tenantId, admissionNumber])
   @@index([tenantId])
@@ -4691,40 +4701,40 @@ model StudentHostelBooking {
 /// points at the concrete route/stop/vehicle it was issued against (routeCode/routeName/
 /// pickupPoint/dropPoint/vehicleNumber are denormalized snapshots kept for backward-compatible reads).
 model StudentTransportPass {
-  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String              @map("tenant_id") @db.Uuid
-  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  studentId     String              @map("student_id") @db.Uuid
-  student       Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  routeId       String?             @map("route_id") @db.Uuid
-  route         TransportRoute?     @relation(fields: [routeId], references: [id], onDelete: SetNull)
-  stopId        String?             @map("stop_id") @db.Uuid
-  stop          TransportStop?      @relation("StudentPassPickupStop", fields: [stopId], references: [id], onDelete: SetNull)
-  dropStopId    String?             @map("drop_stop_id") @db.Uuid
-  dropStop      TransportStop?      @relation("StudentPassDropStop", fields: [dropStopId], references: [id], onDelete: SetNull)
-  vehicleId     String?             @map("vehicle_id") @db.Uuid
-  vehicle       TransportVehicle?   @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  driverId      String?             @map("driver_id") @db.Uuid
-  driver        TransportDriver?    @relation(fields: [driverId], references: [id], onDelete: SetNull)
-  routeCode     String?             @map("route_code")
-  routeName     String              @map("route_name")
-  pickupPoint   String?             @map("pickup_point")
-  dropPoint     String?             @map("drop_point")
-  vehicleNumber String?             @map("vehicle_number")
-  periodStart   DateTime            @map("period_start")
-  periodEnd     DateTime?           @map("period_end")
-  status        TransportPassStatus @default(ACTIVE)
-  amountCents   Int?                @map("amount_cents")
-  dailyPickupTime String?           @map("daily_pickup_time")
-  dailyDropTime   String?           @map("daily_drop_time")
-  issuedOn      DateTime?           @map("issued_on")
-  issuedByUserId String?            @map("issued_by_user_id")
-  remarks       String?
-  createdBy     String?             @map("created_by")
-  updatedBy     String?             @map("updated_by")
-  createdAt     DateTime            @default(now()) @map("created_at")
-  updatedAt     DateTime            @updatedAt @map("updated_at")
-  feeCharges    StudentFee[]
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String              @map("tenant_id") @db.Uuid
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId       String              @map("student_id") @db.Uuid
+  student         Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  routeId         String?             @map("route_id") @db.Uuid
+  route           TransportRoute?     @relation(fields: [routeId], references: [id], onDelete: SetNull)
+  stopId          String?             @map("stop_id") @db.Uuid
+  stop            TransportStop?      @relation("StudentPassPickupStop", fields: [stopId], references: [id], onDelete: SetNull)
+  dropStopId      String?             @map("drop_stop_id") @db.Uuid
+  dropStop        TransportStop?      @relation("StudentPassDropStop", fields: [dropStopId], references: [id], onDelete: SetNull)
+  vehicleId       String?             @map("vehicle_id") @db.Uuid
+  vehicle         TransportVehicle?   @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  driverId        String?             @map("driver_id") @db.Uuid
+  driver          TransportDriver?    @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  routeCode       String?             @map("route_code")
+  routeName       String              @map("route_name")
+  pickupPoint     String?             @map("pickup_point")
+  dropPoint       String?             @map("drop_point")
+  vehicleNumber   String?             @map("vehicle_number")
+  periodStart     DateTime            @map("period_start")
+  periodEnd       DateTime?           @map("period_end")
+  status          TransportPassStatus @default(ACTIVE)
+  amountCents     Int?                @map("amount_cents")
+  dailyPickupTime String?             @map("daily_pickup_time")
+  dailyDropTime   String?             @map("daily_drop_time")
+  issuedOn        DateTime?           @map("issued_on")
+  issuedByUserId  String?             @map("issued_by_user_id")
+  remarks         String?
+  createdBy       String?             @map("created_by")
+  updatedBy       String?             @map("updated_by")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  feeCharges      StudentFee[]
 
   @@index([tenantId])
   @@index([studentId])
@@ -6510,40 +6520,40 @@ model LibrarySequence {
 /// A school vehicle (bus/van/car) held on the transport register. registrationNumber is unique per
 /// tenant. Status/paperwork are tracked here and mirrored into checked-in at trip dispatch time.
 model TransportVehicle {
-  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId            String                 @map("tenant_id") @db.Uuid
-  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  campusId            String?                @map("campus_id") @db.Uuid
-  campus              Campus?                @relation(fields: [campusId], references: [id], onDelete: SetNull)
-  type                TransportVehicleType   @default(BUS)
-  registrationNumber  String                 @map("registration_number")
-  chassisNumber       String?                @map("chassis_number")
-  engineNumber        String?                @map("engine_number")
-  make                String?
-  model               String?
-  yearOfManufacture   Int?                   @map("year_of_manufacture")
-  fuelType            String?                @map("fuel_type")
-  seatingCapacity     Int?                   @map("seating_capacity")
-  standingCapacity    Int?                   @map("standing_capacity")
-  isAc                Boolean                @default(false) @map("is_ac")
+  id                 String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String                 @map("tenant_id") @db.Uuid
+  tenant             Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId           String?                @map("campus_id") @db.Uuid
+  campus             Campus?                @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  type               TransportVehicleType   @default(BUS)
+  registrationNumber String                 @map("registration_number")
+  chassisNumber      String?                @map("chassis_number")
+  engineNumber       String?                @map("engine_number")
+  make               String?
+  model              String?
+  yearOfManufacture  Int?                   @map("year_of_manufacture")
+  fuelType           String?                @map("fuel_type")
+  seatingCapacity    Int?                   @map("seating_capacity")
+  standingCapacity   Int?                   @map("standing_capacity")
+  isAc               Boolean                @default(false) @map("is_ac")
   /// GPS hardware/device id, when the vehicle is fitted. Polled by the GPS provider adapters.
-  gpsDeviceId         String?                @map("gps_device_id")
-  status              TransportVehicleStatus @default(IN_SERVICE)
+  gpsDeviceId        String?                @map("gps_device_id")
+  status             TransportVehicleStatus @default(IN_SERVICE)
   /// Derivable-at-read convenience flags (registration/fitness/insurance/permit expiry) are
   /// computed by the transport service's vehicle builder from its TransportVehicleDocument rows.
-  createdBy           String?                @map("created_by")
-  updatedBy           String?                @map("updated_by")
-  createdAt           DateTime               @default(now()) @map("created_at")
-  updatedAt           DateTime               @updatedAt @map("updated_at")
-  deletedAt           DateTime?              @map("deleted_at")
+  createdBy          String?                @map("created_by")
+  updatedBy          String?                @map("updated_by")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+  deletedAt          DateTime?              @map("deleted_at")
 
-  documents       TransportVehicleDocument[]
-  driverAssignments TransportDriverAssignment[]
-  routes          TransportRoute[]
-  trips           TransportTrip[]
-  gpsPositions    TransportGPSPosition[]
-  alerts          TransportAlert[]
-  passAssignments StudentTransportPass[]
+  documents          TransportVehicleDocument[]
+  driverAssignments  TransportDriverAssignment[]
+  routes             TransportRoute[]
+  trips              TransportTrip[]
+  gpsPositions       TransportGPSPosition[]
+  alerts             TransportAlert[]
+  passAssignments    StudentTransportPass[]
   maintenanceRecords TransportMaintenanceRecord[]
 
   @@unique([tenantId, registrationNumber])
@@ -6587,30 +6597,30 @@ model TransportVehicleDocument {
 /// A driver eligible to run a transport route. licenseNumber is unique per tenant. Optionally
 /// linked to a User account (userId) so a driver can sign in and see their own trips.
 model TransportDriver {
-  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String                @map("tenant_id") @db.Uuid
-  tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  userId         String?               @map("user_id") @db.Uuid
-  user           User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
-  name           String
-  phone          String?
-  alternatePhone String?               @map("alternate_phone")
-  email          String?
-  licenseNumber  String                @map("license_number")
-  licenseClass   String?               @map("license_class")
-  licenseExpiry  DateTime?             @map("license_expiry")
-  profilePhotoKey String?              @map("profile_photo_key")
-  joinedAt       DateTime?             @map("joined_at")
-  status         TransportDriverStatus @default(ACTIVE)
-  notes          String?
-  createdBy      String?               @map("created_by")
-  updatedBy      String?               @map("updated_by")
-  createdAt      DateTime              @default(now()) @map("created_at")
-  updatedAt      DateTime              @updatedAt @map("updated_at")
-  deletedAt      DateTime?             @map("deleted_at")
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String                @map("tenant_id") @db.Uuid
+  tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId          String?               @map("user_id") @db.Uuid
+  user            User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name            String
+  phone           String?
+  alternatePhone  String?               @map("alternate_phone")
+  email           String?
+  licenseNumber   String                @map("license_number")
+  licenseClass    String?               @map("license_class")
+  licenseExpiry   DateTime?             @map("license_expiry")
+  profilePhotoKey String?               @map("profile_photo_key")
+  joinedAt        DateTime?             @map("joined_at")
+  status          TransportDriverStatus @default(ACTIVE)
+  notes           String?
+  createdBy       String?               @map("created_by")
+  updatedBy       String?               @map("updated_by")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  deletedAt       DateTime?             @map("deleted_at")
 
-  assignments    TransportDriverAssignment[]
-  trips          TransportTrip[]
+  assignments     TransportDriverAssignment[]
+  trips           TransportTrip[]
   passAssignments StudentTransportPass[]
 
   @@unique([tenantId, licenseNumber])
@@ -6624,21 +6634,21 @@ model TransportDriver {
 /// The route-level "who rides today" still lives on the trip's driverId; this is the persistent
 /// driver↔vehicle fleet assignment ledger (and the source for roster planning).
 model TransportDriverAssignment {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String   @map("tenant_id") @db.Uuid
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  driverId   String   @map("driver_id") @db.Uuid
-  driver     TransportDriver @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  vehicleId  String   @map("vehicle_id") @db.Uuid
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String           @map("tenant_id") @db.Uuid
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driverId   String           @map("driver_id") @db.Uuid
+  driver     TransportDriver  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicleId  String           @map("vehicle_id") @db.Uuid
   vehicle    TransportVehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  isActive   Boolean  @default(true) @map("is_active")
-  assignedAt DateTime @default(now()) @map("assigned_at")
-  releasedAt DateTime? @map("released_at")
+  isActive   Boolean          @default(true) @map("is_active")
+  assignedAt DateTime         @default(now()) @map("assigned_at")
+  releasedAt DateTime?        @map("released_at")
   remarks    String?
-  createdBy  String?  @map("created_by")
-  updatedBy  String?  @map("updated_by")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  createdBy  String?          @map("created_by")
+  updatedBy  String?          @map("updated_by")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, driverId, isActive])
@@ -6649,29 +6659,29 @@ model TransportDriverAssignment {
 /// A scheduled school route between stops. Fee for the route is carried as monthlyFeeCents and is
 /// charged onto the student fee ledger (StudentFee.transportPassId) when a pass is allocated.
 model TransportRoute {
-  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId            String               @map("tenant_id") @db.Uuid
-  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  campusId            String?              @map("campus_id") @db.Uuid
-  campus              Campus?              @relation(fields: [campusId], references: [id], onDelete: SetNull)
-  code                String               @map("code")
-  name                String
-  status              TransportRouteStatus @default(ACTIVE)
-  distanceKm          Float?               @map("distance_km")
-  estimatedDurationMin Int?                @map("estimated_duration_min")
-  monthlyFeeCents     Int?                 @map("monthly_fee_cents")
-  description         String?
-  isActive            Boolean              @default(true) @map("is_active")
-  vehicleId           String?              @map("vehicle_id") @db.Uuid
-  vehicle             TransportVehicle?    @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  createdBy           String?              @map("created_by")
-  updatedBy           String?              @map("updated_by")
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  deletedAt           DateTime?            @map("deleted_at")
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String               @map("tenant_id") @db.Uuid
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId             String?              @map("campus_id") @db.Uuid
+  campus               Campus?              @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  code                 String               @map("code")
+  name                 String
+  status               TransportRouteStatus @default(ACTIVE)
+  distanceKm           Float?               @map("distance_km")
+  estimatedDurationMin Int?                 @map("estimated_duration_min")
+  monthlyFeeCents      Int?                 @map("monthly_fee_cents")
+  description          String?
+  isActive             Boolean              @default(true) @map("is_active")
+  vehicleId            String?              @map("vehicle_id") @db.Uuid
+  vehicle              TransportVehicle?    @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  createdBy            String?              @map("created_by")
+  updatedBy            String?              @map("updated_by")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+  deletedAt            DateTime?            @map("deleted_at")
 
-  stops        TransportStop[]
-  trips        TransportTrip[]
+  stops           TransportStop[]
+  trips           TransportTrip[]
   passAssignments StudentTransportPass[]
 
   @@unique([tenantId, code])
@@ -6685,28 +6695,28 @@ model TransportRoute {
 /// GPS geofence evaluator compares against live vehicle positions. pickupTime/dropTime are local
 /// clock strings ("07:30") defining the intended schedule for the associated leg/direction.
 model TransportStop {
-  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId        String           @map("tenant_id") @db.Uuid
-  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  routeId         String           @map("route_id") @db.Uuid
-  route           TransportRoute   @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  name            String
-  order           Int
-  type            TransportStopType @default(PICKUP)
-  address         String?
-  latitude        Float?
-  longitude       Float?
-  pickupTime      String?          @map("pickup_time")
-  dropTime        String?          @map("drop_time")
-  reachRadiusMeters Int            @default(50) @map("reach_radius_meters")
-  isActive        Boolean          @default(true) @map("is_active")
-  createdBy       String?          @map("created_by")
-  updatedBy       String?          @map("updated_by")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
-  deletedAt       DateTime?        @map("deleted_at")
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String            @map("tenant_id") @db.Uuid
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  routeId           String            @map("route_id") @db.Uuid
+  route             TransportRoute    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  name              String
+  order             Int
+  type              TransportStopType @default(PICKUP)
+  address           String?
+  latitude          Float?
+  longitude         Float?
+  pickupTime        String?           @map("pickup_time")
+  dropTime          String?           @map("drop_time")
+  reachRadiusMeters Int               @default(50) @map("reach_radius_meters")
+  isActive          Boolean           @default(true) @map("is_active")
+  createdBy         String?           @map("created_by")
+  updatedBy         String?           @map("updated_by")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  deletedAt         DateTime?         @map("deleted_at")
 
-  tripStops   TransportTripStop[]
+  tripStops           TransportTripStop[]
   passAssignments     StudentTransportPass[] @relation("StudentPassPickupStop")
   dropPassAssignments StudentTransportPass[] @relation("StudentPassDropStop")
 
@@ -6744,9 +6754,9 @@ model TransportTrip {
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
 
-  tripStops  TransportTripStop[]
+  tripStops    TransportTripStop[]
   gpsPositions TransportGPSPosition[]
-  alerts     TransportAlert[]
+  alerts       TransportAlert[]
 
   @@unique([tenantId, routeId, date])
   @@index([tenantId])
@@ -6759,21 +6769,21 @@ model TransportTrip {
 /// Per-stop checkpoints of a trip run (used for route tracking: boarded/alighted counts, actual
 /// arrival/departure, skipped stops).
 model TransportTripStop {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId        String   @map("tenant_id") @db.Uuid
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  tripId          String   @map("trip_id") @db.Uuid
-  trip            TransportTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  stopId          String   @map("stop_id") @db.Uuid
-  stop            TransportStop @relation(fields: [stopId], references: [id], onDelete: Restrict)
-  order           Int
-  scheduledTime   DateTime? @map("scheduled_time")
-  actualArrivalAt DateTime? @map("actual_arrival_at")
-  actualDepartureAt DateTime? @map("actual_departure_at")
-  studentsBoarded Int      @default(0) @map("students_boarded")
-  studentsAlighted Int     @default(0) @map("students_alighted")
-  skipped         Boolean  @default(false)
-  notes           String?
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String        @map("tenant_id") @db.Uuid
+  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tripId            String        @map("trip_id") @db.Uuid
+  trip              TransportTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  stopId            String        @map("stop_id") @db.Uuid
+  stop              TransportStop @relation(fields: [stopId], references: [id], onDelete: Restrict)
+  order             Int
+  scheduledTime     DateTime?     @map("scheduled_time")
+  actualArrivalAt   DateTime?     @map("actual_arrival_at")
+  actualDepartureAt DateTime?     @map("actual_departure_at")
+  studentsBoarded   Int           @default(0) @map("students_boarded")
+  studentsAlighted  Int           @default(0) @map("students_alighted")
+  skipped           Boolean       @default(false)
+  notes             String?
 
   @@index([tenantId])
   @@index([tenantId, tripId])
@@ -6782,26 +6792,26 @@ model TransportTripStop {
 
 /// Fleet maintenance/repair record for a vehicle.
 model TransportMaintenanceRecord {
-  id            String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String                      @map("tenant_id") @db.Uuid
-  tenant        Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  vehicleId     String                      @map("vehicle_id") @db.Uuid
-  vehicle       TransportVehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  id            String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                     @map("tenant_id") @db.Uuid
+  tenant        Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  vehicleId     String                     @map("vehicle_id") @db.Uuid
+  vehicle       TransportVehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   type          TransportMaintenanceType
-  status        TransportMaintenanceStatus  @default(SCHEDULED)
-  scheduledDate DateTime?                   @map("scheduled_date")
-  startedAt     DateTime?                   @map("started_at")
-  completedAt   DateTime?                   @map("completed_at")
-  odometerKm    Int?                        @map("odometer_km")
+  status        TransportMaintenanceStatus @default(SCHEDULED)
+  scheduledDate DateTime?                  @map("scheduled_date")
+  startedAt     DateTime?                  @map("started_at")
+  completedAt   DateTime?                  @map("completed_at")
+  odometerKm    Int?                       @map("odometer_km")
   description   String?
   vendor        String?
-  costCents     Int?                        @map("cost_cents")
-  performedBy   String?                     @map("performed_by")
+  costCents     Int?                       @map("cost_cents")
+  performedBy   String?                    @map("performed_by")
   notes         String?
-  createdBy     String?                     @map("created_by")
-  updatedBy     String?                     @map("updated_by")
-  createdAt     DateTime                    @default(now()) @map("created_at")
-  updatedAt     DateTime                    @updatedAt @map("updated_at")
+  createdBy     String?                    @map("created_by")
+  updatedBy     String?                    @map("updated_by")
+  createdAt     DateTime                   @default(now()) @map("created_at")
+  updatedAt     DateTime                   @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, vehicleId])
@@ -6813,21 +6823,21 @@ model TransportMaintenanceRecord {
 /// by an on-demand poll from the transport module's GPS service, or by the worker's scheduled
 /// polling sweep (both of which route through the shared packages/gps provider abstraction).
 model TransportGPSPosition {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String    @map("tenant_id") @db.Uuid
-  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  vehicleId      String    @map("vehicle_id") @db.Uuid
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  vehicleId      String           @map("vehicle_id") @db.Uuid
   vehicle        TransportVehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  tripId         String?   @map("trip_id") @db.Uuid
-  trip           TransportTrip? @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  tripId         String?          @map("trip_id") @db.Uuid
+  trip           TransportTrip?   @relation(fields: [tripId], references: [id], onDelete: SetNull)
   latitude       Float
   longitude      Float
-  speedKmh       Float?    @map("speed_kmh")
-  heading        Int?      @map("heading")
-  accuracyMeters Float?    @map("accuracy_meters")
-  recordedAt     DateTime  @default(now()) @map("recorded_at")
-  source         String    @default("mock")
-  rawData        Json?     @map("raw_data")
+  speedKmh       Float?           @map("speed_kmh")
+  heading        Int?             @map("heading")
+  accuracyMeters Float?           @map("accuracy_meters")
+  recordedAt     DateTime         @default(now()) @map("recorded_at")
+  source         String           @default("mock")
+  rawData        Json?            @map("raw_data")
 
   @@index([tenantId])
   @@index([tenantId, vehicleId, recordedAt])
@@ -6839,27 +6849,27 @@ model TransportGPSPosition {
 /// or operator/flag-driven (MAINTENANCE_DUE/DOCUMENT_EXPIRING/DELAYED/OTHER). CRITICAL alerts are
 /// fanned out to transport-manager users as notifications on creation.
 model TransportAlert {
-  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String               @map("tenant_id") @db.Uuid
-  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  vehicleId        String?              @map("vehicle_id") @db.Uuid
-  vehicle          TransportVehicle?    @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  tripId           String?              @map("trip_id") @db.Uuid
-  trip             TransportTrip?       @relation(fields: [tripId], references: [id], onDelete: SetNull)
-  type             TransportAlertType
-  severity         TransportAlertSeverity
-  title            String
-  message          String
-  latitude         Float?
-  longitude        Float?
-  meta             Json?
-  acknowledgedAt   DateTime?            @map("acknowledged_at")
-  acknowledgedByUserId String?          @map("acknowledged_by_user_id")
-  resolvedAt       DateTime?            @map("resolved_at")
-  resolvedByUserId String?              @map("resolved_by_user_id")
-  resolution       String?
-  createdAt        DateTime             @default(now()) @map("created_at")
-  updatedAt        DateTime             @updatedAt @map("updated_at")
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                 @map("tenant_id") @db.Uuid
+  tenant               Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  vehicleId            String?                @map("vehicle_id") @db.Uuid
+  vehicle              TransportVehicle?      @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  tripId               String?                @map("trip_id") @db.Uuid
+  trip                 TransportTrip?         @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  type                 TransportAlertType
+  severity             TransportAlertSeverity
+  title                String
+  message              String
+  latitude             Float?
+  longitude            Float?
+  meta                 Json?
+  acknowledgedAt       DateTime?              @map("acknowledged_at")
+  acknowledgedByUserId String?                @map("acknowledged_by_user_id")
+  resolvedAt           DateTime?              @map("resolved_at")
+  resolvedByUserId     String?                @map("resolved_by_user_id")
+  resolution           String?
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, severity, resolvedAt])
@@ -6873,19 +6883,19 @@ model TransportAlert {
 /// GPS integration provider-agnostic: adding a vendor means registering an adapter implementing
 /// the TransportGpsProvider interface in packages/gps, not touching the module's data model.
 model TransportGpsConfig {
-  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String   @unique @map("tenant_id") @db.Uuid
-  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  provider          String   @default("mock")
-  enabled           Boolean  @default(false)
-  pollEnabled       Boolean  @default(false) @map("poll_enabled")
-  pollIntervalSeconds Int    @default(30) @map("poll_interval_seconds")
-  settings          Json?
-  lastPolledAt      DateTime? @map("last_polled_at")
-  createdBy         String?  @map("created_by")
-  updatedBy         String?  @map("updated_by")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String    @unique @map("tenant_id") @db.Uuid
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  provider            String    @default("mock")
+  enabled             Boolean   @default(false)
+  pollEnabled         Boolean   @default(false) @map("poll_enabled")
+  pollIntervalSeconds Int       @default(30) @map("poll_interval_seconds")
+  settings            Json?
+  lastPolledAt        DateTime? @map("last_polled_at")
+  createdBy           String?   @map("created_by")
+  updatedBy           String?   @map("updated_by")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   @@map("transport_gps_configs")
 }
@@ -7011,71 +7021,71 @@ enum PayrollRunLineStatus {
 /// employee exists standalone. Soft-deleted via `deletedAt` — exit records are kept on
 /// `employee_exits` and the master row is deactivated instead of purged.
 model Employee {
-  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId                 String                     @map("tenant_id") @db.Uuid
-  tenant                   Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  employeeCode             String                     @map("employee_code")
-  userId                   String?                    @unique @map("user_id") @db.Uuid
-  user                     User?                      @relation("UserEmployeeProfile", fields: [userId], references: [id], onDelete: SetNull)
-  employeeType             EmployeeType               @default(FACULTY) @map("employee_type")
+  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String                   @map("tenant_id") @db.Uuid
+  tenant                   Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeCode             String                   @map("employee_code")
+  userId                   String?                  @unique @map("user_id") @db.Uuid
+  user                     User?                    @relation("UserEmployeeProfile", fields: [userId], references: [id], onDelete: SetNull)
+  employeeType             EmployeeType             @default(FACULTY) @map("employee_type")
   honorific                String?
-  firstName                String                     @map("first_name")
-  middleName               String?                    @map("middle_name")
-  lastName                 String                     @map("last_name")
+  firstName                String                   @map("first_name")
+  middleName               String?                  @map("middle_name")
+  lastName                 String                   @map("last_name")
   gender                   String?
-  dateOfBirth              DateTime?                  @map("date_of_birth") @db.Date
-  personalEmail            String?                    @map("personal_email")
+  dateOfBirth              DateTime?                @map("date_of_birth") @db.Date
+  personalEmail            String?                  @map("personal_email")
   phone                    String?
-  alternatePhone           String?                    @map("alternate_phone")
-  addressLine1             String?                    @map("address_line1")
-  addressLine2             String?                    @map("address_line2")
+  alternatePhone           String?                  @map("alternate_phone")
+  addressLine1             String?                  @map("address_line1")
+  addressLine2             String?                  @map("address_line2")
   city                     String?
   state                    String?
-  postalCode               String?                    @map("postal_code")
-  country                  String?                    @default("India")
-  departmentId             String                     @map("department_id") @db.Uuid
-  department               Department                 @relation("EmployeeDepartments", fields: [departmentId], references: [id], onDelete: Restrict)
-  designationId            String?                    @map("designation_id") @db.Uuid
-  designation              HrDesignation?             @relation("DesignationEmployees", fields: [designationId], references: [id], onDelete: SetNull)
-  campusId                 String?                    @map("campus_id") @db.Uuid
-  campus                   Campus?                    @relation("EmployeeCampuses", fields: [campusId], references: [id], onDelete: SetNull)
-  reportingToId            String?                    @map("reporting_to_id") @db.Uuid
-  reportingTo              Employee?                  @relation("EmployeeReportsTo", fields: [reportingToId], references: [id], onDelete: SetNull)
-  reports                  Employee[]                 @relation("EmployeeReportsTo")
-  employmentType           EmploymentType             @default(FULL_TIME) @map("employment_type")
-  employmentStatus         EmployeeEmploymentStatus   @default(ACTIVE) @map("employment_status")
-  joinDate                 DateTime?                  @map("join_date") @db.Date
-  confirmationDate         DateTime?                  @map("confirmation_date") @db.Date
-  exitDate                 DateTime?                  @map("exit_date") @db.Date
-  emergencyContactName     String?                    @map("emergency_contact_name")
-  emergencyContactPhone    String?                    @map("emergency_contact_phone")
-  emergencyContactRelation String?                    @map("emergency_contact_relation")
-  panNumber                String?                    @map("pan_number")
-  aadhaarNumber            String?                    @map("aadhaar_number")
-  bankAccountNumber        String?                    @map("bank_account_number")
-  bankName                 String?                    @map("bank_name")
-  bankIfsc                 String?                    @map("bank_ifsc")
-  uanNumber                String?                    @map("uan_number")
+  postalCode               String?                  @map("postal_code")
+  country                  String?                  @default("India")
+  departmentId             String                   @map("department_id") @db.Uuid
+  department               Department               @relation("EmployeeDepartments", fields: [departmentId], references: [id], onDelete: Restrict)
+  designationId            String?                  @map("designation_id") @db.Uuid
+  designation              HrDesignation?           @relation("DesignationEmployees", fields: [designationId], references: [id], onDelete: SetNull)
+  campusId                 String?                  @map("campus_id") @db.Uuid
+  campus                   Campus?                  @relation("EmployeeCampuses", fields: [campusId], references: [id], onDelete: SetNull)
+  reportingToId            String?                  @map("reporting_to_id") @db.Uuid
+  reportingTo              Employee?                @relation("EmployeeReportsTo", fields: [reportingToId], references: [id], onDelete: SetNull)
+  reports                  Employee[]               @relation("EmployeeReportsTo")
+  employmentType           EmploymentType           @default(FULL_TIME) @map("employment_type")
+  employmentStatus         EmployeeEmploymentStatus @default(ACTIVE) @map("employment_status")
+  joinDate                 DateTime?                @map("join_date") @db.Date
+  confirmationDate         DateTime?                @map("confirmation_date") @db.Date
+  exitDate                 DateTime?                @map("exit_date") @db.Date
+  emergencyContactName     String?                  @map("emergency_contact_name")
+  emergencyContactPhone    String?                  @map("emergency_contact_phone")
+  emergencyContactRelation String?                  @map("emergency_contact_relation")
+  panNumber                String?                  @map("pan_number")
+  aadhaarNumber            String?                  @map("aadhaar_number")
+  bankAccountNumber        String?                  @map("bank_account_number")
+  bankName                 String?                  @map("bank_name")
+  bankIfsc                 String?                  @map("bank_ifsc")
+  uanNumber                String?                  @map("uan_number")
   qualification            String?
   specialization           String?
-  profilePhotoKey          String?                    @map("profile_photo_key")
+  profilePhotoKey          String?                  @map("profile_photo_key")
   notes                    String?
-  createdBy                String?                    @map("created_by")
-  updatedBy                String?                    @map("updated_by")
-  createdAt                DateTime                   @default(now()) @map("created_at")
-  updatedAt                DateTime                   @updatedAt @map("updated_at")
-  deletedAt                DateTime?                  @map("deleted_at")
+  createdBy                String?                  @map("created_by")
+  updatedBy                String?                  @map("updated_by")
+  createdAt                DateTime                 @default(now()) @map("created_at")
+  updatedAt                DateTime                 @updatedAt @map("updated_at")
+  deletedAt                DateTime?                @map("deleted_at")
 
-  joinings           EmployeeJoining[]
-  exits              EmployeeExit[]
-  documents          EmployeeDocument[]
-  workloads          FacultyWorkload[]
-  leaveBalances      LeaveBalance[]
-  leaveApplications  LeaveApplication[]
-  performanceReviews EmployeePerformanceReview[]
-  salaryStructures   SalaryStructure[]
-  payrollLines       PayrollRunLine[]
-  inventoryAssetAssignments InventoryAssetAssignment[] @relation("InventoryAssetEmployeeAssignees")
+  joinings                  EmployeeJoining[]
+  exits                     EmployeeExit[]
+  documents                 EmployeeDocument[]
+  workloads                 FacultyWorkload[]
+  leaveBalances             LeaveBalance[]
+  leaveApplications         LeaveApplication[]
+  performanceReviews        EmployeePerformanceReview[]
+  salaryStructures          SalaryStructure[]
+  payrollLines              PayrollRunLine[]
+  inventoryAssetAssignments InventoryAssetAssignment[]  @relation("InventoryAssetEmployeeAssignees")
 
   @@unique([tenantId, employeeCode])
   @@index([tenantId])
@@ -7107,7 +7117,7 @@ model HrDesignation {
   updatedAt    DateTime    @updatedAt @map("updated_at")
   deletedAt    DateTime?   @map("deleted_at")
 
-  employees    Employee[]  @relation("DesignationEmployees")
+  employees Employee[] @relation("DesignationEmployees")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -7143,26 +7153,26 @@ model EmployeeJoining {
 /// Offboarding / exit record. Recording an exit deactivates the employee master row (sets
 /// `exitDate` + employmentStatus) so exits are auditable history, never a hard delete.
 model EmployeeExit {
-  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId           String            @map("tenant_id") @db.Uuid
-  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  employeeId         String            @map("employee_id") @db.Uuid
-  employee           Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  exitType           EmployeeExitType  @map("exit_type")
-  effectiveDate      DateTime?         @map("effective_date") @db.Date
-  lastWorkingDate    DateTime?         @map("last_working_date") @db.Date
-  noticePeriodDays   Int?              @map("notice_period_days")
-  relievingDate      DateTime?         @map("relieving_date") @db.Date
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String           @map("tenant_id") @db.Uuid
+  tenant             Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId         String           @map("employee_id") @db.Uuid
+  employee           Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  exitType           EmployeeExitType @map("exit_type")
+  effectiveDate      DateTime?        @map("effective_date") @db.Date
+  lastWorkingDate    DateTime?        @map("last_working_date") @db.Date
+  noticePeriodDays   Int?             @map("notice_period_days")
+  relievingDate      DateTime?        @map("relieving_date") @db.Date
   reason             String?
-  noDueStatus        String?           @default("PENDING") @map("no_due_status")
-  noDueClearedAt     DateTime?         @map("no_due_cleared_at")
-  relievingLetterKey String?           @map("relieving_letter_key")
-  settlementAmount   Decimal?          @map("settlement_amount") @db.Decimal(12, 2)
+  noDueStatus        String?          @default("PENDING") @map("no_due_status")
+  noDueClearedAt     DateTime?        @map("no_due_cleared_at")
+  relievingLetterKey String?          @map("relieving_letter_key")
+  settlementAmount   Decimal?         @map("settlement_amount") @db.Decimal(12, 2)
   remarks            String?
-  createdBy          String?           @map("created_by")
-  updatedBy          String?           @map("updated_by")
-  createdAt          DateTime          @default(now()) @map("created_at")
-  updatedAt          DateTime          @updatedAt @map("updated_at")
+  createdBy          String?          @map("created_by")
+  updatedBy          String?          @map("updated_by")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, employeeId])
@@ -7194,7 +7204,7 @@ model EmployeeDocument {
   createdAt        DateTime             @default(now()) @map("created_at")
   updatedAt        DateTime             @updatedAt @map("updated_at")
 
-  payslipLines     PayrollRunLine[]     @relation("PayslipDocuments")
+  payslipLines PayrollRunLine[] @relation("PayslipDocuments")
 
   @@index([tenantId])
   @@index([tenantId, employeeId])
@@ -7205,24 +7215,24 @@ model EmployeeDocument {
 /// Faculty workload allocations per term. Teaching workload can additionally be derived from
 /// timetables (TimetableEntry.assignedUserId) — this table covers the non-timetable breakdown.
 model FacultyWorkload {
-  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String             @map("tenant_id") @db.Uuid
-  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  employeeId    String             @map("employee_id") @db.Uuid
-  employee      Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  termId        String?            @map("term_id") @db.Uuid
-  term          Term?              @relation("TermFacultyWorkloads", fields: [termId], references: [id], onDelete: SetNull)
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId    String              @map("employee_id") @db.Uuid
+  employee      Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  termId        String?             @map("term_id") @db.Uuid
+  term          Term?               @relation("TermFacultyWorkloads", fields: [termId], references: [id], onDelete: SetNull)
   workloadType  FacultyWorkloadType @map("workload_type")
   title         String
   description   String?
-  hoursPerWeek  Float              @default(0) @map("hours_per_week")
-  effectiveFrom DateTime?          @map("effective_from") @db.Date
-  effectiveTo   DateTime?          @map("effective_to") @db.Date
-  isActive      Boolean            @default(true) @map("is_active")
-  createdBy     String?            @map("created_by")
-  updatedBy     String?            @map("updated_by")
-  createdAt     DateTime           @default(now()) @map("created_at")
-  updatedAt     DateTime           @updatedAt @map("updated_at")
+  hoursPerWeek  Float               @default(0) @map("hours_per_week")
+  effectiveFrom DateTime?           @map("effective_from") @db.Date
+  effectiveTo   DateTime?           @map("effective_to") @db.Date
+  isActive      Boolean             @default(true) @map("is_active")
+  createdBy     String?             @map("created_by")
+  updatedBy     String?             @map("updated_by")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, employeeId, termId])
@@ -7261,23 +7271,23 @@ model LeaveType {
 
 /// Per-employee, per-year running leave ledger for one leave type.
 model LeaveBalance {
-  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String     @map("tenant_id") @db.Uuid
-  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  employeeId     String     @map("employee_id") @db.Uuid
-  employee       Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveTypeId    String     @map("leave_type_id") @db.Uuid
-  leaveType      LeaveType  @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId     String    @map("employee_id") @db.Uuid
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId    String    @map("leave_type_id") @db.Uuid
+  leaveType      LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
   year           Int
-  openingBalance Float      @default(0) @map("opening_balance")
-  creditedDays   Float      @default(0) @map("credited_days")
-  availedDays    Float      @default(0) @map("availed_days")
-  adjustedDays   Float      @default(0) @map("adjusted_days")
-  closingBalance Float?     @map("closing_balance")
-  createdBy      String?    @map("created_by")
-  updatedBy      String?    @map("updated_by")
-  createdAt      DateTime   @default(now()) @map("created_at")
-  updatedAt      DateTime   @updatedAt @map("updated_at")
+  openingBalance Float     @default(0) @map("opening_balance")
+  creditedDays   Float     @default(0) @map("credited_days")
+  availedDays    Float     @default(0) @map("availed_days")
+  adjustedDays   Float     @default(0) @map("adjusted_days")
+  closingBalance Float?    @map("closing_balance")
+  createdBy      String?   @map("created_by")
+  updatedBy      String?   @map("updated_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   @@unique([tenantId, employeeId, leaveTypeId, year])
   @@index([tenantId])
@@ -7288,28 +7298,28 @@ model LeaveBalance {
 /// A leave application. Approving/rejecting decrements or restores the applicant's LeaveBalance
 /// availedDays. `createdBy` holds the requesting user id (the employee may not have a login).
 model LeaveApplication {
-  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String       @map("tenant_id") @db.Uuid
-  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  employeeId       String       @map("employee_id") @db.Uuid
-  employee         Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveTypeId      String       @map("leave_type_id") @db.Uuid
-  leaveType        LeaveType    @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
-  fromDate         DateTime     @map("from_date") @db.Date
-  toDate           DateTime     @map("to_date") @db.Date
-  durationDays     Float        @map("duration_days")
-  halfDayOption    String?      @map("half_day_option")
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String      @map("tenant_id") @db.Uuid
+  tenant           Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId       String      @map("employee_id") @db.Uuid
+  employee         Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId      String      @map("leave_type_id") @db.Uuid
+  leaveType        LeaveType   @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  fromDate         DateTime    @map("from_date") @db.Date
+  toDate           DateTime    @map("to_date") @db.Date
+  durationDays     Float       @map("duration_days")
+  halfDayOption    String?     @map("half_day_option")
   reason           String?
-  attachmentKey    String?      @map("attachment_key")
-  status           LeaveStatus  @default(PENDING) @map("status")
-  approvedByUserId String?      @map("approved_by_user_id") @db.Uuid
-  approvedByUser   User?        @relation("LeaveApplicationApprovers", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  decidedAt        DateTime?    @map("decided_at")
-  decisionRemarks  String?      @map("decision_remarks")
-  createdBy        String?      @map("created_by")
-  updatedBy        String?      @map("updated_by")
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
+  attachmentKey    String?     @map("attachment_key")
+  status           LeaveStatus @default(PENDING) @map("status")
+  approvedByUserId String?     @map("approved_by_user_id") @db.Uuid
+  approvedByUser   User?       @relation("LeaveApplicationApprovers", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  decidedAt        DateTime?   @map("decided_at")
+  decisionRemarks  String?     @map("decision_remarks")
+  createdBy        String?     @map("created_by")
+  updatedBy        String?     @map("updated_by")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, employeeId, status])
@@ -7350,26 +7360,26 @@ model EmployeePerformanceReview {
 /// Pay bands / compensation for an employee over a period. allowances & deductions are JSON
 /// arrays of { head, amount }. Payroll lines snapshot gross/net from the active structure.
 model SalaryStructure {
-  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String           @map("tenant_id") @db.Uuid
-  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  employeeId     String           @map("employee_id") @db.Uuid
-  employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  effectiveFrom  DateTime?        @map("effective_from") @db.Date
-  effectiveTo    DateTime?        @map("effective_to") @db.Date
-  basicAmount    Decimal          @map("basic_amount") @db.Decimal(12, 2)
-  hraAmount      Decimal          @default(0) @map("hra_amount") @db.Decimal(12, 2)
-  allowances     Json?
-  deductions     Json?
-  grossAmount    Decimal          @map("gross_amount") @db.Decimal(12, 2)
-  netAmount      Decimal          @map("net_amount") @db.Decimal(12, 2)
-  isActive       Boolean          @default(true) @map("is_active")
-  createdBy      String?          @map("created_by")
-  updatedBy      String?          @map("updated_by")
-  createdAt      DateTime         @default(now()) @map("created_at")
-  updatedAt      DateTime         @updatedAt @map("updated_at")
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId    String    @map("employee_id") @db.Uuid
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  effectiveFrom DateTime? @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  basicAmount   Decimal   @map("basic_amount") @db.Decimal(12, 2)
+  hraAmount     Decimal   @default(0) @map("hra_amount") @db.Decimal(12, 2)
+  allowances    Json?
+  deductions    Json?
+  grossAmount   Decimal   @map("gross_amount") @db.Decimal(12, 2)
+  netAmount     Decimal   @map("net_amount") @db.Decimal(12, 2)
+  isActive      Boolean   @default(true) @map("is_active")
+  createdBy     String?   @map("created_by")
+  updatedBy     String?   @map("updated_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  payrollLines   PayrollRunLine[]
+  payrollLines PayrollRunLine[]
 
   @@index([tenantId])
   @@index([tenantId, employeeId, isActive])
@@ -7380,26 +7390,26 @@ model SalaryStructure {
 /// A monthly payroll run for a tenant. One run per tenant/month/year. Processing materializes
 /// PayrollRunLine rows from active salary structures; approving locks the run.
 model PayrollRun {
-  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String          @map("tenant_id") @db.Uuid
-  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String           @map("tenant_id") @db.Uuid
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   month             Int
   year              Int
   title             String?
   status            PayrollRunStatus @default(DRAFT) @map("status")
-  processedByUserId String?         @map("processed_by_user_id") @db.Uuid
-  processedByUser   User?           @relation("PayrollRunProcessors", fields: [processedByUserId], references: [id], onDelete: SetNull)
-  approvedByUserId  String?         @map("approved_by_user_id") @db.Uuid
-  approvedByUser    User?           @relation("PayrollRunApprovers", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  processedAt       DateTime?       @map("processed_at")
-  approvedAt        DateTime?       @map("approved_at")
+  processedByUserId String?          @map("processed_by_user_id") @db.Uuid
+  processedByUser   User?            @relation("PayrollRunProcessors", fields: [processedByUserId], references: [id], onDelete: SetNull)
+  approvedByUserId  String?          @map("approved_by_user_id") @db.Uuid
+  approvedByUser    User?            @relation("PayrollRunApprovers", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  processedAt       DateTime?        @map("processed_at")
+  approvedAt        DateTime?        @map("approved_at")
   notes             String?
-  createdBy         String?         @map("created_by")
-  updatedBy         String?         @map("updated_by")
-  createdAt         DateTime        @default(now()) @map("created_at")
-  updatedAt         DateTime        @updatedAt @map("updated_at")
+  createdBy         String?          @map("created_by")
+  updatedBy         String?          @map("updated_by")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
 
-  lines            PayrollRunLine[]
+  lines PayrollRunLine[]
 
   @@unique([tenantId, month, year])
   @@index([tenantId])
@@ -7410,29 +7420,29 @@ model PayrollRun {
 /// Per-employee line of a payroll run. Payslips are stored as PAYSLIP-type EmployeeDocument
 /// rows; field `payslipDocumentId` links them so payroll integrates with the document store.
 model PayrollRunLine {
-  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String           @map("tenant_id") @db.Uuid
-  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  runId             String           @map("run_id") @db.Uuid
-  run               PayrollRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
-  employeeId        String           @map("employee_id") @db.Uuid
-  employee          Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  salaryStructureId String?          @map("salary_structure_id") @db.Uuid
-  salaryStructure   SalaryStructure? @relation(fields: [salaryStructureId], references: [id], onDelete: SetNull)
-  daysWorked        Int?             @map("days_worked")
-  grossAmount       Decimal          @map("gross_amount") @db.Decimal(12, 2)
-  totalDeductions   Decimal          @default(0) @map("total_deductions") @db.Decimal(12, 2)
-  netAmount         Decimal          @map("net_amount") @db.Decimal(12, 2)
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String               @map("tenant_id") @db.Uuid
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  runId             String               @map("run_id") @db.Uuid
+  run               PayrollRun           @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employeeId        String               @map("employee_id") @db.Uuid
+  employee          Employee             @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  salaryStructureId String?              @map("salary_structure_id") @db.Uuid
+  salaryStructure   SalaryStructure?     @relation(fields: [salaryStructureId], references: [id], onDelete: SetNull)
+  daysWorked        Int?                 @map("days_worked")
+  grossAmount       Decimal              @map("gross_amount") @db.Decimal(12, 2)
+  totalDeductions   Decimal              @default(0) @map("total_deductions") @db.Decimal(12, 2)
+  netAmount         Decimal              @map("net_amount") @db.Decimal(12, 2)
   earnings          Json?
   deductions        Json?
   status            PayrollRunLineStatus @default(DRAFT) @map("status")
-  paidAt            DateTime?        @map("paid_at")
-  payslipDocumentId String?          @map("payslip_document_id") @db.Uuid
-  payslipDocument   EmployeeDocument? @relation("PayslipDocuments", fields: [payslipDocumentId], references: [id], onDelete: SetNull)
-  referenceNumber   String?          @map("reference_number")
-  createdBy         String?          @map("created_by")
-  createdAt         DateTime         @default(now()) @map("created_at")
-  updatedAt         DateTime         @updatedAt @map("updated_at")
+  paidAt            DateTime?            @map("paid_at")
+  payslipDocumentId String?              @map("payslip_document_id") @db.Uuid
+  payslipDocument   EmployeeDocument?    @relation("PayslipDocuments", fields: [payslipDocumentId], references: [id], onDelete: SetNull)
+  referenceNumber   String?              @map("reference_number")
+  createdBy         String?              @map("created_by")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, runId])
@@ -7547,27 +7557,27 @@ enum PlacementOutcomeStatus {
 
 /// Recruiting company the placement office works with.
 model PlacementCompany {
-  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String               @map("tenant_id") @db.Uuid
-  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  code              String
-  name              String
-  companyType       PlacementCompanyType @default(OTHER) @map("company_type")
-  industry          String?
-  website           String?
-  description       String?
-  headquartersCity  String?              @map("headquarters_city")
-  addressLine1      String?              @map("address_line_1")
-  addressLine2      String?              @map("address_line_2")
-  city              String?
-  state             String?
-  country           String?              @default("India")
-  isActive          Boolean              @default(true) @map("is_active")
-  createdBy         String?              @map("created_by")
-  updatedBy         String?              @map("updated_by")
-  createdAt         DateTime             @default(now()) @map("created_at")
-  updatedAt         DateTime             @updatedAt @map("updated_at")
-  deletedAt         DateTime?            @map("deleted_at")
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code             String
+  name             String
+  companyType      PlacementCompanyType @default(OTHER) @map("company_type")
+  industry         String?
+  website          String?
+  description      String?
+  headquartersCity String?              @map("headquarters_city")
+  addressLine1     String?              @map("address_line_1")
+  addressLine2     String?              @map("address_line_2")
+  city             String?
+  state            String?
+  country          String?              @default("India")
+  isActive         Boolean              @default(true) @map("is_active")
+  createdBy        String?              @map("created_by")
+  updatedBy        String?              @map("updated_by")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  deletedAt        DateTime?            @map("deleted_at")
 
   contacts PlacementContact[]
   drives   PlacementDrive[]
@@ -7580,24 +7590,24 @@ model PlacementCompany {
 
 /// People at a PlacementCompany the placement cell coordinates with.
 model PlacementContact {
-  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String             @map("tenant_id") @db.Uuid
-  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  companyId   String             @map("company_id") @db.Uuid
-  company     PlacementCompany   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  fullName    String             @map("full_name")
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String           @map("tenant_id") @db.Uuid
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  companyId   String           @map("company_id") @db.Uuid
+  company     PlacementCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fullName    String           @map("full_name")
   designation String?
   email       String?
   phone       String?
-  isPrimary   Boolean            @default(false) @map("is_primary")
-  isActive    Boolean            @default(true) @map("is_active")
-  createdBy   String?            @map("created_by")
-  updatedBy   String?            @map("updated_by")
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
-  deletedAt   DateTime?          @map("deleted_at")
+  isPrimary   Boolean          @default(false) @map("is_primary")
+  isActive    Boolean          @default(true) @map("is_active")
+  createdBy   String?          @map("created_by")
+  updatedBy   String?          @map("updated_by")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  deletedAt   DateTime?        @map("deleted_at")
 
-  companyCoordinate  PlacementDrive[] @relation("PlacementDriveCoordinators")
+  companyCoordinate PlacementDrive[] @relation("PlacementDriveCoordinators")
 
   @@index([tenantId])
   @@index([companyId])
@@ -7607,27 +7617,27 @@ model PlacementContact {
 
 /// A placement drive: a batch of positions (PlacementPosition) run for one company.
 model PlacementDrive {
-  id                   String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId             String                     @map("tenant_id") @db.Uuid
-  tenant               Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  companyId            String                     @map("company_id") @db.Uuid
-  company              PlacementCompany           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String               @map("tenant_id") @db.Uuid
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  companyId            String               @map("company_id") @db.Uuid
+  company              PlacementCompany     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   code                 String
   title                String
   description          String?
-  mode                 PlacementDriveMode         @default(ON_CAMPUS)
-  status               PlacementDriveStatus       @default(DRAFT)
-  driveDate            DateTime?                  @map("drive_date")
-  applicationDeadline  DateTime?                  @map("application_deadline")
+  mode                 PlacementDriveMode   @default(ON_CAMPUS)
+  status               PlacementDriveStatus @default(DRAFT)
+  driveDate            DateTime?            @map("drive_date")
+  applicationDeadline  DateTime?            @map("application_deadline")
   venue                String?
-  coordinatorContactId String?                    @map("coordinator_contact_id") @db.Uuid
-  coordinatorContact   PlacementContact?          @relation("PlacementDriveCoordinators", fields: [coordinatorContactId], references: [id], onDelete: SetNull)
-  eligibilityNotes     String?                    @map("eligibility_notes")
-  createdBy            String?                    @map("created_by")
-  updatedBy            String?                    @map("updated_by")
-  createdAt            DateTime                   @default(now()) @map("created_at")
-  updatedAt            DateTime                   @updatedAt @map("updated_at")
-  deletedAt            DateTime?                  @map("deleted_at")
+  coordinatorContactId String?              @map("coordinator_contact_id") @db.Uuid
+  coordinatorContact   PlacementContact?    @relation("PlacementDriveCoordinators", fields: [coordinatorContactId], references: [id], onDelete: SetNull)
+  eligibilityNotes     String?              @map("eligibility_notes")
+  createdBy            String?              @map("created_by")
+  updatedBy            String?              @map("updated_by")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+  deletedAt            DateTime?            @map("deleted_at")
 
   positions    PlacementPosition[]
   eligibility  PlacementEligibility[]
@@ -7649,27 +7659,27 @@ model PlacementDrive {
 /// A concrete job/position being hired for as part of a drive. Holds the eligibility
 /// criteria (minCgpa/minPercentage/maxBacklogs) used to evaluate student eligibility.
 model PlacementPosition {
-  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String                 @map("tenant_id") @db.Uuid
-  tenant        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  driveId       String                 @map("drive_id") @db.Uuid
-  drive         PlacementDrive         @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                @map("tenant_id") @db.Uuid
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId       String                @map("drive_id") @db.Uuid
+  drive         PlacementDrive        @relation(fields: [driveId], references: [id], onDelete: Cascade)
   title         String
-  positionType  PlacementPositionType  @default(FULL_TIME) @map("position_type")
+  positionType  PlacementPositionType @default(FULL_TIME) @map("position_type")
   location      String?
-  openings      Int?                   @default(1)
+  openings      Int?                  @default(1)
   description   String?
-  minCgpa       Float?                 @map("min_cgpa")
-  minPercentage Float?                 @map("min_percentage")
-  maxBacklogs   Int?                   @map("max_backlogs")
-  packageCents  Int?                   @map("package_cents")
-  packageNotes  String?                @map("package_notes")
-  isActive      Boolean                @default(true) @map("is_active")
-  createdBy     String?                @map("created_by")
-  updatedBy     String?                @map("updated_by")
-  createdAt     DateTime               @default(now()) @map("created_at")
-  updatedAt     DateTime               @updatedAt @map("updated_at")
-  deletedAt     DateTime?              @map("deleted_at")
+  minCgpa       Float?                @map("min_cgpa")
+  minPercentage Float?                @map("min_percentage")
+  maxBacklogs   Int?                  @map("max_backlogs")
+  packageCents  Int?                  @map("package_cents")
+  packageNotes  String?               @map("package_notes")
+  isActive      Boolean               @default(true) @map("is_active")
+  createdBy     String?               @map("created_by")
+  updatedBy     String?               @map("updated_by")
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+  deletedAt     DateTime?             @map("deleted_at")
 
   eligibility  PlacementEligibility[]
   applications PlacementApplication[]
@@ -7686,25 +7696,25 @@ model PlacementPosition {
 /// Pre-computed eligibility of a student for a drive/position. `criteriaSnapshot` and
 /// `studentSnapshot` freeze what was evaluated so results are auditable after the fact.
 model PlacementEligibility {
-  id               String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String                     @map("tenant_id") @db.Uuid
-  tenant           Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  driveId          String                     @map("drive_id") @db.Uuid
-  drive            PlacementDrive             @relation(fields: [driveId], references: [id], onDelete: Cascade)
-  positionId       String                     @map("position_id") @db.Uuid
-  position         PlacementPosition          @relation(fields: [positionId], references: [id], onDelete: Cascade)
-  studentId        String                     @map("student_id") @db.Uuid
-  student          Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  status           PlacementEligibilityStatus @default(PENDING)
-  criteriaSnapshot Json?                      @map("criteria_snapshot")
-  studentSnapshot  Json?                      @map("student_snapshot")
-  remarks          String?
-  evaluatedByUserId String?                   @map("evaluated_by_user_id") @db.Uuid
-  evaluatedAt      DateTime?                  @map("evaluated_at")
-  createdBy        String?                    @map("created_by")
-  updatedBy        String?                    @map("updated_by")
-  createdAt        DateTime                   @default(now()) @map("created_at")
-  updatedAt        DateTime                   @updatedAt @map("updated_at")
+  id                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                     @map("tenant_id") @db.Uuid
+  tenant            Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId           String                     @map("drive_id") @db.Uuid
+  drive             PlacementDrive             @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  positionId        String                     @map("position_id") @db.Uuid
+  position          PlacementPosition          @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  studentId         String                     @map("student_id") @db.Uuid
+  student           Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status            PlacementEligibilityStatus @default(PENDING)
+  criteriaSnapshot  Json?                      @map("criteria_snapshot")
+  studentSnapshot   Json?                      @map("student_snapshot")
+  remarks           String?
+  evaluatedByUserId String?                    @map("evaluated_by_user_id") @db.Uuid
+  evaluatedAt       DateTime?                  @map("evaluated_at")
+  createdBy         String?                    @map("created_by")
+  updatedBy         String?                    @map("updated_by")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
 
   @@unique([tenantId, driveId, positionId, studentId])
   @@index([tenantId])
@@ -7744,27 +7754,27 @@ model PlacementResume {
 
 /// A student's application to a specific position in a drive.
 model PlacementApplication {
-  id            String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String                       @map("tenant_id") @db.Uuid
-  tenant        Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  driveId       String                       @map("drive_id") @db.Uuid
-  drive         PlacementDrive               @relation(fields: [driveId], references: [id], onDelete: Restrict)
-  positionId    String                       @map("position_id") @db.Uuid
-  position      PlacementPosition            @relation(fields: [positionId], references: [id], onDelete: Restrict)
-  studentId     String                       @map("student_id") @db.Uuid
-  student       Student                      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  resumeId      String?                      @map("resume_id") @db.Uuid
-  resume        PlacementResume?             @relation(fields: [resumeId], references: [id], onDelete: SetNull)
-  status        PlacementApplicationStatus   @default(APPLIED)
-  appliedAt     DateTime                     @default(now()) @map("applied_at")
-  shortlistedAt DateTime?                    @map("shortlisted_at")
-  rejectedAt    DateTime?                    @map("rejected_at")
-  withdrawnAt   DateTime?                    @map("withdrawn_at")
+  id            String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                     @map("tenant_id") @db.Uuid
+  tenant        Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId       String                     @map("drive_id") @db.Uuid
+  drive         PlacementDrive             @relation(fields: [driveId], references: [id], onDelete: Restrict)
+  positionId    String                     @map("position_id") @db.Uuid
+  position      PlacementPosition          @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  studentId     String                     @map("student_id") @db.Uuid
+  student       Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  resumeId      String?                    @map("resume_id") @db.Uuid
+  resume        PlacementResume?           @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  status        PlacementApplicationStatus @default(APPLIED)
+  appliedAt     DateTime                   @default(now()) @map("applied_at")
+  shortlistedAt DateTime?                  @map("shortlisted_at")
+  rejectedAt    DateTime?                  @map("rejected_at")
+  withdrawnAt   DateTime?                  @map("withdrawn_at")
   remarks       String?
-  createdBy     String?                      @map("created_by")
-  updatedBy     String?                      @map("updated_by")
-  createdAt     DateTime                     @default(now()) @map("created_at")
-  updatedAt     DateTime                     @updatedAt @map("updated_at")
+  createdBy     String?                    @map("created_by")
+  updatedBy     String?                    @map("updated_by")
+  createdAt     DateTime                   @default(now()) @map("created_at")
+  updatedAt     DateTime                   @updatedAt @map("updated_at")
 
   roundResults PlacementRoundResult[]
   selection    PlacementSelection?
@@ -7835,24 +7845,24 @@ model PlacementRoundResult {
 
 /// A student selected for a position (post-rounds) before an offer is issued.
 model PlacementSelection {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  driveId          String    @map("drive_id") @db.Uuid
-  drive            PlacementDrive @relation(fields: [driveId], references: [id], onDelete: Restrict)
-  positionId       String    @map("position_id") @db.Uuid
-  position         PlacementPosition @relation(fields: [positionId], references: [id], onDelete: Restrict)
-  applicationId    String    @map("application_id") @db.Uuid @unique
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId          String               @map("drive_id") @db.Uuid
+  drive            PlacementDrive       @relation(fields: [driveId], references: [id], onDelete: Restrict)
+  positionId       String               @map("position_id") @db.Uuid
+  position         PlacementPosition    @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  applicationId    String               @unique @map("application_id") @db.Uuid
   application      PlacementApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  studentId        String    @map("student_id") @db.Uuid
-  student          Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  selectedByUserId String?   @map("selected_by_user_id") @db.Uuid
-  selectedAt       DateTime  @default(now()) @map("selected_at")
+  studentId        String               @map("student_id") @db.Uuid
+  student          Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  selectedByUserId String?              @map("selected_by_user_id") @db.Uuid
+  selectedAt       DateTime             @default(now()) @map("selected_at")
   notes            String?
-  createdBy        String?   @map("created_by")
-  updatedBy        String?   @map("updated_by")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  createdBy        String?              @map("created_by")
+  updatedBy        String?              @map("updated_by")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
 
   offer PlacementOffer?
 
@@ -7866,35 +7876,35 @@ model PlacementSelection {
 
 /// Offer letter issued to a student for a drive/position after selection.
 model PlacementOffer {
-  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String                @map("tenant_id") @db.Uuid
-  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  driveId          String                @map("drive_id") @db.Uuid
-  drive            PlacementDrive        @relation(fields: [driveId], references: [id], onDelete: Restrict)
-  positionId       String                @map("position_id") @db.Uuid
-  position         PlacementPosition     @relation(fields: [positionId], references: [id], onDelete: Restrict)
-  applicationId    String                @map("application_id") @db.Uuid @unique
-  application      PlacementApplication  @relation(fields: [applicationId], references: [id], onDelete: Restrict)
-  selectionId      String?               @map("selection_id") @db.Uuid @unique
-  selection        PlacementSelection?   @relation(fields: [selectionId], references: [id], onDelete: SetNull)
-  studentId        String                @map("student_id") @db.Uuid
-  student          Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String               @map("tenant_id") @db.Uuid
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId           String               @map("drive_id") @db.Uuid
+  drive             PlacementDrive       @relation(fields: [driveId], references: [id], onDelete: Restrict)
+  positionId        String               @map("position_id") @db.Uuid
+  position          PlacementPosition    @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  applicationId     String               @unique @map("application_id") @db.Uuid
+  application       PlacementApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  selectionId       String?              @unique @map("selection_id") @db.Uuid
+  selection         PlacementSelection?  @relation(fields: [selectionId], references: [id], onDelete: SetNull)
+  studentId         String               @map("student_id") @db.Uuid
+  student           Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
   offerLetterNumber String               @map("offer_letter_number")
-  packageCents     Int?                  @map("package_cents")
-  joiningLocation  String?               @map("joining_location")
-  status           PlacementOfferStatus  @default(ISSUED)
-  issuedAt         DateTime              @default(now()) @map("issued_at")
-  acceptedAt       DateTime?             @map("accepted_at")
-  declinedAt       DateTime?             @map("declined_at")
-  expiryDate       DateTime?             @map("expiry_date")
-  notes            String?
-  createdBy        String?               @map("created_by")
-  updatedBy        String?               @map("updated_by")
-  createdAt        DateTime              @default(now()) @map("created_at")
-  updatedAt        DateTime              @updatedAt @map("updated_at")
-  deletedAt        DateTime?             @map("deleted_at")
+  packageCents      Int?                 @map("package_cents")
+  joiningLocation   String?              @map("joining_location")
+  status            PlacementOfferStatus @default(ISSUED)
+  issuedAt          DateTime             @default(now()) @map("issued_at")
+  acceptedAt        DateTime?            @map("accepted_at")
+  declinedAt        DateTime?            @map("declined_at")
+  expiryDate        DateTime?            @map("expiry_date")
+  notes             String?
+  createdBy         String?              @map("created_by")
+  updatedBy         String?              @map("updated_by")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  deletedAt         DateTime?            @map("deleted_at")
 
-  joining PlacementJoining?
+  joining  PlacementJoining?
   outcomes PlacementOutcome[]
 
   @@unique([tenantId, offerLetterNumber])
@@ -7913,7 +7923,7 @@ model PlacementJoining {
   tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   driveId             String                 @map("drive_id") @db.Uuid
   drive               PlacementDrive         @relation(fields: [driveId], references: [id], onDelete: Restrict)
-  offerId             String                 @map("offer_id") @db.Uuid @unique
+  offerId             String                 @unique @map("offer_id") @db.Uuid
   offer               PlacementOffer         @relation(fields: [offerId], references: [id], onDelete: Cascade)
   expectedJoiningDate DateTime?              @map("expected_joining_date")
   actualJoiningDate   DateTime?              @map("actual_joining_date")
@@ -8015,20 +8025,20 @@ enum InventoryCategoryKind {
 }
 
 model InventoryCategory {
-  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String               @map("tenant_id") @db.Uuid
-  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  id          String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String                @map("tenant_id") @db.Uuid
+  tenant      Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   kind        InventoryCategoryKind @default(PRODUCT)
   code        String
   name        String
   description String?
-  parentId    String?              @map("parent_id") @db.Uuid
-  parent      InventoryCategory?   @relation("InventoryCategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
-  createdBy   String?              @map("created_by")
-  updatedBy   String?              @map("updated_by")
-  createdAt   DateTime             @default(now()) @map("created_at")
-  updatedAt   DateTime             @updatedAt @map("updated_at")
-  deletedAt   DateTime?            @map("deleted_at")
+  parentId    String?               @map("parent_id") @db.Uuid
+  parent      InventoryCategory?    @relation("InventoryCategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  createdBy   String?               @map("created_by")
+  updatedBy   String?               @map("updated_by")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+  deletedAt   DateTime?             @map("deleted_at")
 
   children InventoryCategory[] @relation("InventoryCategoryChildren")
   products InventoryProduct[]
@@ -8046,30 +8056,30 @@ enum InventoryVendorStatus {
 }
 
 model InventoryVendor {
-  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId        String                 @map("tenant_id") @db.Uuid
-  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  code            String
-  name            String
-  gstin           String?
-  contactPerson   String?                @map("contact_person")
-  phone           String?
-  email           String?
-  addressLine1    String?                @map("address_line1")
-  addressLine2    String?                @map("address_line2")
-  city            String?
-  state           String?
-  postalCode      String?                @map("postal_code")
-  country         String?                @default("India")
-  website         String?
-  paymentTerms    String?                @map("payment_terms")
-  status          InventoryVendorStatus  @default(ACTIVE)
-  notes           String?
-  createdBy       String?                @map("created_by")
-  updatedBy       String?                @map("updated_by")
-  createdAt       DateTime               @default(now()) @map("created_at")
-  updatedAt       DateTime               @updatedAt @map("updated_at")
-  deletedAt       DateTime?              @map("deleted_at")
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                @map("tenant_id") @db.Uuid
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code          String
+  name          String
+  gstin         String?
+  contactPerson String?               @map("contact_person")
+  phone         String?
+  email         String?
+  addressLine1  String?               @map("address_line1")
+  addressLine2  String?               @map("address_line2")
+  city          String?
+  state         String?
+  postalCode    String?               @map("postal_code")
+  country       String?               @default("India")
+  website       String?
+  paymentTerms  String?               @map("payment_terms")
+  status        InventoryVendorStatus @default(ACTIVE)
+  notes         String?
+  createdBy     String?               @map("created_by")
+  updatedBy     String?               @map("updated_by")
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+  deletedAt     DateTime?             @map("deleted_at")
 
   purchaseRequests   InventoryPurchaseRequest[]
   purchaseOrders     InventoryPurchaseOrder[]
@@ -8084,24 +8094,24 @@ model InventoryVendor {
 }
 
 model InventoryProduct {
-  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String      @map("tenant_id") @db.Uuid
-  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  categoryId    String      @map("category_id") @db.Uuid
-  category      InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  code          String
-  sku           String?
-  name          String
-  description   String?
-  unit          String      @default("PCS")
-  unitPriceCents Int?       @map("unit_price_cents")
-  reorderLevel  Int         @default(0) @map("reorder_level")
-  isActive      Boolean     @default(true) @map("is_active")
-  createdBy     String?     @map("created_by")
-  updatedBy     String?     @map("updated_by")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  deletedAt     DateTime?   @map("deleted_at")
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String            @map("tenant_id") @db.Uuid
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  categoryId     String            @map("category_id") @db.Uuid
+  category       InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  code           String
+  sku            String?
+  name           String
+  description    String?
+  unit           String            @default("PCS")
+  unitPriceCents Int?              @map("unit_price_cents")
+  reorderLevel   Int               @default(0) @map("reorder_level")
+  isActive       Boolean           @default(true) @map("is_active")
+  createdBy      String?           @map("created_by")
+  updatedBy      String?           @map("updated_by")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  deletedAt      DateTime?         @map("deleted_at")
 
   stockItems      InventoryStockItem[]
   movements       InventoryStockMovement[]
@@ -8127,33 +8137,33 @@ enum InventoryLocationType {
 }
 
 model InventoryLocation {
-  id          String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId    String                @map("tenant_id") @db.Uuid
-  tenant      Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  code        String
-  name        String
-  type        InventoryLocationType @default(STORE)
-  campusId    String?               @map("campus_id") @db.Uuid
-  campus      Campus?               @relation(fields: [campusId], references: [id], onDelete: SetNull)
-  buildingId  String?               @map("building_id") @db.Uuid
-  building    Building?             @relation(fields: [buildingId], references: [id], onDelete: SetNull)
-  roomId      String?               @map("room_id") @db.Uuid
-  room        Room?                 @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  isActive    Boolean               @default(true) @map("is_active")
-  notes       String?
-  createdBy   String?               @map("created_by")
-  updatedBy   String?               @map("updated_by")
-  createdAt   DateTime              @default(now()) @map("created_at")
-  updatedAt   DateTime              @updatedAt @map("updated_at")
-  deletedAt   DateTime?             @map("deleted_at")
+  id         String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String                @map("tenant_id") @db.Uuid
+  tenant     Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code       String
+  name       String
+  type       InventoryLocationType @default(STORE)
+  campusId   String?               @map("campus_id") @db.Uuid
+  campus     Campus?               @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  buildingId String?               @map("building_id") @db.Uuid
+  building   Building?             @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  roomId     String?               @map("room_id") @db.Uuid
+  room       Room?                 @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  isActive   Boolean               @default(true) @map("is_active")
+  notes      String?
+  createdBy  String?               @map("created_by")
+  updatedBy  String?               @map("updated_by")
+  createdAt  DateTime              @default(now()) @map("created_at")
+  updatedAt  DateTime              @updatedAt @map("updated_at")
+  deletedAt  DateTime?             @map("deleted_at")
 
-  stockItems  InventoryStockItem[]
-  movements   InventoryStockMovement[]
-  receiptItems InventoryGoodsReceiptItem[]
-  transferringOut InventoryStockTransfer[] @relation("InventoryTransferFromLocations")
-  transferringIn  InventoryStockTransfer[] @relation("InventoryTransferToLocations")
-  adjustments InventoryStockAdjustment[]
-  assets      InventoryAsset[]
+  stockItems      InventoryStockItem[]
+  movements       InventoryStockMovement[]
+  receiptItems    InventoryGoodsReceiptItem[]
+  transferringOut InventoryStockTransfer[]    @relation("InventoryTransferFromLocations")
+  transferringIn  InventoryStockTransfer[]    @relation("InventoryTransferToLocations")
+  adjustments     InventoryStockAdjustment[]
+  assets          InventoryAsset[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -8165,20 +8175,20 @@ model InventoryLocation {
 /// Current balance per product per location. Updated transactionally alongside a
 /// StockMovement ledger write so the movement history never diverges from balances.
 model InventoryStockItem {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  productId        String    @map("product_id") @db.Uuid
-  product          InventoryProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
-  locationId       String    @map("location_id") @db.Uuid
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String            @map("tenant_id") @db.Uuid
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  productId        String            @map("product_id") @db.Uuid
+  product          InventoryProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  locationId       String            @map("location_id") @db.Uuid
   location         InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  quantityOnHand   Int       @default(0) @map("quantity_on_hand")
-  reservedQuantity Int       @default(0) @map("reserved_quantity")
-  lastMovementAt   DateTime? @map("last_movement_at")
-  createdBy        String?   @map("created_by")
-  updatedBy        String?   @map("updated_by")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  quantityOnHand   Int               @default(0) @map("quantity_on_hand")
+  reservedQuantity Int               @default(0) @map("reserved_quantity")
+  lastMovementAt   DateTime?         @map("last_movement_at")
+  createdBy        String?           @map("created_by")
+  updatedBy        String?           @map("updated_by")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
 
   @@unique([tenantId, locationId, productId])
   @@index([tenantId])
@@ -8200,24 +8210,24 @@ enum InventoryStockMovementType {
 /// Append-only stock ledger. `referenceType`/`referenceId` loosely link the movement
 /// to the business record that produced it (goods receipt / transfer / adjustment).
 model InventoryStockMovement {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String    @map("tenant_id") @db.Uuid
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  productId     String    @map("product_id") @db.Uuid
-  product       InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
-  locationId    String    @map("location_id") @db.Uuid
-  location      InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  type          InventoryStockMovementType
-  quantityDelta Int       @map("quantity_delta")
-  quantityBefore Int      @map("quantity_before")
-  quantityAfter Int       @map("quantity_after")
-  reason        String?
-  referenceType String?   @map("reference_type")
-  referenceId   String?   @map("reference_id")
-  notes         String?
-  postedBy      String?   @map("posted_by")
-  occurredAt    DateTime  @default(now()) @map("occurred_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id             String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String                     @map("tenant_id") @db.Uuid
+  tenant         Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  productId      String                     @map("product_id") @db.Uuid
+  product        InventoryProduct           @relation(fields: [productId], references: [id], onDelete: Restrict)
+  locationId     String                     @map("location_id") @db.Uuid
+  location       InventoryLocation          @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  type           InventoryStockMovementType
+  quantityDelta  Int                        @map("quantity_delta")
+  quantityBefore Int                        @map("quantity_before")
+  quantityAfter  Int                        @map("quantity_after")
+  reason         String?
+  referenceType  String?                    @map("reference_type")
+  referenceId    String?                    @map("reference_id")
+  notes          String?
+  postedBy       String?                    @map("posted_by")
+  occurredAt     DateTime                   @default(now()) @map("occurred_at")
+  createdAt      DateTime                   @default(now()) @map("created_at")
 
   @@index([tenantId])
   @@index([tenantId, productId, occurredAt])
@@ -8240,30 +8250,30 @@ enum InventoryPurchaseRequestStatus {
 /// the inventory module; intent-to-purchase approvals are a first-tier nudge for a
 /// future WorkflowModule integration.
 model InventoryPurchaseRequest {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  requestNumber    String    @map("request_number")
+  id               String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                         @map("tenant_id") @db.Uuid
+  tenant           Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  requestNumber    String                         @map("request_number")
   status           InventoryPurchaseRequestStatus @default(DRAFT)
-  requestedBy      String    @map("requested_by")
-  requestedAt      DateTime  @default(now()) @map("requested_at")
-  departmentId     String?   @map("department_id") @db.Uuid
-  department       Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  vendorId         String?   @map("vendor_id") @db.Uuid
-  vendor           InventoryVendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  requiresApproval Boolean   @default(true) @map("requires_approval")
-  reviewedById     String?   @map("reviewed_by_id")
-  approvedById     String?   @map("approved_by_id")
-  approvedAt       DateTime? @map("approved_at")
-  rejectionReason  String?   @map("rejection_reason")
+  requestedBy      String                         @map("requested_by")
+  requestedAt      DateTime                       @default(now()) @map("requested_at")
+  departmentId     String?                        @map("department_id") @db.Uuid
+  department       Department?                    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  vendorId         String?                        @map("vendor_id") @db.Uuid
+  vendor           InventoryVendor?               @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  requiresApproval Boolean                        @default(true) @map("requires_approval")
+  reviewedById     String?                        @map("reviewed_by_id")
+  approvedById     String?                        @map("approved_by_id")
+  approvedAt       DateTime?                      @map("approved_at")
+  rejectionReason  String?                        @map("rejection_reason")
   notes            String?
-  createdBy        String?   @map("created_by")
-  updatedBy        String?   @map("updated_by")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  createdBy        String?                        @map("created_by")
+  updatedBy        String?                        @map("updated_by")
+  createdAt        DateTime                       @default(now()) @map("created_at")
+  updatedAt        DateTime                       @updatedAt @map("updated_at")
 
-  items        InventoryPurchaseRequestItem[]
-  purchaseOrder InventoryPurchaseOrder? @relation("PurchaseRequestPurchaseOrder")
+  items         InventoryPurchaseRequestItem[]
+  purchaseOrder InventoryPurchaseOrder?        @relation("PurchaseRequestPurchaseOrder")
 
   @@index([tenantId])
   @@index([tenantId, status])
@@ -8271,16 +8281,16 @@ model InventoryPurchaseRequest {
 }
 
 model InventoryPurchaseRequestItem {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String    @map("tenant_id") @db.Uuid
-  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  requestId         String    @map("request_id") @db.Uuid
+  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                   @map("tenant_id") @db.Uuid
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  requestId         String                   @map("request_id") @db.Uuid
   request           InventoryPurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  productId         String    @map("product_id") @db.Uuid
-  product           InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
-  quantityRequested Int       @map("quantity_requested")
-  quantityApproved  Int?      @map("quantity_approved")
-  unitPriceCents    Int?      @map("unit_price_cents")
+  productId         String                   @map("product_id") @db.Uuid
+  product           InventoryProduct         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantityRequested Int                      @map("quantity_requested")
+  quantityApproved  Int?                     @map("quantity_approved")
+  unitPriceCents    Int?                     @map("unit_price_cents")
   notes             String?
 
   @@index([tenantId])
@@ -8297,28 +8307,28 @@ enum InventoryPurchaseOrderStatus {
 }
 
 model InventoryPurchaseOrder {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  poNumber         String    @map("po_number")
-  vendorId         String    @map("vendor_id") @db.Uuid
-  vendor           InventoryVendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  status           InventoryPurchaseOrderStatus @default(DRAFT)
-  purchaseRequestId String?  @unique @map("purchase_request_id") @db.Uuid
-  purchaseRequest  InventoryPurchaseRequest? @relation("PurchaseRequestPurchaseOrder", fields: [purchaseRequestId], references: [id], onDelete: SetNull)
-  orderDate        DateTime  @default(now()) @map("order_date")
-  expectedDate     DateTime? @map("expected_date")
-  totalCents       Int       @default(0) @map("total_cents")
-  approvedById     String?   @map("approved_by_id")
-  approvedAt       DateTime? @map("approved_at")
-  receivedAt       DateTime? @map("received_at")
-  notes            String?
-  createdBy        String?   @map("created_by")
-  updatedBy        String?   @map("updated_by")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  id                String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                       @map("tenant_id") @db.Uuid
+  tenant            Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  poNumber          String                       @map("po_number")
+  vendorId          String                       @map("vendor_id") @db.Uuid
+  vendor            InventoryVendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  status            InventoryPurchaseOrderStatus @default(DRAFT)
+  purchaseRequestId String?                      @unique @map("purchase_request_id") @db.Uuid
+  purchaseRequest   InventoryPurchaseRequest?    @relation("PurchaseRequestPurchaseOrder", fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  orderDate         DateTime                     @default(now()) @map("order_date")
+  expectedDate      DateTime?                    @map("expected_date")
+  totalCents        Int                          @default(0) @map("total_cents")
+  approvedById      String?                      @map("approved_by_id")
+  approvedAt        DateTime?                    @map("approved_at")
+  receivedAt        DateTime?                    @map("received_at")
+  notes             String?
+  createdBy         String?                      @map("created_by")
+  updatedBy         String?                      @map("updated_by")
+  createdAt         DateTime                     @default(now()) @map("created_at")
+  updatedAt         DateTime                     @updatedAt @map("updated_at")
 
-  items        InventoryPurchaseOrderItem[]
+  items         InventoryPurchaseOrderItem[]
   goodsReceipts InventoryGoodsReceipt[]
 
   @@index([tenantId])
@@ -8327,16 +8337,16 @@ model InventoryPurchaseOrder {
 }
 
 model InventoryPurchaseOrderItem {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  poId             String    @map("po_id") @db.Uuid
+  id               String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                 @map("tenant_id") @db.Uuid
+  tenant           Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  poId             String                 @map("po_id") @db.Uuid
   po               InventoryPurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
-  productId        String    @map("product_id") @db.Uuid
-  product          InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
-  quantityOrdered  Int       @map("quantity_ordered")
-  quantityReceived Int       @default(0) @map("quantity_received")
-  unitPriceCents   Int       @default(0) @map("unit_price_cents")
+  productId        String                 @map("product_id") @db.Uuid
+  product          InventoryProduct       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantityOrdered  Int                    @map("quantity_ordered")
+  quantityReceived Int                    @default(0) @map("quantity_received")
+  unitPriceCents   Int                    @default(0) @map("unit_price_cents")
   notes            String?
 
   receiptItems InventoryGoodsReceiptItem[]
@@ -8353,22 +8363,22 @@ enum InventoryGoodsReceiptStatus {
 }
 
 model InventoryGoodsReceipt {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String    @map("tenant_id") @db.Uuid
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  grnNumber    String    @map("grn_number")
-  vendorId     String    @map("vendor_id") @db.Uuid
-  vendor       InventoryVendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  poId         String?   @map("po_id") @db.Uuid
-  po           InventoryPurchaseOrder? @relation(fields: [poId], references: [id], onDelete: SetNull)
-  status       InventoryGoodsReceiptStatus @default(DRAFT)
-  receivedAt   DateTime  @default(now()) @map("received_at")
-  receivedBy   String?   @map("received_by")
-  notes        String?
-  createdBy    String?   @map("created_by")
-  updatedBy    String?   @map("updated_by")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id         String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String                      @map("tenant_id") @db.Uuid
+  tenant     Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  grnNumber  String                      @map("grn_number")
+  vendorId   String                      @map("vendor_id") @db.Uuid
+  vendor     InventoryVendor             @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  poId       String?                     @map("po_id") @db.Uuid
+  po         InventoryPurchaseOrder?     @relation(fields: [poId], references: [id], onDelete: SetNull)
+  status     InventoryGoodsReceiptStatus @default(DRAFT)
+  receivedAt DateTime                    @default(now()) @map("received_at")
+  receivedBy String?                     @map("received_by")
+  notes      String?
+  createdBy  String?                     @map("created_by")
+  updatedBy  String?                     @map("updated_by")
+  createdAt  DateTime                    @default(now()) @map("created_at")
+  updatedAt  DateTime                    @updatedAt @map("updated_at")
 
   items InventoryGoodsReceiptItem[]
 
@@ -8378,21 +8388,21 @@ model InventoryGoodsReceipt {
 }
 
 model InventoryGoodsReceiptItem {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  grnId            String    @map("grn_id") @db.Uuid
-  grn              InventoryGoodsReceipt @relation(fields: [grnId], references: [id], onDelete: Cascade)
-  poItemId         String?   @map("po_item_id") @db.Uuid
+  id               String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                      @map("tenant_id") @db.Uuid
+  tenant           Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  grnId            String                      @map("grn_id") @db.Uuid
+  grn              InventoryGoodsReceipt       @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  poItemId         String?                     @map("po_item_id") @db.Uuid
   poItem           InventoryPurchaseOrderItem? @relation(fields: [poItemId], references: [id], onDelete: SetNull)
-  productId        String    @map("product_id") @db.Uuid
-  product          InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
-  locationId       String    @map("location_id") @db.Uuid
-  location         InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  quantityReceived Int       @map("quantity_received")
-  unitPriceCents   Int       @default(0) @map("unit_price_cents")
+  productId        String                      @map("product_id") @db.Uuid
+  product          InventoryProduct            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  locationId       String                      @map("location_id") @db.Uuid
+  location         InventoryLocation           @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  quantityReceived Int                         @map("quantity_received")
+  unitPriceCents   Int                         @default(0) @map("unit_price_cents")
   notes            String?
-  createdAt        DateTime  @default(now()) @map("created_at")
+  createdAt        DateTime                    @default(now()) @map("created_at")
 
   @@index([tenantId])
   @@index([grnId])
@@ -8406,24 +8416,24 @@ enum InventoryStockTransferStatus {
 }
 
 model InventoryStockTransfer {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId     String    @map("tenant_id") @db.Uuid
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  transferNumber String   @map("transfer_number")
-  fromLocationId String   @map("from_location_id") @db.Uuid
-  fromLocation  InventoryLocation @relation("InventoryTransferFromLocations", fields: [fromLocationId], references: [id], onDelete: Restrict)
-  toLocationId  String    @map("to_location_id") @db.Uuid
-  toLocation    InventoryLocation @relation("InventoryTransferToLocations", fields: [toLocationId], references: [id], onDelete: Restrict)
-  status        InventoryStockTransferStatus @default(PENDING)
-  requestedBy   String?   @map("requested_by")
-  requestedAt   DateTime  @default(now()) @map("requested_at")
-  completedBy   String?   @map("completed_by")
-  completedAt   DateTime? @map("completed_at")
-  notes         String?
-  createdBy     String?   @map("created_by")
-  updatedBy     String?   @map("updated_by")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id             String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String                       @map("tenant_id") @db.Uuid
+  tenant         Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  transferNumber String                       @map("transfer_number")
+  fromLocationId String                       @map("from_location_id") @db.Uuid
+  fromLocation   InventoryLocation            @relation("InventoryTransferFromLocations", fields: [fromLocationId], references: [id], onDelete: Restrict)
+  toLocationId   String                       @map("to_location_id") @db.Uuid
+  toLocation     InventoryLocation            @relation("InventoryTransferToLocations", fields: [toLocationId], references: [id], onDelete: Restrict)
+  status         InventoryStockTransferStatus @default(PENDING)
+  requestedBy    String?                      @map("requested_by")
+  requestedAt    DateTime                     @default(now()) @map("requested_at")
+  completedBy    String?                      @map("completed_by")
+  completedAt    DateTime?                    @map("completed_at")
+  notes          String?
+  createdBy      String?                      @map("created_by")
+  updatedBy      String?                      @map("updated_by")
+  createdAt      DateTime                     @default(now()) @map("created_at")
+  updatedAt      DateTime                     @updatedAt @map("updated_at")
 
   items InventoryStockTransferItem[]
 
@@ -8433,15 +8443,15 @@ model InventoryStockTransfer {
 }
 
 model InventoryStockTransferItem {
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId  String    @map("tenant_id") @db.Uuid
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  transferId String   @map("transfer_id") @db.Uuid
-  transfer  InventoryStockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
-  productId String    @map("product_id") @db.Uuid
-  product   InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
-  quantity  Int
-  createdAt DateTime  @default(now()) @map("created_at")
+  id         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String                 @map("tenant_id") @db.Uuid
+  tenant     Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  transferId String                 @map("transfer_id") @db.Uuid
+  transfer   InventoryStockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  productId  String                 @map("product_id") @db.Uuid
+  product    InventoryProduct       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity   Int
+  createdAt  DateTime               @default(now()) @map("created_at")
 
   @@index([tenantId])
   @@index([transferId])
@@ -8455,21 +8465,21 @@ enum InventoryStockAdjustmentStatus {
 }
 
 model InventoryStockAdjustment {
-  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String    @map("tenant_id") @db.Uuid
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  adjustmentNumber String    @map("adjustment_number")
-  locationId       String    @map("location_id") @db.Uuid
-  location         InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  id               String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                         @map("tenant_id") @db.Uuid
+  tenant           Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  adjustmentNumber String                         @map("adjustment_number")
+  locationId       String                         @map("location_id") @db.Uuid
+  location         InventoryLocation              @relation(fields: [locationId], references: [id], onDelete: Restrict)
   status           InventoryStockAdjustmentStatus @default(DRAFT)
   reason           String?
   description      String?
-  adjustedBy       String?   @map("adjusted_by")
-  adjustedAt       DateTime? @map("adjusted_at")
-  createdBy        String?   @map("created_by")
-  updatedBy        String?   @map("updated_by")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  adjustedBy       String?                        @map("adjusted_by")
+  adjustedAt       DateTime?                      @map("adjusted_at")
+  createdBy        String?                        @map("created_by")
+  updatedBy        String?                        @map("updated_by")
+  createdAt        DateTime                       @default(now()) @map("created_at")
+  updatedAt        DateTime                       @updatedAt @map("updated_at")
 
   items InventoryStockAdjustmentItem[]
 
@@ -8479,16 +8489,16 @@ model InventoryStockAdjustment {
 }
 
 model InventoryStockAdjustmentItem {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String    @map("tenant_id") @db.Uuid
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  adjustmentId  String    @map("adjustment_id") @db.Uuid
+  id            String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                   @map("tenant_id") @db.Uuid
+  tenant        Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  adjustmentId  String                   @map("adjustment_id") @db.Uuid
   adjustment    InventoryStockAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
-  productId     String    @map("product_id") @db.Uuid
-  product       InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
-  quantityDelta Int       @map("quantity_delta")
+  productId     String                   @map("product_id") @db.Uuid
+  product       InventoryProduct         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantityDelta Int                      @map("quantity_delta")
   reason        String?
-  createdAt     DateTime  @default(now()) @map("created_at")
+  createdAt     DateTime                 @default(now()) @map("created_at")
 
   @@index([tenantId])
   @@index([adjustmentId])
@@ -8524,45 +8534,45 @@ enum InventoryDepreciationMethod {
 /// directly); tagged, assigned to an employee/department/campus, maintained,
 /// depreciated on a schedule and eventually disposed.
 model InventoryAsset {
-  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId             String    @map("tenant_id") @db.Uuid
-  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  assetCode            String    @map("asset_code")
-  tagNumber            String    @map("tag_number")
-  name                 String
-  description          String?
-  categoryId           String    @map("category_id") @db.Uuid
-  category             InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  vendorId             String?   @map("vendor_id") @db.Uuid
-  vendor               InventoryVendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  locationId           String?   @map("location_id") @db.Uuid
-  location             InventoryLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  serialNumber         String?   @map("serial_number")
-  brand                String?
-  modelName            String?   @map("model_name")
-  purchaseDate         DateTime? @map("purchase_date") @db.Date
-  purchaseCostCents    Int?      @map("purchase_cost_cents")
-  warrantyStartDate    DateTime? @map("warranty_start_date") @db.Date
-  warrantyEndDate      DateTime? @map("warranty_end_date") @db.Date
-  warrantyProvider     String?   @map("warranty_provider")
-  status               InventoryAssetStatus @default(IN_STOCK)
-  condition            InventoryAssetCondition @default(NEW)
-  depreciationMethod   InventoryDepreciationMethod @default(NONE) @map("depreciation_method")
-  usefulLifeMonths     Int?      @map("useful_life_months")
-  salvageValueCents    Int       @default(0) @map("salvage_value_cents")
-  currentBookValueCents Int?     @map("current_book_value_cents")
-  notes                String?
-  createdBy            String?   @map("created_by")
-  updatedBy            String?   @map("updated_by")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
-  deletedAt            DateTime? @map("deleted_at")
+  id                    String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String                      @map("tenant_id") @db.Uuid
+  tenant                Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetCode             String                      @map("asset_code")
+  tagNumber             String                      @map("tag_number")
+  name                  String
+  description           String?
+  categoryId            String                      @map("category_id") @db.Uuid
+  category              InventoryCategory           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  vendorId              String?                     @map("vendor_id") @db.Uuid
+  vendor                InventoryVendor?            @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  locationId            String?                     @map("location_id") @db.Uuid
+  location              InventoryLocation?          @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  serialNumber          String?                     @map("serial_number")
+  brand                 String?
+  modelName             String?                     @map("model_name")
+  purchaseDate          DateTime?                   @map("purchase_date") @db.Date
+  purchaseCostCents     Int?                        @map("purchase_cost_cents")
+  warrantyStartDate     DateTime?                   @map("warranty_start_date") @db.Date
+  warrantyEndDate       DateTime?                   @map("warranty_end_date") @db.Date
+  warrantyProvider      String?                     @map("warranty_provider")
+  status                InventoryAssetStatus        @default(IN_STOCK)
+  condition             InventoryAssetCondition     @default(NEW)
+  depreciationMethod    InventoryDepreciationMethod @default(NONE) @map("depreciation_method")
+  usefulLifeMonths      Int?                        @map("useful_life_months")
+  salvageValueCents     Int                         @default(0) @map("salvage_value_cents")
+  currentBookValueCents Int?                        @map("current_book_value_cents")
+  notes                 String?
+  createdBy             String?                     @map("created_by")
+  updatedBy             String?                     @map("updated_by")
+  createdAt             DateTime                    @default(now()) @map("created_at")
+  updatedAt             DateTime                    @updatedAt @map("updated_at")
+  deletedAt             DateTime?                   @map("deleted_at")
 
-  assignments          InventoryAssetAssignment[]
-  maintenanceRecords   InventoryAssetMaintenance[]
-  depreciationEntries  InventoryAssetDepreciationEntry[]
-  warrantyClaims       InventoryAssetWarrantyClaim[]
-  disposals            InventoryAssetDisposal[]
+  assignments         InventoryAssetAssignment[]
+  maintenanceRecords  InventoryAssetMaintenance[]
+  depreciationEntries InventoryAssetDepreciationEntry[]
+  warrantyClaims      InventoryAssetWarrantyClaim[]
+  disposals           InventoryAssetDisposal[]
 
   @@unique([tenantId, assetCode])
   @@unique([tenantId, tagNumber])
@@ -8588,26 +8598,26 @@ enum InventoryAssignmentStatus {
 /// One assignment record. Returning an asset closes the ACTIVE record; an asset has
 /// at most one ACTIVE assignment at any time (enforced by the service).
 model InventoryAssetAssignment {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String    @map("tenant_id") @db.Uuid
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  assetId       String    @map("asset_id") @db.Uuid
-  asset         InventoryAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  assigneeType  InventoryAssignmentType @map("assignee_type")
-  employeeId    String?   @map("employee_id") @db.Uuid
-  employee      Employee? @relation("InventoryAssetEmployeeAssignees", fields: [employeeId], references: [id], onDelete: SetNull)
-  departmentId  String?   @map("department_id") @db.Uuid
-  department    Department? @relation("InventoryAssetDepartmentAssignees", fields: [departmentId], references: [id], onDelete: SetNull)
-  campusId      String?   @map("campus_id") @db.Uuid
-  campus        Campus?   @relation("InventoryAssetCampusAssignees", fields: [campusId], references: [id], onDelete: SetNull)
-  assigneeName  String?   @map("assignee_name")
-  assignedBy    String?   @map("assigned_by")
-  assignedAt    DateTime  @default(now()) @map("assigned_at")
-  returnedAt    DateTime? @map("returned_at")
-  status        InventoryAssignmentStatus @default(ACTIVE)
-  notes         String?
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String                    @map("tenant_id") @db.Uuid
+  tenant       Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetId      String                    @map("asset_id") @db.Uuid
+  asset        InventoryAsset            @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assigneeType InventoryAssignmentType   @map("assignee_type")
+  employeeId   String?                   @map("employee_id") @db.Uuid
+  employee     Employee?                 @relation("InventoryAssetEmployeeAssignees", fields: [employeeId], references: [id], onDelete: SetNull)
+  departmentId String?                   @map("department_id") @db.Uuid
+  department   Department?               @relation("InventoryAssetDepartmentAssignees", fields: [departmentId], references: [id], onDelete: SetNull)
+  campusId     String?                   @map("campus_id") @db.Uuid
+  campus       Campus?                   @relation("InventoryAssetCampusAssignees", fields: [campusId], references: [id], onDelete: SetNull)
+  assigneeName String?                   @map("assignee_name")
+  assignedBy   String?                   @map("assigned_by")
+  assignedAt   DateTime                  @default(now()) @map("assigned_at")
+  returnedAt   DateTime?                 @map("returned_at")
+  status       InventoryAssignmentStatus @default(ACTIVE)
+  notes        String?
+  createdAt    DateTime                  @default(now()) @map("created_at")
+  updatedAt    DateTime                  @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, assetId])
@@ -8630,27 +8640,27 @@ enum InventoryMaintenanceStatus {
 }
 
 model InventoryAssetMaintenance {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String    @map("tenant_id") @db.Uuid
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  assetId       String    @map("asset_id") @db.Uuid
-  asset         InventoryAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  maintenanceNumber String @map("maintenance_number")
-  vendorId      String?   @map("vendor_id") @db.Uuid
-  vendor        InventoryVendor? @relation("InventoryMaintenanceVendors", fields: [vendorId], references: [id], onDelete: SetNull)
-  type          InventoryMaintenanceType @default(PREVENTIVE)
-  status        InventoryMaintenanceStatus @default(SCHEDULED)
-  scheduledDate DateTime? @map("scheduled_date")
-  startedAt     DateTime? @map("started_at")
-  completedAt   DateTime? @map("completed_at")
-  description   String?
-  costCents     Int?      @map("cost_cents")
-  performedBy   String?   @map("performed_by")
-  notes         String?
-  createdBy     String?   @map("created_by")
-  updatedBy     String?   @map("updated_by")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                     @map("tenant_id") @db.Uuid
+  tenant            Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetId           String                     @map("asset_id") @db.Uuid
+  asset             InventoryAsset             @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  maintenanceNumber String                     @map("maintenance_number")
+  vendorId          String?                    @map("vendor_id") @db.Uuid
+  vendor            InventoryVendor?           @relation("InventoryMaintenanceVendors", fields: [vendorId], references: [id], onDelete: SetNull)
+  type              InventoryMaintenanceType   @default(PREVENTIVE)
+  status            InventoryMaintenanceStatus @default(SCHEDULED)
+  scheduledDate     DateTime?                  @map("scheduled_date")
+  startedAt         DateTime?                  @map("started_at")
+  completedAt       DateTime?                  @map("completed_at")
+  description       String?
+  costCents         Int?                       @map("cost_cents")
+  performedBy       String?                    @map("performed_by")
+  notes             String?
+  createdBy         String?                    @map("created_by")
+  updatedBy         String?                    @map("updated_by")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, assetId])
@@ -8667,23 +8677,23 @@ enum InventoryWarrantyClaimStatus {
 }
 
 model InventoryAssetWarrantyClaim {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String    @map("tenant_id") @db.Uuid
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  assetId       String    @map("asset_id") @db.Uuid
-  asset         InventoryAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  claimNumber   String    @map("claim_number")
-  status        InventoryWarrantyClaimStatus @default(OPEN)
-  openedAt      DateTime  @default(now()) @map("opened_at")
-  description   String?
-  resolution    String?
-  costCents     Int       @default(0) @map("cost_cents")
-  closedAt      DateTime? @map("closed_at")
-  notes         String?
-  createdBy     String?   @map("created_by")
-  updatedBy     String?   @map("updated_by")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id          String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String                       @map("tenant_id") @db.Uuid
+  tenant      Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetId     String                       @map("asset_id") @db.Uuid
+  asset       InventoryAsset               @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  claimNumber String                       @map("claim_number")
+  status      InventoryWarrantyClaimStatus @default(OPEN)
+  openedAt    DateTime                     @default(now()) @map("opened_at")
+  description String?
+  resolution  String?
+  costCents   Int                          @default(0) @map("cost_cents")
+  closedAt    DateTime?                    @map("closed_at")
+  notes       String?
+  createdBy   String?                      @map("created_by")
+  updatedBy   String?                      @map("updated_by")
+  createdAt   DateTime                     @default(now()) @map("created_at")
+  updatedAt   DateTime                     @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, assetId])
@@ -8693,18 +8703,18 @@ model InventoryAssetWarrantyClaim {
 /// One month's straight-line depreciation for an asset. A unique (asset, periodStart)
 /// guard makes the depreciation run idempotent per accounting period.
 model InventoryAssetDepreciationEntry {
-  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId              String    @map("tenant_id") @db.Uuid
-  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  assetId               String    @map("asset_id") @db.Uuid
-  asset                 InventoryAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  periodStart           DateTime  @map("period_start") @db.Date
-  periodEnd             DateTime  @map("period_end") @db.Date
+  id                    String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String                      @map("tenant_id") @db.Uuid
+  tenant                Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetId               String                      @map("asset_id") @db.Uuid
+  asset                 InventoryAsset              @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  periodStart           DateTime                    @map("period_start") @db.Date
+  periodEnd             DateTime                    @map("period_end") @db.Date
   method                InventoryDepreciationMethod @default(STRAIGHT_LINE)
-  openingBookValueCents Int       @map("opening_book_value_cents")
-  depreciationCents     Int       @map("depreciation_cents")
-  closingBookValueCents Int       @map("closing_book_value_cents")
-  createdAt             DateTime  @default(now()) @map("created_at")
+  openingBookValueCents Int                         @map("opening_book_value_cents")
+  depreciationCents     Int                         @map("depreciation_cents")
+  closingBookValueCents Int                         @map("closing_book_value_cents")
+  createdAt             DateTime                    @default(now()) @map("created_at")
 
   @@unique([tenantId, assetId, periodStart])
   @@index([tenantId])
@@ -8726,25 +8736,376 @@ enum InventoryDisposalStatus {
 }
 
 model InventoryAssetDisposal {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId      String    @map("tenant_id") @db.Uuid
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  assetId       String    @map("asset_id") @db.Uuid
-  asset         InventoryAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  disposalNumber String   @map("disposal_number")
-  type          InventoryDisposalType @default(SCRAP)
-  status        InventoryDisposalStatus @default(DRAFT)
-  disposalDate  DateTime? @map("disposal_date") @db.Date
-  proceedsCents Int       @default(0) @map("proceeds_cents")
-  remarks       String?
-  approvedBy    String?   @map("approved_by")
-  completedAt   DateTime? @map("completed_at")
-  createdBy     String?   @map("created_by")
-  updatedBy     String?   @map("updated_by")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String                  @map("tenant_id") @db.Uuid
+  tenant         Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetId        String                  @map("asset_id") @db.Uuid
+  asset          InventoryAsset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  disposalNumber String                  @map("disposal_number")
+  type           InventoryDisposalType   @default(SCRAP)
+  status         InventoryDisposalStatus @default(DRAFT)
+  disposalDate   DateTime?               @map("disposal_date") @db.Date
+  proceedsCents  Int                     @default(0) @map("proceeds_cents")
+  remarks        String?
+  approvedBy     String?                 @map("approved_by")
+  completedAt    DateTime?               @map("completed_at")
+  createdBy      String?                 @map("created_by")
+  updatedBy      String?                 @map("updated_by")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([tenantId, assetId])
   @@map("inventory_asset_disposals")
+}
+
+// ---------------------------------------------------------------------------
+// Helpdesk / Feedback — the institution's own service desk (students, staff,
+// parents raise tickets against internal departments like IT, Maintenance,
+// Accounts), distinct from the platform control-plane SupportTicket model
+// (a tenant raising a ticket TO the SaaS platform). Covers categories,
+// departments, SLA policies, the ticket status lifecycle (resolution/
+// reopening), assignment, escalation, internal notes, attachments,
+// feedback + satisfaction scoring, dashboards and reports. Lifecycle events
+// fan out through the shared NotificationsService; optional approval flows
+// attach to the generic workflow engine via entityType "HelpdeskTicket".
+// ---------------------------------------------------------------------------
+
+enum HelpdeskTicketStatus {
+  NEW
+  OPEN
+  IN_PROGRESS
+  PENDING
+  RESOLVED
+  CLOSED
+  REOPENED
+  CANCELLED
+}
+
+enum HelpdeskTicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+  CRITICAL
+}
+
+enum HelpdeskTicketSource {
+  WEB
+  EMAIL
+  PHONE
+  WALK_IN
+  API
+  OTHER
+}
+
+enum HelpdeskCommentVisibility {
+  PUBLIC
+  INTERNAL
+}
+
+enum HelpdeskHistoryEvent {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+  ASSIGNED
+  PRIORITY_CHANGED
+  DEPARTMENT_CHANGED
+  CATEGORY_CHANGED
+  COMMENTED
+  ATTACHED
+  ESCALATED
+  RESOLVED
+  REOPENED
+  CLOSED
+  FEEDBACK_SUBMITTED
+  SLA_BREACHED
+}
+
+enum HelpdeskEscalationReason {
+  RESPONSE_BREACH
+  RESOLUTION_BREACH
+  MANUAL
+}
+
+enum HelpdeskSequenceKind {
+  TICKET
+}
+
+/// Per-tenant monotonic numbering series (mirrors InventorySequence) — allocates
+/// human-readable ticket numbers like HD-2026-000123 under the tenant guard.
+model HelpdeskSequence {
+  id        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String               @map("tenant_id") @db.Uuid
+  tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  kind      HelpdeskSequenceKind
+  prefix    String
+  nextValue Int                  @default(1) @map("next_value")
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  @@unique([tenantId, kind])
+  @@index([tenantId])
+  @@map("helpdesk_sequences")
+}
+
+/// A routing/support department (IT, Maintenance, Accounts, Library, Hostel, ...). Deliberately
+/// separate from the academic `Department` model: helpdesk routing units are operational, not
+/// academic org units, and many (IT, Facilities) have no academic counterpart.
+model HelpdeskDepartment {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  description String?
+  email       String?
+  campusId    String?  @map("campus_id") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String?  @map("created_by")
+  updatedBy   String?  @map("updated_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  categories  HelpdeskCategory[]
+  slaPolicies HelpdeskSlaPolicy[]
+  tickets     HelpdeskTicket[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("helpdesk_departments")
+}
+
+/// Ticket category, optionally nested. Carries routing defaults (priority + department) and can
+/// pin an SLA policy; `requiresApproval` marks categories whose creation should attach a generic
+/// workflow-engine approval instance.
+model HelpdeskCategory {
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String                 @map("tenant_id") @db.Uuid
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code                String
+  name                String
+  description         String?
+  parentId            String?                @map("parent_id") @db.Uuid
+  parent              HelpdeskCategory?      @relation("HelpdeskCategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children            HelpdeskCategory[]     @relation("HelpdeskCategoryTree")
+  defaultPriority     HelpdeskTicketPriority @default(MEDIUM) @map("default_priority")
+  defaultDepartmentId String?                @map("default_department_id") @db.Uuid
+  defaultDepartment   HelpdeskDepartment?    @relation(fields: [defaultDepartmentId], references: [id], onDelete: SetNull)
+  slaPolicyId         String?                @map("sla_policy_id") @db.Uuid
+  slaPolicy           HelpdeskSlaPolicy?     @relation(fields: [slaPolicyId], references: [id], onDelete: SetNull)
+  requiresApproval    Boolean                @default(false) @map("requires_approval")
+  isActive            Boolean                @default(true) @map("is_active")
+  sequenceOrder       Int                    @default(0) @map("sequence_order")
+  createdBy           String?                @map("created_by")
+  updatedBy           String?                @map("updated_by")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+
+  tickets HelpdeskTicket[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, parentId])
+  @@map("helpdesk_categories")
+}
+
+/// Response/resolution target policy. Matching precedence at ticket creation:
+/// category-pinned policy > (priority + department) exact match > priority match > department
+/// match > tenant default. Escalation re-uses the RBAC role catalog via `escalateToRoleCode`.
+model HelpdeskSlaPolicy {
+  id                   String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                  @map("tenant_id") @db.Uuid
+  tenant               Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code                 String
+  name                 String
+  description          String?
+  priority             HelpdeskTicketPriority?
+  departmentId         String?                 @map("department_id") @db.Uuid
+  department           HelpdeskDepartment?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  responseMinutes      Int                     @default(240) @map("response_minutes")
+  resolutionMinutes    Int                     @default(1440) @map("resolution_minutes")
+  /// Minutes before a due time at which a ticket is flagged AT_RISK in dashboards/reports.
+  atRiskMinutes        Int?                    @map("at_risk_minutes")
+  escalateToRoleCode   String?                 @map("escalate_to_role_code")
+  /// Grace minutes past a due time before the SLA sweep auto-escalates; null disables escalation.
+  escalateAfterMinutes Int?                    @map("escalate_after_minutes")
+  isDefault            Boolean                 @default(false) @map("is_default")
+  isActive             Boolean                 @default(true) @map("is_active")
+  createdBy            String?                 @map("created_by")
+  updatedBy            String?                 @map("updated_by")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
+  tickets    HelpdeskTicket[]
+  categories HelpdeskCategory[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, priority])
+  @@index([tenantId, departmentId])
+  @@map("helpdesk_sla_policies")
+}
+
+model HelpdeskTicket {
+  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String                 @map("tenant_id") @db.Uuid
+  tenant                  Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ticketNumber            String                 @map("ticket_number")
+  subject                 String
+  description             String
+  status                  HelpdeskTicketStatus   @default(NEW)
+  priority                HelpdeskTicketPriority @default(MEDIUM)
+  source                  HelpdeskTicketSource   @default(WEB)
+  categoryId              String                 @map("category_id") @db.Uuid
+  category                HelpdeskCategory       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  departmentId            String?                @map("department_id") @db.Uuid
+  department              HelpdeskDepartment?    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  slaPolicyId             String?                @map("sla_policy_id") @db.Uuid
+  slaPolicy               HelpdeskSlaPolicy?     @relation(fields: [slaPolicyId], references: [id], onDelete: SetNull)
+  /// Plain UUIDs (no FK), matching the createdBy convention — requester may be a User OR an
+  /// external contact captured by name/email only.
+  requesterUserId         String?                @map("requester_user_id") @db.Uuid
+  requesterName           String?                @map("requester_name")
+  requesterEmail          String?                @map("requester_email")
+  assignedToUserId        String?                @map("assigned_to_user_id") @db.Uuid
+  responseDueAt           DateTime?              @map("response_due_at")
+  resolutionDueAt         DateTime?              @map("resolution_due_at")
+  firstRespondedAt        DateTime?              @map("first_responded_at")
+  resolvedAt              DateTime?              @map("resolved_at")
+  closedAt                DateTime?              @map("closed_at")
+  cancelledAt             DateTime?              @map("cancelled_at")
+  reopenedCount           Int                    @default(0) @map("reopened_count")
+  escalationLevel         Int                    @default(0) @map("escalation_level")
+  escalatedAt             DateTime?              @map("escalated_at")
+  resolutionSummary       String?                @map("resolution_summary")
+  tags                    String[]               @default([])
+  satisfactionScore       Int?                   @map("satisfaction_score")
+  satisfactionComment     String?                @map("satisfaction_comment")
+  satisfactionSubmittedAt DateTime?              @map("satisfaction_submitted_at")
+  createdBy               String?                @map("created_by")
+  updatedBy               String?                @map("updated_by")
+  createdAt               DateTime               @default(now()) @map("created_at")
+  updatedAt               DateTime               @updatedAt @map("updated_at")
+
+  comments    HelpdeskTicketComment[]
+  attachments HelpdeskTicketAttachment[]
+  history     HelpdeskTicketHistory[]
+  escalations HelpdeskEscalation[]
+  feedback    HelpdeskFeedback[]
+
+  @@unique([tenantId, ticketNumber])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, priority])
+  @@index([tenantId, assignedToUserId])
+  @@index([tenantId, departmentId])
+  @@index([tenantId, categoryId])
+  @@index([tenantId, resolutionDueAt])
+  @@map("helpdesk_tickets")
+}
+
+/// A ticket message. INTERNAL comments are staff-only notes and never notify the requester or
+/// appear in the requester's self-service view.
+model HelpdeskTicketComment {
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                    @map("tenant_id") @db.Uuid
+  tenant           Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ticketId         String                    @map("ticket_id") @db.Uuid
+  ticket           HelpdeskTicket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorUserId     String?                   @map("author_user_id") @db.Uuid
+  visibility       HelpdeskCommentVisibility @default(PUBLIC)
+  body             String
+  isResolutionNote Boolean                   @default(false) @map("is_resolution_note")
+  createdBy        String?                   @map("created_by")
+  createdAt        DateTime                  @default(now()) @map("created_at")
+  updatedAt        DateTime                  @updatedAt @map("updated_at")
+
+  attachments HelpdeskTicketAttachment[]
+
+  @@index([tenantId])
+  @@index([tenantId, ticketId])
+  @@map("helpdesk_ticket_comments")
+}
+
+/// Links a ticket (or one of its comments) to an already-uploaded Document. The document row
+/// itself is managed by the shared documents module/storage layer; `documentId` is a plain UUID
+/// validated on attach rather than a hard FK, so helpdesk never has to widen the Document model.
+model HelpdeskTicketAttachment {
+  id         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String                 @map("tenant_id") @db.Uuid
+  tenant     Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ticketId   String                 @map("ticket_id") @db.Uuid
+  ticket     HelpdeskTicket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  commentId  String?                @map("comment_id") @db.Uuid
+  comment    HelpdeskTicketComment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  documentId String                 @map("document_id") @db.Uuid
+  filename   String
+  mimeType   String                 @map("mime_type")
+  sizeBytes  Int?                   @map("size_bytes")
+  uploadedBy String?                @map("uploaded_by")
+  createdAt  DateTime               @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([tenantId, ticketId])
+  @@map("helpdesk_ticket_attachments")
+}
+
+/// Immutable lifecycle timeline (status/assignment/priority/department/category changes,
+/// comments, escalations, resolution, reopening, feedback).
+model HelpdeskTicketHistory {
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String               @map("tenant_id") @db.Uuid
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ticketId    String               @map("ticket_id") @db.Uuid
+  ticket      HelpdeskTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  event       HelpdeskHistoryEvent
+  actorUserId String?              @map("actor_user_id") @db.Uuid
+  actorType   String               @default("USER") @map("actor_type")
+  fromValue   String?              @map("from_value")
+  toValue     String?              @map("to_value")
+  note        String?
+  createdAt   DateTime             @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([tenantId, ticketId])
+  @@map("helpdesk_ticket_history")
+}
+
+model HelpdeskEscalation {
+  id                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String                   @map("tenant_id") @db.Uuid
+  tenant             Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ticketId           String                   @map("ticket_id") @db.Uuid
+  ticket             HelpdeskTicket           @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  reason             HelpdeskEscalationReason
+  level              Int                      @default(1)
+  fromAssigneeUserId String?                  @map("from_assignee_user_id") @db.Uuid
+  toUserId           String?                  @map("to_user_id") @db.Uuid
+  toRoleCode         String?                  @map("to_role_code")
+  note               String?
+  escalatedByUserId  String?                  @map("escalated_by_user_id") @db.Uuid
+  createdAt          DateTime                 @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([tenantId, ticketId])
+  @@map("helpdesk_escalations")
+}
+
+/// One satisfaction response per ticket (unique per tenant+ticket). The score is also
+/// denormalized onto HelpdeskTicket.satisfactionScore for fast dashboard aggregation.
+model HelpdeskFeedback {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String         @map("tenant_id") @db.Uuid
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ticketId          String         @map("ticket_id") @db.Uuid
+  ticket            HelpdeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  score             Int
+  comment           String?
+  submittedByUserId String?        @map("submitted_by_user_id") @db.Uuid
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  @@unique([tenantId, ticketId])
+  @@index([tenantId])
+  @@map("helpdesk_feedback")
 }

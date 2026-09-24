@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { AppConfigService } from './config/app-config.service';
 import { ConfigModule } from './config/config.module';
 import { EntitlementModule } from './entitlement/entitlement.module';
+import { HelpdeskSlaProcessorModule } from './queues/helpdesk-sla/helpdesk-sla-processor.module';
 import { NotificationsProcessorModule } from './queues/notifications/notifications-processor.module';
 import { SubscriptionLifecycleProcessorModule } from './queues/subscription-lifecycle/subscription-lifecycle-processor.module';
 import { TransportGpsSweepProcessorModule } from './queues/transport-gps/transport-gps-sweep-processor.module';
@@ -29,6 +30,7 @@ import { WorkflowEscalationProcessorModule } from './queues/workflow-escalation/
     WorkflowEscalationProcessorModule,
     SubscriptionLifecycleProcessorModule,
     TransportGpsSweepProcessorModule,
+    HelpdeskSlaProcessorModule,
   ],
 })
 export class AppModule {}
