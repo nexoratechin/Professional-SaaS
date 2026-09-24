@@ -596,6 +596,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.EXAMS_APPROVE, scopeType: S.DEPARTMENT },
       { key: K.RESULTS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.REPORTS_VIEW, scopeType: S.DEPARTMENT },
+      { key: K.HR_VIEW, scopeType: S.DEPARTMENT },
       { key: K.WORKFLOWS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.WORKFLOWS_APPROVE, scopeType: S.DEPARTMENT },
     ],
@@ -615,6 +616,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.EXAMS_VIEW, scopeType: S.OWN },
       { key: K.EXAMS_CREATE, scopeType: S.OWN },
       { key: K.RESULTS_VIEW, scopeType: S.OWN },
+      { key: K.HR_VIEW, scopeType: S.OWN },
     ],
   },
   {

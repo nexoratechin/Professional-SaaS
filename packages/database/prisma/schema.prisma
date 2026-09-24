@@ -509,6 +509,19 @@ model Tenant {
   transportGpsPositions        TransportGPSPosition[]
   transportAlerts              TransportAlert[]
   transportGpsConfig           TransportGpsConfig[]
+  employees                    Employee[]
+  hrDesignations               HrDesignation[]
+  employeeJoinings             EmployeeJoining[]
+  employeeExits                EmployeeExit[]
+  employeeDocuments            EmployeeDocument[]
+  facultyWorkloads             FacultyWorkload[]
+  leaveTypes                   LeaveType[]
+  leaveBalances                LeaveBalance[]
+  leaveApplications            LeaveApplication[]
+  performanceReviews           EmployeePerformanceReview[]
+  salaryStructures             SalaryStructure[]
+  payrollRuns                  PayrollRun[]
+  payrollRunLines              PayrollRunLine[]
 
   @@index([status])
   @@map("tenants")
@@ -993,6 +1006,12 @@ model User {
   examInvigilatorAssignments ExamInvigilatorAssignment[]
   libraryMembers             LibraryMember[]
   transportDrivers           TransportDriver[]
+  employeeProfile            Employee?                          @relation("UserEmployeeProfile")
+  hrUploadedDocuments        EmployeeDocument[]                 @relation("HrDocumentUploaders")
+  hrLeaveDecisions           LeaveApplication[]                 @relation("LeaveApplicationApprovers")
+  hrReviewedPerformances     EmployeePerformanceReview[]        @relation("PerformanceReviewers")
+  hrProcessedPayrollRuns     PayrollRun[]                       @relation("PayrollRunProcessors")
+  hrApprovedPayrollRuns      PayrollRun[]                       @relation("PayrollRunApprovers")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1366,6 +1385,7 @@ model Campus {
   hostels               Hostel[]
   transportVehicles     TransportVehicle[]
   transportRoutes       TransportRoute[]
+  employees             Employee[]             @relation("EmployeeCampuses")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1392,6 +1412,8 @@ model Department {
   programs       Program[]
   roleScopeUsers UserRole[]
   courses        Course[]
+  employees      Employee[]        @relation("EmployeeDepartments")
+  hrDesignations HrDesignation[]   @relation("DepartmentHrDesignations")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1509,6 +1531,7 @@ model Term {
   studentFeeAssignments   StudentFeeAssignment[]
   feeDemands              FeeDemand[]
   examSessions            ExamSession[]
+  facultyWorkloads        FacultyWorkload[]        @relation("TermFacultyWorkloads")
 
   @@unique([academicYearId, code])
   @@index([tenantId])
@@ -6816,4 +6839,553 @@ model TransportGpsConfig {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("transport_gps_configs")
+}
+
+/// HR module — Phase 9 (HR + placements + analytics). All models are tenant-scoped and follow
+/// the standard soft-delete / audit-column conventions used across the schema.
+/// Reused existing infrastructure: FacultyAttendance (HR/faculty daily attendance),
+/// TimetableEntry.assignedUserId (faculty timetable), Department/Campus/User/Term master data.
+enum EmployeeType {
+  FACULTY
+  STAFF
+  ADMIN
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  VISITING
+  ADJUNCT
+  INTERN
+}
+
+enum EmployeeEmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  RESIGNED
+  RETIRED
+  TERMINATED
+}
+
+enum JoiningStatus {
+  PENDING
+  ONBOARDED
+  CONFIRMED
+  CLOSED
+}
+
+enum EmployeeExitType {
+  RESIGNATION
+  RETIREMENT
+  TERMINATION
+  END_OF_CONTRACT
+  MUTUAL_SEPARATION
+}
+
+enum EmployeeDocumentType {
+  APPOINTMENT_LETTER
+  OFFER_LETTER
+  ID_PROOF
+  EDUCATIONAL_CERTIFICATE
+  EXPERIENCE_LETTER
+  PAYSLIP
+  RELIEVING_LETTER
+  NO_DUE_CERTIFICATE
+  OTHER
+}
+
+enum FacultyWorkloadType {
+  TEACHING
+  ADMINISTRATIVE
+  RESEARCH
+  EXAM_DUTY
+  EXTENSION
+  OTHER
+}
+
+enum LeaveCategory {
+  CASUAL
+  SICK
+  EARNED
+  MATERNITY
+  PATERNITY
+  UNPAID
+  HALF_DAY
+  COMPENSATORY
+  SPECIAL
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PerformanceReviewType {
+  SELF
+  SUPERVISOR
+  PEER
+  COMMITTEE
+}
+
+enum PerformanceReviewStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  COMPLETED
+  REJECTED
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  PROCESSING
+  PROCESSED
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum PayrollRunLineStatus {
+  DRAFT
+  PROCESSED
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+/// Master record for every employee (faculty, staff, admin) in a tenant. `userId` links the
+/// employee to a platform login (invited via the users module) when one exists, otherwise the
+/// employee exists standalone. Soft-deleted via `deletedAt` — exit records are kept on
+/// `employee_exits` and the master row is deactivated instead of purged.
+model Employee {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                 String                     @map("tenant_id") @db.Uuid
+  tenant                   Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeCode             String                     @map("employee_code")
+  userId                   String?                    @unique @map("user_id") @db.Uuid
+  user                     User?                      @relation("UserEmployeeProfile", fields: [userId], references: [id], onDelete: SetNull)
+  employeeType             EmployeeType               @default(FACULTY) @map("employee_type")
+  honorific                String?
+  firstName                String                     @map("first_name")
+  middleName               String?                    @map("middle_name")
+  lastName                 String                     @map("last_name")
+  gender                   String?
+  dateOfBirth              DateTime?                  @map("date_of_birth") @db.Date
+  personalEmail            String?                    @map("personal_email")
+  phone                    String?
+  alternatePhone           String?                    @map("alternate_phone")
+  addressLine1             String?                    @map("address_line1")
+  addressLine2             String?                    @map("address_line2")
+  city                     String?
+  state                    String?
+  postalCode               String?                    @map("postal_code")
+  country                  String?                    @default("India")
+  departmentId             String                     @map("department_id") @db.Uuid
+  department               Department                 @relation("EmployeeDepartments", fields: [departmentId], references: [id], onDelete: Restrict)
+  designationId            String?                    @map("designation_id") @db.Uuid
+  designation              HrDesignation?             @relation("DesignationEmployees", fields: [designationId], references: [id], onDelete: SetNull)
+  campusId                 String?                    @map("campus_id") @db.Uuid
+  campus                   Campus?                    @relation("EmployeeCampuses", fields: [campusId], references: [id], onDelete: SetNull)
+  reportingToId            String?                    @map("reporting_to_id") @db.Uuid
+  reportingTo              Employee?                  @relation("EmployeeReportsTo", fields: [reportingToId], references: [id], onDelete: SetNull)
+  reports                  Employee[]                 @relation("EmployeeReportsTo")
+  employmentType           EmploymentType             @default(FULL_TIME) @map("employment_type")
+  employmentStatus         EmployeeEmploymentStatus   @default(ACTIVE) @map("employment_status")
+  joinDate                 DateTime?                  @map("join_date") @db.Date
+  confirmationDate         DateTime?                  @map("confirmation_date") @db.Date
+  exitDate                 DateTime?                  @map("exit_date") @db.Date
+  emergencyContactName     String?                    @map("emergency_contact_name")
+  emergencyContactPhone    String?                    @map("emergency_contact_phone")
+  emergencyContactRelation String?                    @map("emergency_contact_relation")
+  panNumber                String?                    @map("pan_number")
+  aadhaarNumber            String?                    @map("aadhaar_number")
+  bankAccountNumber        String?                    @map("bank_account_number")
+  bankName                 String?                    @map("bank_name")
+  bankIfsc                 String?                    @map("bank_ifsc")
+  uanNumber                String?                    @map("uan_number")
+  qualification            String?
+  specialization           String?
+  profilePhotoKey          String?                    @map("profile_photo_key")
+  notes                    String?
+  createdBy                String?                    @map("created_by")
+  updatedBy                String?                    @map("updated_by")
+  createdAt                DateTime                   @default(now()) @map("created_at")
+  updatedAt                DateTime                   @updatedAt @map("updated_at")
+  deletedAt                DateTime?                  @map("deleted_at")
+
+  joinings           EmployeeJoining[]
+  exits              EmployeeExit[]
+  documents          EmployeeDocument[]
+  workloads          FacultyWorkload[]
+  leaveBalances      LeaveBalance[]
+  leaveApplications  LeaveApplication[]
+  performanceReviews EmployeePerformanceReview[]
+  salaryStructures   SalaryStructure[]
+  payrollLines       PayrollRunLine[]
+
+  @@unique([tenantId, employeeCode])
+  @@index([tenantId])
+  @@index([tenantId, departmentId])
+  @@index([tenantId, designationId])
+  @@index([tenantId, campusId])
+  @@index([tenantId, employeeType])
+  @@index([tenantId, employmentStatus])
+  @@index([tenantId, deletedAt])
+  @@map("employees")
+}
+
+/// Role designations (Professor, Assistant Professor, Accountant, ...). Optional department
+/// binding; empty department means the designation applies tenant-wide.
+model HrDesignation {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String      @map("tenant_id") @db.Uuid
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  departmentId String?     @map("department_id") @db.Uuid
+  department   Department? @relation("DepartmentHrDesignations", fields: [departmentId], references: [id], onDelete: SetNull)
+  code         String
+  name         String
+  description  String?
+  rank         Int         @default(0)
+  isActive     Boolean     @default(true) @map("is_active")
+  createdBy    String?     @map("created_by")
+  updatedBy    String?     @map("updated_by")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  deletedAt    DateTime?   @map("deleted_at")
+
+  employees    Employee[]  @relation("DesignationEmployees")
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, departmentId])
+  @@index([tenantId, deletedAt])
+  @@map("hr_designations")
+}
+
+/// Recruitment / onboarding record. Onboarding an employee (joining status ONBOARDED) stamps
+/// `joinDate` on the related Employee master row.
+model EmployeeJoining {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String        @map("tenant_id") @db.Uuid
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId       String        @map("employee_id") @db.Uuid
+  employee         Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  joiningStatus    JoiningStatus @default(PENDING) @map("joining_status")
+  offerDate        DateTime?     @map("offer_date") @db.Date
+  effectiveDate    DateTime?     @map("effective_date") @db.Date
+  probationMonths  Int?          @map("probation_months")
+  confirmationDate DateTime?     @map("confirmation_date") @db.Date
+  remarks          String?
+  createdBy        String?       @map("created_by")
+  updatedBy        String?       @map("updated_by")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, employeeId])
+  @@map("employee_joinings")
+}
+
+/// Offboarding / exit record. Recording an exit deactivates the employee master row (sets
+/// `exitDate` + employmentStatus) so exits are auditable history, never a hard delete.
+model EmployeeExit {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String            @map("tenant_id") @db.Uuid
+  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId         String            @map("employee_id") @db.Uuid
+  employee           Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  exitType           EmployeeExitType  @map("exit_type")
+  effectiveDate      DateTime?         @map("effective_date") @db.Date
+  lastWorkingDate    DateTime?         @map("last_working_date") @db.Date
+  noticePeriodDays   Int?              @map("notice_period_days")
+  relievingDate      DateTime?         @map("relieving_date") @db.Date
+  reason             String?
+  noDueStatus        String?           @default("PENDING") @map("no_due_status")
+  noDueClearedAt     DateTime?         @map("no_due_cleared_at")
+  relievingLetterKey String?           @map("relieving_letter_key")
+  settlementAmount   Decimal?          @map("settlement_amount") @db.Decimal(12, 2)
+  remarks            String?
+  createdBy          String?           @map("created_by")
+  updatedBy          String?           @map("updated_by")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, exitType])
+  @@map("employee_exits")
+}
+
+/// Employee documents. `fileKey` points at a StorageService (S3/MinIO) object and the file is
+/// uploaded via a signed URL — the same flow the documents/students module uses. PAYSLIP type
+/// rows can be linked from a PayrollRunLine.
+model EmployeeDocument {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId       String               @map("employee_id") @db.Uuid
+  employee         Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  documentType     EmployeeDocumentType @map("document_type")
+  title            String?
+  description      String?
+  fileKey          String?              @map("file_key")
+  contentType      String?              @map("content_type")
+  sizeBytes        Int?                 @map("size_bytes")
+  uploadedByUserId String?              @map("uploaded_by_user_id") @db.Uuid
+  uploadedByUser   User?                @relation("HrDocumentUploaders", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  isVerified       Boolean              @default(false) @map("is_verified")
+  verifiedByUserId String?              @map("verified_by_user_id")
+  verifiedAt       DateTime?            @map("verified_at")
+  createdBy        String?              @map("created_by")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  payslipLines     PayrollRunLine[]     @relation("PayslipDocuments")
+
+  @@index([tenantId])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, documentType])
+  @@map("employee_documents")
+}
+
+/// Faculty workload allocations per term. Teaching workload can additionally be derived from
+/// timetables (TimetableEntry.assignedUserId) — this table covers the non-timetable breakdown.
+model FacultyWorkload {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String             @map("tenant_id") @db.Uuid
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId    String             @map("employee_id") @db.Uuid
+  employee      Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  termId        String?            @map("term_id") @db.Uuid
+  term          Term?              @relation("TermFacultyWorkloads", fields: [termId], references: [id], onDelete: SetNull)
+  workloadType  FacultyWorkloadType @map("workload_type")
+  title         String
+  description   String?
+  hoursPerWeek  Float              @default(0) @map("hours_per_week")
+  effectiveFrom DateTime?          @map("effective_from") @db.Date
+  effectiveTo   DateTime?          @map("effective_to") @db.Date
+  isActive      Boolean            @default(true) @map("is_active")
+  createdBy     String?            @map("created_by")
+  updatedBy     String?            @map("updated_by")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, employeeId, termId])
+  @@index([tenantId, workloadType])
+  @@map("faculty_workloads")
+}
+
+/// Leave catalogue (CASUAL, SICK, EARNED, ...). Tenant-owned master data.
+model LeaveType {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String        @map("tenant_id") @db.Uuid
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code             String
+  name             String
+  category         LeaveCategory @map("category")
+  description      String?
+  color            String?       @default("#3b82f6")
+  maxDaysPerYear   Int?          @map("max_days_per_year")
+  isPaid           Boolean       @default(true) @map("is_paid")
+  requiresApproval Boolean       @default(true) @map("requires_approval")
+  isActive         Boolean       @default(true) @map("is_active")
+  createdBy        String?       @map("created_by")
+  updatedBy        String?       @map("updated_by")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+  deletedAt        DateTime?     @map("deleted_at")
+
+  leaveBalances     LeaveBalance[]
+  leaveApplications LeaveApplication[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, isActive])
+  @@map("leave_types")
+}
+
+/// Per-employee, per-year running leave ledger for one leave type.
+model LeaveBalance {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String     @map("tenant_id") @db.Uuid
+  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId     String     @map("employee_id") @db.Uuid
+  employee       Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId    String     @map("leave_type_id") @db.Uuid
+  leaveType      LeaveType  @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  year           Int
+  openingBalance Float      @default(0) @map("opening_balance")
+  creditedDays   Float      @default(0) @map("credited_days")
+  availedDays    Float      @default(0) @map("availed_days")
+  adjustedDays   Float      @default(0) @map("adjusted_days")
+  closingBalance Float?     @map("closing_balance")
+  createdBy      String?    @map("created_by")
+  updatedBy      String?    @map("updated_by")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  @@unique([tenantId, employeeId, leaveTypeId, year])
+  @@index([tenantId])
+  @@index([tenantId, employeeId])
+  @@map("leave_balances")
+}
+
+/// A leave application. Approving/rejecting decrements or restores the applicant's LeaveBalance
+/// availedDays. `createdBy` holds the requesting user id (the employee may not have a login).
+model LeaveApplication {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String       @map("tenant_id") @db.Uuid
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId       String       @map("employee_id") @db.Uuid
+  employee         Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId      String       @map("leave_type_id") @db.Uuid
+  leaveType        LeaveType    @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  fromDate         DateTime     @map("from_date") @db.Date
+  toDate           DateTime     @map("to_date") @db.Date
+  durationDays     Float        @map("duration_days")
+  halfDayOption    String?      @map("half_day_option")
+  reason           String?
+  attachmentKey    String?      @map("attachment_key")
+  status           LeaveStatus  @default(PENDING) @map("status")
+  approvedByUserId String?      @map("approved_by_user_id") @db.Uuid
+  approvedByUser   User?        @relation("LeaveApplicationApprovers", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  decidedAt        DateTime?    @map("decided_at")
+  decisionRemarks  String?      @map("decision_remarks")
+  createdBy        String?      @map("created_by")
+  updatedBy        String?      @map("updated_by")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, employeeId, status])
+  @@index([tenantId, status, fromDate])
+  @@map("leave_applications")
+}
+
+/// Performance review (self/supervisor/peer/committee). Optional score 0–9.99, JSON goals.
+model EmployeePerformanceReview {
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String                  @map("tenant_id") @db.Uuid
+  tenant              Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId          String                  @map("employee_id") @db.Uuid
+  employee            Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewPeriodStart   DateTime?               @map("review_period_start") @db.Date
+  reviewPeriodEnd     DateTime?               @map("review_period_end") @db.Date
+  reviewType          PerformanceReviewType   @map("review_type")
+  status              PerformanceReviewStatus @default(DRAFT) @map("status")
+  score               Decimal?                @db.Decimal(3, 2)
+  goals               Json?
+  achievements        String?
+  areasForImprovement String?                 @map("areas_for_improvement")
+  overallComments     String?                 @map("overall_comments")
+  reviewerUserId      String?                 @map("reviewer_user_id") @db.Uuid
+  reviewerUser        User?                   @relation("PerformanceReviewers", fields: [reviewerUserId], references: [id], onDelete: SetNull)
+  reviewedAt          DateTime?               @map("reviewed_at")
+  createdBy           String?                 @map("created_by")
+  updatedBy           String?                 @map("updated_by")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, status, reviewType])
+  @@map("employee_performance_reviews")
+}
+
+/// Pay bands / compensation for an employee over a period. allowances & deductions are JSON
+/// arrays of { head, amount }. Payroll lines snapshot gross/net from the active structure.
+model SalaryStructure {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employeeId     String           @map("employee_id") @db.Uuid
+  employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  effectiveFrom  DateTime?        @map("effective_from") @db.Date
+  effectiveTo    DateTime?        @map("effective_to") @db.Date
+  basicAmount    Decimal          @map("basic_amount") @db.Decimal(12, 2)
+  hraAmount      Decimal          @default(0) @map("hra_amount") @db.Decimal(12, 2)
+  allowances     Json?
+  deductions     Json?
+  grossAmount    Decimal          @map("gross_amount") @db.Decimal(12, 2)
+  netAmount      Decimal          @map("net_amount") @db.Decimal(12, 2)
+  isActive       Boolean          @default(true) @map("is_active")
+  createdBy      String?          @map("created_by")
+  updatedBy      String?          @map("updated_by")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  payrollLines   PayrollRunLine[]
+
+  @@index([tenantId])
+  @@index([tenantId, employeeId, isActive])
+  @@index([tenantId, employeeId, effectiveFrom])
+  @@map("salary_structures")
+}
+
+/// A monthly payroll run for a tenant. One run per tenant/month/year. Processing materializes
+/// PayrollRunLine rows from active salary structures; approving locks the run.
+model PayrollRun {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String          @map("tenant_id") @db.Uuid
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  month             Int
+  year              Int
+  title             String?
+  status            PayrollRunStatus @default(DRAFT) @map("status")
+  processedByUserId String?         @map("processed_by_user_id") @db.Uuid
+  processedByUser   User?           @relation("PayrollRunProcessors", fields: [processedByUserId], references: [id], onDelete: SetNull)
+  approvedByUserId  String?         @map("approved_by_user_id") @db.Uuid
+  approvedByUser    User?           @relation("PayrollRunApprovers", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  processedAt       DateTime?       @map("processed_at")
+  approvedAt        DateTime?       @map("approved_at")
+  notes             String?
+  createdBy         String?         @map("created_by")
+  updatedBy         String?         @map("updated_by")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  lines            PayrollRunLine[]
+
+  @@unique([tenantId, month, year])
+  @@index([tenantId])
+  @@index([tenantId, status, year])
+  @@map("payroll_runs")
+}
+
+/// Per-employee line of a payroll run. Payslips are stored as PAYSLIP-type EmployeeDocument
+/// rows; field `payslipDocumentId` links them so payroll integrates with the document store.
+model PayrollRunLine {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String           @map("tenant_id") @db.Uuid
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  runId             String           @map("run_id") @db.Uuid
+  run               PayrollRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employeeId        String           @map("employee_id") @db.Uuid
+  employee          Employee         @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  salaryStructureId String?          @map("salary_structure_id") @db.Uuid
+  salaryStructure   SalaryStructure? @relation(fields: [salaryStructureId], references: [id], onDelete: SetNull)
+  daysWorked        Int?             @map("days_worked")
+  grossAmount       Decimal          @map("gross_amount") @db.Decimal(12, 2)
+  totalDeductions   Decimal          @default(0) @map("total_deductions") @db.Decimal(12, 2)
+  netAmount         Decimal          @map("net_amount") @db.Decimal(12, 2)
+  earnings          Json?
+  deductions        Json?
+  status            PayrollRunLineStatus @default(DRAFT) @map("status")
+  paidAt            DateTime?        @map("paid_at")
+  payslipDocumentId String?          @map("payslip_document_id") @db.Uuid
+  payslipDocument   EmployeeDocument? @relation("PayslipDocuments", fields: [payslipDocumentId], references: [id], onDelete: SetNull)
+  referenceNumber   String?          @map("reference_number")
+  createdBy         String?          @map("created_by")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, runId])
+  @@index([tenantId, employeeId])
+  @@map("payroll_run_lines")
 }
