@@ -32,6 +32,7 @@ import { ExamsPage } from './routes/exams';
 import { CertificatesPage } from './routes/certificates';
 import { CertificateVerifyPage } from './routes/certificate-verify';
 import { LibraryPage } from './routes/library';
+import { InventoryPage } from './routes/inventory';
 import { HostelPage } from './routes/hostel';
 import { TransportPage } from './routes/transport';
 import { HrPage } from './routes/hr';
@@ -200,6 +201,14 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <LibraryPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inventory"
+          element={
+            <ProtectedRoute>
+              <InventoryPage />
             </ProtectedRoute>
           }
         />

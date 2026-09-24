@@ -535,6 +535,29 @@ model Tenant {
   placementOffers             PlacementOffer[]
   placementJoinings           PlacementJoining[]
   placementOutcomes           PlacementOutcome[]
+  inventorySequences          InventorySequence[]
+  inventoryVendors            InventoryVendor[]
+  inventoryCategories         InventoryCategory[]
+  inventoryProducts           InventoryProduct[]
+  inventoryLocations          InventoryLocation[]
+  inventoryStockItems         InventoryStockItem[]
+  inventoryStockMovements     InventoryStockMovement[]
+  inventoryPurchaseRequests   InventoryPurchaseRequest[]
+  inventoryPurchaseRequestItems InventoryPurchaseRequestItem[]
+  inventoryPurchaseOrders     InventoryPurchaseOrder[]
+  inventoryPurchaseOrderItems InventoryPurchaseOrderItem[]
+  inventoryGoodsReceipts      InventoryGoodsReceipt[]
+  inventoryGoodsReceiptItems  InventoryGoodsReceiptItem[]
+  inventoryStockTransfers     InventoryStockTransfer[]
+  inventoryStockTransferItems InventoryStockTransferItem[]
+  inventoryStockAdjustments   InventoryStockAdjustment[]
+  inventoryStockAdjustmentItems InventoryStockAdjustmentItem[]
+  inventoryAssets             InventoryAsset[]
+  inventoryAssetAssignments   InventoryAssetAssignment[]
+  inventoryAssetMaintenance   InventoryAssetMaintenance[]
+  inventoryAssetWarrantyClaims InventoryAssetWarrantyClaim[]
+  inventoryAssetDepreciationEntries InventoryAssetDepreciationEntry[]
+  inventoryAssetDisposals     InventoryAssetDisposal[]
 
   @@index([status])
   @@map("tenants")
@@ -1399,6 +1422,8 @@ model Campus {
   transportVehicles     TransportVehicle[]
   transportRoutes       TransportRoute[]
   employees             Employee[]             @relation("EmployeeCampuses")
+  inventoryLocations    InventoryLocation[]
+  inventoryAssetAssignments InventoryAssetAssignment[] @relation("InventoryAssetCampusAssignees")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1427,6 +1452,8 @@ model Department {
   courses        Course[]
   employees      Employee[]        @relation("EmployeeDepartments")
   hrDesignations HrDesignation[]   @relation("DepartmentHrDesignations")
+  inventoryPurchaseRequests InventoryPurchaseRequest[]
+  inventoryAssetAssignments InventoryAssetAssignment[] @relation("InventoryAssetDepartmentAssignees")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1580,6 +1607,7 @@ model Room {
   examSeatingPlans           ExamSeatingPlan[]
   examSubjects               ExamSubject[]
   examInvigilatorAssignments ExamInvigilatorAssignment[]
+  inventoryLocations         InventoryLocation[]
 
   @@unique([campusId, code])
   @@index([tenantId])
@@ -1605,7 +1633,8 @@ model Building {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  rooms Room[]
+  rooms            Room[]
+  inventoryLocations InventoryLocation[]
 
   @@unique([tenantId, campusId, code])
   @@index([tenantId])
@@ -7046,6 +7075,7 @@ model Employee {
   performanceReviews EmployeePerformanceReview[]
   salaryStructures   SalaryStructure[]
   payrollLines       PayrollRunLine[]
+  inventoryAssetAssignments InventoryAssetAssignment[] @relation("InventoryAssetEmployeeAssignees")
 
   @@unique([tenantId, employeeCode])
   @@index([tenantId])
@@ -7933,4 +7963,788 @@ model PlacementOutcome {
   @@index([studentId])
   @@index([tenantId, outcomeStatus])
   @@map("placement_outcomes")
+}
+
+// ---------------------------------------------------------------------------
+// Inventory & Asset Management (Phase 8) — vendors, product categories, products,
+// storage locations, stock ledger (receipts / transfers / adjustments), the
+// purchase flow (requests → approvals → purchase orders → goods receipts, which
+// post stock on completion), and fixed assets (registration, assignment,
+// maintenance, warranty claims, straight-line depreciation and disposal).
+// The module lives in apps/api/src/modules/inventory.
+// ---------------------------------------------------------------------------
+
+enum InventorySequenceKind {
+  VENDOR
+  CATEGORY
+  PRODUCT
+  LOCATION
+  PURCHASE_REQUEST
+  PURCHASE_ORDER
+  GOODS_RECEIPT
+  STOCK_TRANSFER
+  STOCK_ADJUSTMENT
+  ASSET
+  ASSET_TAG
+  MAINTENANCE
+  WARRANTY_CLAIM
+  DISPOSAL
+}
+
+/// Atomic per-tenant series allocator — same contract as library/fee sequences.
+model InventorySequence {
+  id        String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String                @map("tenant_id") @db.Uuid
+  tenant    Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  kind      InventorySequenceKind
+  prefix    String
+  nextValue Int                   @default(1) @map("next_value")
+  createdAt DateTime              @default(now()) @map("created_at")
+  updatedAt DateTime              @updatedAt @map("updated_at")
+
+  @@unique([tenantId, kind, prefix])
+  @@map("inventory_sequences")
+}
+
+/// One catalog category, optionally tree-shaped via parentId. `kind` splits the same
+/// table into product categories and fixed-asset categories so both flows share one
+/// management surface without mixing codes.
+enum InventoryCategoryKind {
+  PRODUCT
+  ASSET
+}
+
+model InventoryCategory {
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String               @map("tenant_id") @db.Uuid
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  kind        InventoryCategoryKind @default(PRODUCT)
+  code        String
+  name        String
+  description String?
+  parentId    String?              @map("parent_id") @db.Uuid
+  parent      InventoryCategory?   @relation("InventoryCategoryChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  createdBy   String?              @map("created_by")
+  updatedBy   String?              @map("updated_by")
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+  deletedAt   DateTime?            @map("deleted_at")
+
+  children InventoryCategory[] @relation("InventoryCategoryChildren")
+  products InventoryProduct[]
+  assets   InventoryAsset[]
+
+  @@unique([tenantId, kind, code])
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+  @@map("inventory_categories")
+}
+
+enum InventoryVendorStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model InventoryVendor {
+  id              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String                 @map("tenant_id") @db.Uuid
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code            String
+  name            String
+  gstin           String?
+  contactPerson   String?                @map("contact_person")
+  phone           String?
+  email           String?
+  addressLine1    String?                @map("address_line1")
+  addressLine2    String?                @map("address_line2")
+  city            String?
+  state           String?
+  postalCode      String?                @map("postal_code")
+  country         String?                @default("India")
+  website         String?
+  paymentTerms    String?                @map("payment_terms")
+  status          InventoryVendorStatus  @default(ACTIVE)
+  notes           String?
+  createdBy       String?                @map("created_by")
+  updatedBy       String?                @map("updated_by")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  deletedAt       DateTime?              @map("deleted_at")
+
+  purchaseRequests   InventoryPurchaseRequest[]
+  purchaseOrders     InventoryPurchaseOrder[]
+  goodsReceipts      InventoryGoodsReceipt[]
+  assets             InventoryAsset[]
+  maintenanceRecords InventoryAssetMaintenance[] @relation("InventoryMaintenanceVendors")
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+  @@map("inventory_vendors")
+}
+
+model InventoryProduct {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  categoryId    String      @map("category_id") @db.Uuid
+  category      InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  code          String
+  sku           String?
+  name          String
+  description   String?
+  unit          String      @default("PCS")
+  unitPriceCents Int?       @map("unit_price_cents")
+  reorderLevel  Int         @default(0) @map("reorder_level")
+  isActive      Boolean     @default(true) @map("is_active")
+  createdBy     String?     @map("created_by")
+  updatedBy     String?     @map("updated_by")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  deletedAt     DateTime?   @map("deleted_at")
+
+  stockItems      InventoryStockItem[]
+  movements       InventoryStockMovement[]
+  requestItems    InventoryPurchaseRequestItem[]
+  orderItems      InventoryPurchaseOrderItem[]
+  receiptItems    InventoryGoodsReceiptItem[]
+  transferItems   InventoryStockTransferItem[]
+  adjustmentItems InventoryStockAdjustmentItem[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, categoryId])
+  @@index([tenantId, deletedAt])
+  @@map("inventory_products")
+}
+
+enum InventoryLocationType {
+  WAREHOUSE
+  STORE
+  LAB
+  ROOM
+  OTHER
+}
+
+model InventoryLocation {
+  id          String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String                @map("tenant_id") @db.Uuid
+  tenant      Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code        String
+  name        String
+  type        InventoryLocationType @default(STORE)
+  campusId    String?               @map("campus_id") @db.Uuid
+  campus      Campus?               @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  buildingId  String?               @map("building_id") @db.Uuid
+  building    Building?             @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  roomId      String?               @map("room_id") @db.Uuid
+  room        Room?                 @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  isActive    Boolean               @default(true) @map("is_active")
+  notes       String?
+  createdBy   String?               @map("created_by")
+  updatedBy   String?               @map("updated_by")
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+  deletedAt   DateTime?             @map("deleted_at")
+
+  stockItems  InventoryStockItem[]
+  movements   InventoryStockMovement[]
+  receiptItems InventoryGoodsReceiptItem[]
+  transferringOut InventoryStockTransfer[] @relation("InventoryTransferFromLocations")
+  transferringIn  InventoryStockTransfer[] @relation("InventoryTransferToLocations")
+  adjustments InventoryStockAdjustment[]
+  assets      InventoryAsset[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, campusId])
+  @@index([tenantId, deletedAt])
+  @@map("inventory_locations")
+}
+
+/// Current balance per product per location. Updated transactionally alongside a
+/// StockMovement ledger write so the movement history never diverges from balances.
+model InventoryStockItem {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  productId        String    @map("product_id") @db.Uuid
+  product          InventoryProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  locationId       String    @map("location_id") @db.Uuid
+  location         InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  quantityOnHand   Int       @default(0) @map("quantity_on_hand")
+  reservedQuantity Int       @default(0) @map("reserved_quantity")
+  lastMovementAt   DateTime? @map("last_movement_at")
+  createdBy        String?   @map("created_by")
+  updatedBy        String?   @map("updated_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId, locationId, productId])
+  @@index([tenantId])
+  @@index([tenantId, productId])
+  @@index([tenantId, locationId])
+  @@map("inventory_stock_items")
+}
+
+enum InventoryStockMovementType {
+  INITIAL
+  RECEIPT
+  ISSUE
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT_ADD
+  ADJUSTMENT_SUBTRACT
+}
+
+/// Append-only stock ledger. `referenceType`/`referenceId` loosely link the movement
+/// to the business record that produced it (goods receipt / transfer / adjustment).
+model InventoryStockMovement {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  productId     String    @map("product_id") @db.Uuid
+  product       InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  locationId    String    @map("location_id") @db.Uuid
+  location      InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  type          InventoryStockMovementType
+  quantityDelta Int       @map("quantity_delta")
+  quantityBefore Int      @map("quantity_before")
+  quantityAfter Int       @map("quantity_after")
+  reason        String?
+  referenceType String?   @map("reference_type")
+  referenceId   String?   @map("reference_id")
+  notes         String?
+  postedBy      String?   @map("posted_by")
+  occurredAt    DateTime  @default(now()) @map("occurred_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([tenantId, productId, occurredAt])
+  @@index([tenantId, locationId, occurredAt])
+  @@index([tenantId, referenceType, referenceId])
+  @@map("inventory_stock_movements")
+}
+
+enum InventoryPurchaseRequestStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CONVERTED
+  CANCELLED
+}
+
+/// Purchase request with lightweight approval state machine (draft → pending →
+/// approved/rejected → converted into a purchase order). stays self-contained in
+/// the inventory module; intent-to-purchase approvals are a first-tier nudge for a
+/// future WorkflowModule integration.
+model InventoryPurchaseRequest {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  requestNumber    String    @map("request_number")
+  status           InventoryPurchaseRequestStatus @default(DRAFT)
+  requestedBy      String    @map("requested_by")
+  requestedAt      DateTime  @default(now()) @map("requested_at")
+  departmentId     String?   @map("department_id") @db.Uuid
+  department       Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  vendorId         String?   @map("vendor_id") @db.Uuid
+  vendor           InventoryVendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  requiresApproval Boolean   @default(true) @map("requires_approval")
+  reviewedById     String?   @map("reviewed_by_id")
+  approvedById     String?   @map("approved_by_id")
+  approvedAt       DateTime? @map("approved_at")
+  rejectionReason  String?   @map("rejection_reason")
+  notes            String?
+  createdBy        String?   @map("created_by")
+  updatedBy        String?   @map("updated_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  items        InventoryPurchaseRequestItem[]
+  purchaseOrder InventoryPurchaseOrder? @relation("PurchaseRequestPurchaseOrder")
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("inventory_purchase_requests")
+}
+
+model InventoryPurchaseRequestItem {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  requestId         String    @map("request_id") @db.Uuid
+  request           InventoryPurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  productId         String    @map("product_id") @db.Uuid
+  product           InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantityRequested Int       @map("quantity_requested")
+  quantityApproved  Int?      @map("quantity_approved")
+  unitPriceCents    Int?      @map("unit_price_cents")
+  notes             String?
+
+  @@index([tenantId])
+  @@index([requestId])
+  @@map("inventory_purchase_request_items")
+}
+
+enum InventoryPurchaseOrderStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+model InventoryPurchaseOrder {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  poNumber         String    @map("po_number")
+  vendorId         String    @map("vendor_id") @db.Uuid
+  vendor           InventoryVendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  status           InventoryPurchaseOrderStatus @default(DRAFT)
+  purchaseRequestId String?  @unique @map("purchase_request_id") @db.Uuid
+  purchaseRequest  InventoryPurchaseRequest? @relation("PurchaseRequestPurchaseOrder", fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  orderDate        DateTime  @default(now()) @map("order_date")
+  expectedDate     DateTime? @map("expected_date")
+  totalCents       Int       @default(0) @map("total_cents")
+  approvedById     String?   @map("approved_by_id")
+  approvedAt       DateTime? @map("approved_at")
+  receivedAt       DateTime? @map("received_at")
+  notes            String?
+  createdBy        String?   @map("created_by")
+  updatedBy        String?   @map("updated_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  items        InventoryPurchaseOrderItem[]
+  goodsReceipts InventoryGoodsReceipt[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("inventory_purchase_orders")
+}
+
+model InventoryPurchaseOrderItem {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  poId             String    @map("po_id") @db.Uuid
+  po               InventoryPurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  productId        String    @map("product_id") @db.Uuid
+  product          InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantityOrdered  Int       @map("quantity_ordered")
+  quantityReceived Int       @default(0) @map("quantity_received")
+  unitPriceCents   Int       @default(0) @map("unit_price_cents")
+  notes            String?
+
+  receiptItems InventoryGoodsReceiptItem[]
+
+  @@index([tenantId])
+  @@index([poId])
+  @@map("inventory_purchase_order_items")
+}
+
+enum InventoryGoodsReceiptStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+model InventoryGoodsReceipt {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  grnNumber    String    @map("grn_number")
+  vendorId     String    @map("vendor_id") @db.Uuid
+  vendor       InventoryVendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  poId         String?   @map("po_id") @db.Uuid
+  po           InventoryPurchaseOrder? @relation(fields: [poId], references: [id], onDelete: SetNull)
+  status       InventoryGoodsReceiptStatus @default(DRAFT)
+  receivedAt   DateTime  @default(now()) @map("received_at")
+  receivedBy   String?   @map("received_by")
+  notes        String?
+  createdBy    String?   @map("created_by")
+  updatedBy    String?   @map("updated_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  items InventoryGoodsReceiptItem[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("inventory_goods_receipts")
+}
+
+model InventoryGoodsReceiptItem {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  grnId            String    @map("grn_id") @db.Uuid
+  grn              InventoryGoodsReceipt @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  poItemId         String?   @map("po_item_id") @db.Uuid
+  poItem           InventoryPurchaseOrderItem? @relation(fields: [poItemId], references: [id], onDelete: SetNull)
+  productId        String    @map("product_id") @db.Uuid
+  product          InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  locationId       String    @map("location_id") @db.Uuid
+  location         InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  quantityReceived Int       @map("quantity_received")
+  unitPriceCents   Int       @default(0) @map("unit_price_cents")
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([grnId])
+  @@map("inventory_goods_receipt_items")
+}
+
+enum InventoryStockTransferStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model InventoryStockTransfer {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  transferNumber String   @map("transfer_number")
+  fromLocationId String   @map("from_location_id") @db.Uuid
+  fromLocation  InventoryLocation @relation("InventoryTransferFromLocations", fields: [fromLocationId], references: [id], onDelete: Restrict)
+  toLocationId  String    @map("to_location_id") @db.Uuid
+  toLocation    InventoryLocation @relation("InventoryTransferToLocations", fields: [toLocationId], references: [id], onDelete: Restrict)
+  status        InventoryStockTransferStatus @default(PENDING)
+  requestedBy   String?   @map("requested_by")
+  requestedAt   DateTime  @default(now()) @map("requested_at")
+  completedBy   String?   @map("completed_by")
+  completedAt   DateTime? @map("completed_at")
+  notes         String?
+  createdBy     String?   @map("created_by")
+  updatedBy     String?   @map("updated_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  items InventoryStockTransferItem[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("inventory_stock_transfers")
+}
+
+model InventoryStockTransferItem {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  transferId String   @map("transfer_id") @db.Uuid
+  transfer  InventoryStockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  productId String    @map("product_id") @db.Uuid
+  product   InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Int
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([transferId])
+  @@map("inventory_stock_transfer_items")
+}
+
+enum InventoryStockAdjustmentStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+model InventoryStockAdjustment {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  adjustmentNumber String    @map("adjustment_number")
+  locationId       String    @map("location_id") @db.Uuid
+  location         InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  status           InventoryStockAdjustmentStatus @default(DRAFT)
+  reason           String?
+  description      String?
+  adjustedBy       String?   @map("adjusted_by")
+  adjustedAt       DateTime? @map("adjusted_at")
+  createdBy        String?   @map("created_by")
+  updatedBy        String?   @map("updated_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  items InventoryStockAdjustmentItem[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("inventory_stock_adjustments")
+}
+
+model InventoryStockAdjustmentItem {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  adjustmentId  String    @map("adjustment_id") @db.Uuid
+  adjustment    InventoryStockAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  productId     String    @map("product_id") @db.Uuid
+  product       InventoryProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantityDelta Int       @map("quantity_delta")
+  reason        String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([adjustmentId])
+  @@map("inventory_stock_adjustment_items")
+}
+
+// ── Fixed assets ────────────────────────────────────────────────────────────
+
+enum InventoryAssetStatus {
+  IN_STOCK
+  ASSIGNED
+  UNDER_MAINTENANCE
+  DECOMMISSIONED
+  DISPOSED
+  WRITTEN_OFF
+}
+
+enum InventoryAssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+  DISPOSED
+}
+
+enum InventoryDepreciationMethod {
+  NONE
+  STRAIGHT_LINE
+}
+
+/// A capitalized fixed asset. Purchased through the inventory module (or recorded
+/// directly); tagged, assigned to an employee/department/campus, maintained,
+/// depreciated on a schedule and eventually disposed.
+model InventoryAsset {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String    @map("tenant_id") @db.Uuid
+  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetCode            String    @map("asset_code")
+  tagNumber            String    @map("tag_number")
+  name                 String
+  description          String?
+  categoryId           String    @map("category_id") @db.Uuid
+  category             InventoryCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  vendorId             String?   @map("vendor_id") @db.Uuid
+  vendor               InventoryVendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  locationId           String?   @map("location_id") @db.Uuid
+  location             InventoryLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  serialNumber         String?   @map("serial_number")
+  brand                String?
+  modelName            String?   @map("model_name")
+  purchaseDate         DateTime? @map("purchase_date") @db.Date
+  purchaseCostCents    Int?      @map("purchase_cost_cents")
+  warrantyStartDate    DateTime? @map("warranty_start_date") @db.Date
+  warrantyEndDate      DateTime? @map("warranty_end_date") @db.Date
+  warrantyProvider     String?   @map("warranty_provider")
+  status               InventoryAssetStatus @default(IN_STOCK)
+  condition            InventoryAssetCondition @default(NEW)
+  depreciationMethod   InventoryDepreciationMethod @default(NONE) @map("depreciation_method")
+  usefulLifeMonths     Int?      @map("useful_life_months")
+  salvageValueCents    Int       @default(0) @map("salvage_value_cents")
+  currentBookValueCents Int?     @map("current_book_value_cents")
+  notes                String?
+  createdBy            String?   @map("created_by")
+  updatedBy            String?   @map("updated_by")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+  deletedAt            DateTime? @map("deleted_at")
+
+  assignments          InventoryAssetAssignment[]
+  maintenanceRecords   InventoryAssetMaintenance[]
+  depreciationEntries  InventoryAssetDepreciationEntry[]
+  warrantyClaims       InventoryAssetWarrantyClaim[]
+  disposals            InventoryAssetDisposal[]
+
+  @@unique([tenantId, assetCode])
+  @@unique([tenantId, tagNumber])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, categoryId])
+  @@index([tenantId, deletedAt])
+  @@map("inventory_assets")
+}
+
+enum InventoryAssignmentType {
+  EMPLOYEE
+  DEPARTMENT
+  CAMPUS
+  OTHER
+}
+
+enum InventoryAssignmentStatus {
+  ACTIVE
+  RETURNED
+}
+
+/// One assignment record. Returning an asset closes the ACTIVE record; an asset has
+/// at most one ACTIVE assignment at any time (enforced by the service).
+model InventoryAssetAssignment {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetId       String    @map("asset_id") @db.Uuid
+  asset         InventoryAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assigneeType  InventoryAssignmentType @map("assignee_type")
+  employeeId    String?   @map("employee_id") @db.Uuid
+  employee      Employee? @relation("InventoryAssetEmployeeAssignees", fields: [employeeId], references: [id], onDelete: SetNull)
+  departmentId  String?   @map("department_id") @db.Uuid
+  department    Department? @relation("InventoryAssetDepartmentAssignees", fields: [departmentId], references: [id], onDelete: SetNull)
+  campusId      String?   @map("campus_id") @db.Uuid
+  campus        Campus?   @relation("InventoryAssetCampusAssignees", fields: [campusId], references: [id], onDelete: SetNull)
+  assigneeName  String?   @map("assignee_name")
+  assignedBy    String?   @map("assigned_by")
+  assignedAt    DateTime  @default(now()) @map("assigned_at")
+  returnedAt    DateTime? @map("returned_at")
+  status        InventoryAssignmentStatus @default(ACTIVE)
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, assetId])
+  @@index([tenantId, status])
+  @@map("inventory_asset_assignments")
+}
+
+enum InventoryMaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+  INSPECTION
+  OTHER
+}
+
+enum InventoryMaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model InventoryAssetMaintenance {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetId       String    @map("asset_id") @db.Uuid
+  asset         InventoryAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  maintenanceNumber String @map("maintenance_number")
+  vendorId      String?   @map("vendor_id") @db.Uuid
+  vendor        InventoryVendor? @relation("InventoryMaintenanceVendors", fields: [vendorId], references: [id], onDelete: SetNull)
+  type          InventoryMaintenanceType @default(PREVENTIVE)
+  status        InventoryMaintenanceStatus @default(SCHEDULED)
+  scheduledDate DateTime? @map("scheduled_date")
+  startedAt     DateTime? @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  description   String?
+  costCents     Int?      @map("cost_cents")
+  performedBy   String?   @map("performed_by")
+  notes         String?
+  createdBy     String?   @map("created_by")
+  updatedBy     String?   @map("updated_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, assetId])
+  @@index([tenantId, status])
+  @@map("inventory_asset_maintenance")
+}
+
+enum InventoryWarrantyClaimStatus {
+  OPEN
+  APPROVED
+  REPAIRED
+  REJECTED
+  CLOSED
+}
+
+model InventoryAssetWarrantyClaim {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetId       String    @map("asset_id") @db.Uuid
+  asset         InventoryAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  claimNumber   String    @map("claim_number")
+  status        InventoryWarrantyClaimStatus @default(OPEN)
+  openedAt      DateTime  @default(now()) @map("opened_at")
+  description   String?
+  resolution    String?
+  costCents     Int       @default(0) @map("cost_cents")
+  closedAt      DateTime? @map("closed_at")
+  notes         String?
+  createdBy     String?   @map("created_by")
+  updatedBy     String?   @map("updated_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, assetId])
+  @@map("inventory_asset_warranty_claims")
+}
+
+/// One month's straight-line depreciation for an asset. A unique (asset, periodStart)
+/// guard makes the depreciation run idempotent per accounting period.
+model InventoryAssetDepreciationEntry {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String    @map("tenant_id") @db.Uuid
+  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetId               String    @map("asset_id") @db.Uuid
+  asset                 InventoryAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  periodStart           DateTime  @map("period_start") @db.Date
+  periodEnd             DateTime  @map("period_end") @db.Date
+  method                InventoryDepreciationMethod @default(STRAIGHT_LINE)
+  openingBookValueCents Int       @map("opening_book_value_cents")
+  depreciationCents     Int       @map("depreciation_cents")
+  closingBookValueCents Int       @map("closing_book_value_cents")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  @@unique([tenantId, assetId, periodStart])
+  @@index([tenantId])
+  @@index([tenantId, assetId])
+  @@map("inventory_asset_depreciation_entries")
+}
+
+enum InventoryDisposalType {
+  SALE
+  SCRAP
+  DONATION
+  RETURN_TO_VENDOR
+}
+
+enum InventoryDisposalStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+model InventoryAssetDisposal {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  assetId       String    @map("asset_id") @db.Uuid
+  asset         InventoryAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  disposalNumber String   @map("disposal_number")
+  type          InventoryDisposalType @default(SCRAP)
+  status        InventoryDisposalStatus @default(DRAFT)
+  disposalDate  DateTime? @map("disposal_date") @db.Date
+  proceedsCents Int       @default(0) @map("proceeds_cents")
+  remarks       String?
+  approvedBy    String?   @map("approved_by")
+  completedAt   DateTime? @map("completed_at")
+  createdBy     String?   @map("created_by")
+  updatedBy     String?   @map("updated_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, assetId])
+  @@map("inventory_asset_disposals")
 }

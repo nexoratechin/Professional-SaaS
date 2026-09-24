@@ -14,6 +14,7 @@ const ATTENDANCE_VIEW_PERMISSION = 'attendance.view';
 const EXAMS_VIEW_PERMISSION = 'exams.view';
 const CERTIFICATES_VIEW_PERMISSION = 'certificates.view';
 const LIBRARY_VIEW_PERMISSION = 'library.view';
+const INVENTORY_VIEW_PERMISSION = 'inventory.view';
 const HOSTEL_VIEW_PERMISSION = 'hostel.view';
 const TRANSPORT_VIEW_PERMISSION = 'transport.view';
 const HR_VIEW_PERMISSION = 'hr.view';
@@ -65,6 +66,7 @@ export function DashboardPage() {
           {permissions.includes(EXAMS_VIEW_PERMISSION) && <Link to="/exams">Examinations</Link>}
           {permissions.includes(CERTIFICATES_VIEW_PERMISSION) && <Link to="/certificates">Certificates</Link>}
           {permissions.includes(LIBRARY_VIEW_PERMISSION) && <Link to="/library">Library</Link>}
+          {permissions.includes(INVENTORY_VIEW_PERMISSION) && <Link to="/inventory">Inventory</Link>}
           {permissions.includes(HOSTEL_VIEW_PERMISSION) && <Link to="/hostel">Hostel</Link>}
           {permissions.includes(TRANSPORT_VIEW_PERMISSION) && <Link to="/transport">Transport</Link>}
           {permissions.includes(HR_VIEW_PERMISSION) && <Link to="/hr">HR & Faculty</Link>}

@@ -36,6 +36,7 @@ import { UsersModule } from './modules/users/users.module';
 import { WorkflowModule } from './modules/workflow/workflow.module';
 import { HrModule } from './modules/hr/hr.module';
 import { PlacementsModule } from './modules/placements/placements.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { PlacementsModule } from './modules/placements/placements.module';
     AdmissionsModule,
     HrModule,
     PlacementsModule,
+    InventoryModule,
     BillingModule,
     SupportModule,
     PlatformOpsModule,
