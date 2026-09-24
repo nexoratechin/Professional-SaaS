@@ -522,6 +522,19 @@ model Tenant {
   salaryStructures             SalaryStructure[]
   payrollRuns                  PayrollRun[]
   payrollRunLines              PayrollRunLine[]
+  placementCompanies           PlacementCompany[]
+  placementContacts           PlacementContact[]
+  placementDrives             PlacementDrive[]
+  placementPositions          PlacementPosition[]
+  placementEligibility        PlacementEligibility[]
+  placementResumes            PlacementResume[]
+  placementApplications       PlacementApplication[]
+  placementRounds             PlacementRound[]
+  placementRoundResults       PlacementRoundResult[]
+  placementSelections         PlacementSelection[]
+  placementOffers             PlacementOffer[]
+  placementJoinings           PlacementJoining[]
+  placementOutcomes           PlacementOutcome[]
 
   @@index([status])
   @@map("tenants")
@@ -1490,6 +1503,7 @@ model AcademicYear {
   academicProgressionRecords AcademicProgressionRecord[]
   feeStructures              FeeStructure[]
   examSessions               ExamSession[]
+  placementOutcomes          PlacementOutcome[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -2569,6 +2583,12 @@ model Student {
   resultCalculations    ResultCalculation[]
   resultProcesses       ResultProcess[]
   resultHistory         ResultHistory[]
+  placementResumes          PlacementResume[]
+  placementEligibility      PlacementEligibility[]
+  placementApplications     PlacementApplication[]
+  placementSelections       PlacementSelection[]
+  placementOffers           PlacementOffer[]
+  placementOutcomes         PlacementOutcome[]
 
   @@unique([tenantId, admissionNumber])
   @@index([tenantId])
@@ -7388,4 +7408,529 @@ model PayrollRunLine {
   @@index([tenantId, runId])
   @@index([tenantId, employeeId])
   @@map("payroll_run_lines")
+}
+
+// ---------------------------------------------------------------------------
+// PLACEMENTS
+// ---------------------------------------------------------------------------
+
+/// Enterprise/company master for the placement cell. Companies are lightweight master
+/// records the placement office maintains (they are NOT user accounts).
+enum PlacementCompanyType {
+  MNC
+  INDIAN_MNC
+  STARTUP
+  PSU
+  CORPORATE
+  SME
+  GOVT_ORG
+  NGO
+  OTHER
+}
+
+/// How a placement drive is conducted.
+enum PlacementDriveMode {
+  ON_CAMPUS
+  OFF_CAMPUS
+  VIRTUAL
+}
+
+/// Lifecycle of a placement drive.
+enum PlacementDriveStatus {
+  DRAFT
+  SCHEDULED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum PlacementPositionType {
+  FULL_TIME
+  INTERNSHIP
+  CONTRACT
+  TRAINEE
+}
+
+/// Eligibility state of a student against a drive/position.
+enum PlacementEligibilityStatus {
+  PENDING
+  ELIGIBLE
+  NOT_ELIGIBLE
+  EXEMPTED
+}
+
+enum PlacementApplicationStatus {
+  APPLIED
+  SHORTLISTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum PlacementRoundType {
+  APTITUDE_TEST
+  TECHNICAL_TEST
+  PSYCHOMETRIC_TEST
+  GROUP_DISCUSSION
+  TECHNICAL_INTERVIEW
+  HR_INTERVIEW
+  MANAGERIAL_INTERVIEW
+  CASE_STUDY
+  OTHER
+}
+
+enum PlacementRoundStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+/// Outcome of a student in a round.
+enum PlacementRoundResultStatus {
+  PENDING
+  SELECTED
+  REJECTED
+  ON_HOLD
+  ABSENT
+}
+
+enum PlacementOfferStatus {
+  ISSUED
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum PlacementJoiningStatus {
+  PENDING
+  JOINED
+  NOT_JOINED
+  POSTPONED
+}
+
+/// Final placement state of a student for an academic year.
+enum PlacementOutcomeStatus {
+  PLACED
+  NOT_PLACED
+  OPTED_OUT
+  UNREGISTERED
+}
+
+/// Recruiting company the placement office works with.
+model PlacementCompany {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String               @map("tenant_id") @db.Uuid
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code              String
+  name              String
+  companyType       PlacementCompanyType @default(OTHER) @map("company_type")
+  industry          String?
+  website           String?
+  description       String?
+  headquartersCity  String?              @map("headquarters_city")
+  addressLine1      String?              @map("address_line_1")
+  addressLine2      String?              @map("address_line_2")
+  city              String?
+  state             String?
+  country           String?              @default("India")
+  isActive          Boolean              @default(true) @map("is_active")
+  createdBy         String?              @map("created_by")
+  updatedBy         String?              @map("updated_by")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  deletedAt         DateTime?            @map("deleted_at")
+
+  contacts PlacementContact[]
+  drives   PlacementDrive[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+  @@map("placement_companies")
+}
+
+/// People at a PlacementCompany the placement cell coordinates with.
+model PlacementContact {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String             @map("tenant_id") @db.Uuid
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  companyId   String             @map("company_id") @db.Uuid
+  company     PlacementCompany   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fullName    String             @map("full_name")
+  designation String?
+  email       String?
+  phone       String?
+  isPrimary   Boolean            @default(false) @map("is_primary")
+  isActive    Boolean            @default(true) @map("is_active")
+  createdBy   String?            @map("created_by")
+  updatedBy   String?            @map("updated_by")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  deletedAt   DateTime?          @map("deleted_at")
+
+  companyCoordinate  PlacementDrive[] @relation("PlacementDriveCoordinators")
+
+  @@index([tenantId])
+  @@index([companyId])
+  @@index([tenantId, deletedAt])
+  @@map("placement_contacts")
+}
+
+/// A placement drive: a batch of positions (PlacementPosition) run for one company.
+model PlacementDrive {
+  id                   String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                     @map("tenant_id") @db.Uuid
+  tenant               Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  companyId            String                     @map("company_id") @db.Uuid
+  company              PlacementCompany           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  code                 String
+  title                String
+  description          String?
+  mode                 PlacementDriveMode         @default(ON_CAMPUS)
+  status               PlacementDriveStatus       @default(DRAFT)
+  driveDate            DateTime?                  @map("drive_date")
+  applicationDeadline  DateTime?                  @map("application_deadline")
+  venue                String?
+  coordinatorContactId String?                    @map("coordinator_contact_id") @db.Uuid
+  coordinatorContact   PlacementContact?          @relation("PlacementDriveCoordinators", fields: [coordinatorContactId], references: [id], onDelete: SetNull)
+  eligibilityNotes     String?                    @map("eligibility_notes")
+  createdBy            String?                    @map("created_by")
+  updatedBy            String?                    @map("updated_by")
+  createdAt            DateTime                   @default(now()) @map("created_at")
+  updatedAt            DateTime                   @updatedAt @map("updated_at")
+  deletedAt            DateTime?                  @map("deleted_at")
+
+  positions    PlacementPosition[]
+  eligibility  PlacementEligibility[]
+  applications PlacementApplication[]
+  rounds       PlacementRound[]
+  selections   PlacementSelection[]
+  offers       PlacementOffer[]
+  joinings     PlacementJoining[]
+  outcomes     PlacementOutcome[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([companyId])
+  @@index([tenantId, status])
+  @@index([tenantId, deletedAt])
+  @@map("placement_drives")
+}
+
+/// A concrete job/position being hired for as part of a drive. Holds the eligibility
+/// criteria (minCgpa/minPercentage/maxBacklogs) used to evaluate student eligibility.
+model PlacementPosition {
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                 @map("tenant_id") @db.Uuid
+  tenant        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId       String                 @map("drive_id") @db.Uuid
+  drive         PlacementDrive         @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  title         String
+  positionType  PlacementPositionType  @default(FULL_TIME) @map("position_type")
+  location      String?
+  openings      Int?                   @default(1)
+  description   String?
+  minCgpa       Float?                 @map("min_cgpa")
+  minPercentage Float?                 @map("min_percentage")
+  maxBacklogs   Int?                   @map("max_backlogs")
+  packageCents  Int?                   @map("package_cents")
+  packageNotes  String?                @map("package_notes")
+  isActive      Boolean                @default(true) @map("is_active")
+  createdBy     String?                @map("created_by")
+  updatedBy     String?                @map("updated_by")
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+  deletedAt     DateTime?              @map("deleted_at")
+
+  eligibility  PlacementEligibility[]
+  applications PlacementApplication[]
+  selections   PlacementSelection[]
+  offers       PlacementOffer[]
+  outcomes     PlacementOutcome[]
+
+  @@index([tenantId])
+  @@index([driveId])
+  @@index([tenantId, deletedAt])
+  @@map("placement_positions")
+}
+
+/// Pre-computed eligibility of a student for a drive/position. `criteriaSnapshot` and
+/// `studentSnapshot` freeze what was evaluated so results are auditable after the fact.
+model PlacementEligibility {
+  id               String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                     @map("tenant_id") @db.Uuid
+  tenant           Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId          String                     @map("drive_id") @db.Uuid
+  drive            PlacementDrive             @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  positionId       String                     @map("position_id") @db.Uuid
+  position         PlacementPosition          @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  studentId        String                     @map("student_id") @db.Uuid
+  student          Student                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status           PlacementEligibilityStatus @default(PENDING)
+  criteriaSnapshot Json?                      @map("criteria_snapshot")
+  studentSnapshot  Json?                      @map("student_snapshot")
+  remarks          String?
+  evaluatedByUserId String?                   @map("evaluated_by_user_id") @db.Uuid
+  evaluatedAt      DateTime?                  @map("evaluated_at")
+  createdBy        String?                    @map("created_by")
+  updatedBy        String?                    @map("updated_by")
+  createdAt        DateTime                   @default(now()) @map("created_at")
+  updatedAt        DateTime                   @updatedAt @map("updated_at")
+
+  @@unique([tenantId, driveId, positionId, studentId])
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([driveId])
+  @@index([positionId])
+  @@map("placement_eligibility")
+}
+
+/// A student's resume / CV document kept for placement applications. Stored as a signed-URL
+/// object key (like EmployeeDocument); uploaded by either the student or staff.
+model PlacementResume {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  studentId        String    @map("student_id") @db.Uuid
+  student          Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title            String
+  fileKey          String    @map("file_key")
+  contentType      String?   @map("content_type")
+  sizeBytes        Int?      @map("size_bytes")
+  isPrimary        Boolean   @default(false) @map("is_primary")
+  uploadedByUserId String?   @map("uploaded_by_user_id") @db.Uuid
+  createdBy        String?   @map("created_by")
+  updatedBy        String?   @map("updated_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  applications PlacementApplication[]
+
+  @@index([tenantId])
+  @@index([studentId])
+  @@index([tenantId, deletedAt])
+  @@map("placement_resumes")
+}
+
+/// A student's application to a specific position in a drive.
+model PlacementApplication {
+  id            String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                       @map("tenant_id") @db.Uuid
+  tenant        Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId       String                       @map("drive_id") @db.Uuid
+  drive         PlacementDrive               @relation(fields: [driveId], references: [id], onDelete: Restrict)
+  positionId    String                       @map("position_id") @db.Uuid
+  position      PlacementPosition            @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  studentId     String                       @map("student_id") @db.Uuid
+  student       Student                      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  resumeId      String?                      @map("resume_id") @db.Uuid
+  resume        PlacementResume?             @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  status        PlacementApplicationStatus   @default(APPLIED)
+  appliedAt     DateTime                     @default(now()) @map("applied_at")
+  shortlistedAt DateTime?                    @map("shortlisted_at")
+  rejectedAt    DateTime?                    @map("rejected_at")
+  withdrawnAt   DateTime?                    @map("withdrawn_at")
+  remarks       String?
+  createdBy     String?                      @map("created_by")
+  updatedBy     String?                      @map("updated_by")
+  createdAt     DateTime                     @default(now()) @map("created_at")
+  updatedAt     DateTime                     @updatedAt @map("updated_at")
+
+  roundResults PlacementRoundResult[]
+  selection    PlacementSelection?
+  offer        PlacementOffer?
+
+  @@unique([tenantId, driveId, positionId, studentId])
+  @@index([tenantId])
+  @@index([driveId])
+  @@index([positionId])
+  @@index([studentId])
+  @@index([tenantId, status])
+  @@map("placement_applications")
+}
+
+/// An interview/test round within a drive. Results per student live in PlacementRoundResult.
+model PlacementRound {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String               @map("tenant_id") @db.Uuid
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId        String               @map("drive_id") @db.Uuid
+  drive          PlacementDrive       @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  sequence       Int
+  roundType      PlacementRoundType   @default(OTHER) @map("round_type")
+  title          String?
+  scheduledAt    DateTime?            @map("scheduled_at")
+  locationOrLink String?              @map("location_or_link")
+  status         PlacementRoundStatus @default(SCHEDULED)
+  notes          String?
+  createdBy      String?              @map("created_by")
+  updatedBy      String?              @map("updated_by")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  deletedAt      DateTime?            @map("deleted_at")
+
+  results PlacementRoundResult[]
+
+  @@unique([tenantId, driveId, sequence])
+  @@index([tenantId])
+  @@index([driveId])
+  @@map("placement_rounds")
+}
+
+/// Per-student outcome for a specific placement round.
+model PlacementRoundResult {
+  id               String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                     @map("tenant_id") @db.Uuid
+  tenant           Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  roundId          String                     @map("round_id") @db.Uuid
+  round            PlacementRound             @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  applicationId    String                     @map("application_id") @db.Uuid
+  application      PlacementApplication       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  result           PlacementRoundResultStatus @default(PENDING)
+  score            Float?
+  feedback         String?
+  assessedByUserId String?                    @map("assessed_by_user_id") @db.Uuid
+  assessedAt       DateTime?                  @map("assessed_at")
+  createdBy        String?                    @map("created_by")
+  updatedBy        String?                    @map("updated_by")
+  createdAt        DateTime                   @default(now()) @map("created_at")
+  updatedAt        DateTime                   @updatedAt @map("updated_at")
+
+  @@unique([tenantId, roundId, applicationId])
+  @@index([tenantId])
+  @@index([roundId])
+  @@index([applicationId])
+  @@map("placement_round_results")
+}
+
+/// A student selected for a position (post-rounds) before an offer is issued.
+model PlacementSelection {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId          String    @map("drive_id") @db.Uuid
+  drive            PlacementDrive @relation(fields: [driveId], references: [id], onDelete: Restrict)
+  positionId       String    @map("position_id") @db.Uuid
+  position         PlacementPosition @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  applicationId    String    @map("application_id") @db.Uuid @unique
+  application      PlacementApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  studentId        String    @map("student_id") @db.Uuid
+  student          Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  selectedByUserId String?   @map("selected_by_user_id") @db.Uuid
+  selectedAt       DateTime  @default(now()) @map("selected_at")
+  notes            String?
+  createdBy        String?   @map("created_by")
+  updatedBy        String?   @map("updated_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  offer PlacementOffer?
+
+  @@unique([tenantId, applicationId])
+  @@index([tenantId])
+  @@index([driveId])
+  @@index([positionId])
+  @@index([studentId])
+  @@map("placement_selections")
+}
+
+/// Offer letter issued to a student for a drive/position after selection.
+model PlacementOffer {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                @map("tenant_id") @db.Uuid
+  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId          String                @map("drive_id") @db.Uuid
+  drive            PlacementDrive        @relation(fields: [driveId], references: [id], onDelete: Restrict)
+  positionId       String                @map("position_id") @db.Uuid
+  position         PlacementPosition     @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  applicationId    String                @map("application_id") @db.Uuid @unique
+  application      PlacementApplication  @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  selectionId      String?               @map("selection_id") @db.Uuid @unique
+  selection        PlacementSelection?   @relation(fields: [selectionId], references: [id], onDelete: SetNull)
+  studentId        String                @map("student_id") @db.Uuid
+  student          Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  offerLetterNumber String               @map("offer_letter_number")
+  packageCents     Int?                  @map("package_cents")
+  joiningLocation  String?               @map("joining_location")
+  status           PlacementOfferStatus  @default(ISSUED)
+  issuedAt         DateTime              @default(now()) @map("issued_at")
+  acceptedAt       DateTime?             @map("accepted_at")
+  declinedAt       DateTime?             @map("declined_at")
+  expiryDate       DateTime?             @map("expiry_date")
+  notes            String?
+  createdBy        String?               @map("created_by")
+  updatedBy        String?               @map("updated_by")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+  deletedAt        DateTime?             @map("deleted_at")
+
+  joining PlacementJoining?
+  outcomes PlacementOutcome[]
+
+  @@unique([tenantId, offerLetterNumber])
+  @@index([tenantId])
+  @@index([driveId])
+  @@index([positionId])
+  @@index([studentId])
+  @@index([tenantId, status])
+  @@map("placement_offers")
+}
+
+/// Joining details after an accepted offer.
+model PlacementJoining {
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String                 @map("tenant_id") @db.Uuid
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driveId             String                 @map("drive_id") @db.Uuid
+  drive               PlacementDrive         @relation(fields: [driveId], references: [id], onDelete: Restrict)
+  offerId             String                 @map("offer_id") @db.Uuid @unique
+  offer               PlacementOffer         @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  expectedJoiningDate DateTime?              @map("expected_joining_date")
+  actualJoiningDate   DateTime?              @map("actual_joining_date")
+  joiningLocation     String?                @map("joining_location")
+  status              PlacementJoiningStatus @default(PENDING)
+  remarks             String?
+  createdBy           String?                @map("created_by")
+  updatedBy           String?                @map("updated_by")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([offerId])
+  @@map("placement_joinings")
+}
+
+/// Final placement state per student per academic year — the record backing placement
+/// statistics, package analytics and department reports. `finalPackageCents` snapshots the
+/// accepted offer package.
+model PlacementOutcome {
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                 @map("tenant_id") @db.Uuid
+  tenant            Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  academicYearId    String                 @map("academic_year_id") @db.Uuid
+  academicYear      AcademicYear           @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  studentId         String                 @map("student_id") @db.Uuid
+  student           Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  driveId           String?                @map("drive_id") @db.Uuid
+  drive             PlacementDrive?        @relation(fields: [driveId], references: [id], onDelete: SetNull)
+  positionId        String?                @map("position_id") @db.Uuid
+  position          PlacementPosition?     @relation(fields: [positionId], references: [id], onDelete: SetNull)
+  offerId           String?                @map("offer_id") @db.Uuid
+  offer             PlacementOffer?        @relation(fields: [offerId], references: [id], onDelete: SetNull)
+  outcomeStatus     PlacementOutcomeStatus @default(UNREGISTERED) @map("outcome_status")
+  finalPackageCents Int?                   @map("final_package_cents")
+  placedAt          DateTime?              @map("placed_at")
+  declaredByUserId  String?                @map("declared_by_user_id") @db.Uuid
+  remarks           String?
+  createdBy         String?                @map("created_by")
+  updatedBy         String?                @map("updated_by")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+
+  @@unique([tenantId, academicYearId, studentId])
+  @@index([tenantId])
+  @@index([academicYearId])
+  @@index([studentId])
+  @@index([tenantId, outcomeStatus])
+  @@map("placement_outcomes")
 }

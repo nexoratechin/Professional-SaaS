@@ -5,6 +5,7 @@ export * from './jobs';
 export * from './students';
 export * from './admissions';
 export * from './hr';
+export * from './placements';
 
 export interface TenantDto {
   id: string;
