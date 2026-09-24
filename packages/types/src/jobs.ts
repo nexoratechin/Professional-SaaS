@@ -2,6 +2,7 @@ export const QUEUE_NAMES = {
   NOTIFICATIONS: 'notifications',
   WORKFLOW_ESCALATION: 'workflow-escalation',
   SUBSCRIPTION_LIFECYCLE: 'subscription-lifecycle',
+  TRANSPORT_GPS_SWEEP: 'transport-gps-sweep',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -38,3 +39,11 @@ export type WorkflowEscalationSweepJobData = Record<string, never>;
  * client built per-tenant — never a job scoped to a single tenant up front.
  */
 export type SubscriptionLifecycleSweepJobData = Record<string, never>;
+
+/**
+ * Same cross-tenant maintenance-sweep shape: the transport GPS sweep finds every tenant whose
+ * TransportGpsConfig has polling enabled, then polls each tenant's fitted vehicles through its
+ * provider adapter (packages/gps) and persists fixes + raises alerts through tenant-scoped
+ * clients. Never a job scoped to a single tenant up front.
+ */
+export type TransportGpsSweepJobData = Record<string, never>;

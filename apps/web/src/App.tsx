@@ -33,6 +33,7 @@ import { CertificatesPage } from './routes/certificates';
 import { CertificateVerifyPage } from './routes/certificate-verify';
 import { LibraryPage } from './routes/library';
 import { HostelPage } from './routes/hostel';
+import { TransportPage } from './routes/transport';
 
 function ProfileRoute() {
   const { id } = useParams<{ id: string }>();
@@ -205,6 +206,14 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <HostelPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/transport"
+          element={
+            <ProtectedRoute>
+              <TransportPage />
             </ProtectedRoute>
           }
         />

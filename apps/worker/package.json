@@ -15,6 +15,7 @@
     "@college-erp/auth": "workspace:*",
     "@college-erp/config": "workspace:*",
     "@college-erp/database": "workspace:*",
+    "@college-erp/gps": "workspace:*",
     "@college-erp/types": "workspace:*",
     "@nestjs/bullmq": "^10.2.1",
     "@nestjs/common": "^10.4.4",

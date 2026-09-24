@@ -497,6 +497,18 @@ model Tenant {
   hostelWardens                HostelWarden[]
   hostelComplaints             HostelComplaint[]
   hostelVisitors               HostelVisitor[]
+  transportVehicles            TransportVehicle[]
+  transportVehicleDocuments    TransportVehicleDocument[]
+  transportDrivers             TransportDriver[]
+  transportDriverAssignments   TransportDriverAssignment[]
+  transportRoutes              TransportRoute[]
+  transportStops               TransportStop[]
+  transportTrips               TransportTrip[]
+  transportTripStops           TransportTripStop[]
+  transportMaintenanceRecords  TransportMaintenanceRecord[]
+  transportGpsPositions        TransportGPSPosition[]
+  transportAlerts              TransportAlert[]
+  transportGpsConfig           TransportGpsConfig[]
 
   @@index([status])
   @@map("tenants")
@@ -980,6 +992,7 @@ model User {
   deviceLogs                 AttendanceDeviceLog[]         @relation("UserDeviceLogs")
   examInvigilatorAssignments ExamInvigilatorAssignment[]
   libraryMembers             LibraryMember[]
+  transportDrivers           TransportDriver[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -1351,6 +1364,8 @@ model Campus {
   courseOfferings       CourseOffering[]
   timetables            Timetable[]            @relation("CampusTimetables")
   hostels               Hostel[]
+  transportVehicles     TransportVehicle[]
+  transportRoutes       TransportRoute[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -2020,6 +2035,111 @@ enum TransportPassStatus {
   EXPIRED
   SUSPENDED
   CANCELLED
+}
+
+/// Body configuration of a school transport vehicle.
+enum TransportVehicleType {
+  BUS
+  VAN
+  MINIBUS
+  CAR
+  OTHER
+}
+
+/// Operational state of a vehicle. ACTIVE/IN_SERVICE are diegetic — IN_SERVICE means it can be
+/// dispatched on trips; OUT_OF_SERVICE means parked (maintenance/paperwork); SCRAPPED is terminal.
+enum TransportVehicleStatus {
+  ACTIVE
+  IN_SERVICE
+  OUT_OF_SERVICE
+  SCRAPPED
+}
+
+/// Regulatory/ownership paperwork attached to a vehicle (see TransportVehicleDocument).
+enum TransportDocumentType {
+  REGISTRATION
+  INSURANCE
+  FITNESS
+  PERMIT
+  POLLUTION
+  TAX_RECEIPT
+  INSPECTION
+  OTHER
+}
+
+/// Recomputed on read from expiryDate by the transport service builder (derived status, not stored
+/// truth — the enum is still stored so the UI can filter on it without recomputing in the client).
+enum TransportDocumentStatus {
+  VALID
+  EXPIRED
+  EXPIRING_SOON
+  REVOKED
+}
+
+/// Lifecycle state of a transport route.
+enum TransportRouteStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+/// Which direction of a route a stop serves. Pickup and drop legs are usually the same physical
+/// route with opposite tables; PICKUP_AND_DROP covers a shared stop on both legs.
+enum TransportStopType {
+  PICKUP
+  DROP
+  PICKUP_AND_DROP
+}
+
+enum TransportDriverStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  INACTIVE
+}
+
+/// A planned/executed run of a route on a given day.
+enum TransportTripStatus {
+  SCHEDULED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum TransportMaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+  EMERGENCY
+  INSPECTION
+}
+
+enum TransportMaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/// What a transport alert is about. GEOFENCE/SPEEDING confirm the GPS-alert pipeline fired with a
+/// reason; the rest are operator/flag-driven.
+enum TransportAlertType {
+  SPEEDING
+  OFF_ROUTE
+  GEOFENCE_EXIT
+  GEOFENCE_ENTER
+  UNPLANNED_STOP
+  ENGINE
+  FUEL_LOW
+  DELAYED
+  MAINTENANCE_DUE
+  DOCUMENT_EXPIRING
+  OTHER
+}
+
+enum TransportAlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
 }
 
 enum StudentHoldType {
@@ -2900,6 +3020,12 @@ model StudentFee {
   /// academic/structure-generated fees.
   hostelBookingId      String?               @map("hostel_booking_id") @db.Uuid
   hostelBooking        StudentHostelBooking? @relation(fields: [hostelBookingId], references: [id], onDelete: SetNull)
+  /// Transport-passes fee line created by the transport module points back at the pass that
+  /// produced it (see the transport module), the same way hostelBookingId does for hostel rent
+  /// charges — so the transport ledger can report a student's transport dues directly. Null for
+  /// academic/structure-generated fees.
+  transportPassId      String?               @map("transport_pass_id") @db.Uuid
+  transportPass        StudentTransportPass? @relation(fields: [transportPassId], references: [id], onDelete: SetNull)
   headCode             String                @map("head_code")
   headName             String                @map("head_name")
   amountCents          Int                   @map("amount_cents")
@@ -4489,13 +4615,25 @@ model StudentHostelBooking {
   @@map("student_hostel_bookings")
 }
 
-/// Transport pass / route allocation for this student.
+/// Transport pass / route allocation for this student. Since the transport module exists the pass
+/// points at the concrete route/stop/vehicle it was issued against (routeCode/routeName/
+/// pickupPoint/dropPoint/vehicleNumber are denormalized snapshots kept for backward-compatible reads).
 model StudentTransportPass {
   id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String              @map("tenant_id") @db.Uuid
   tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   studentId     String              @map("student_id") @db.Uuid
   student       Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  routeId       String?             @map("route_id") @db.Uuid
+  route         TransportRoute?     @relation(fields: [routeId], references: [id], onDelete: SetNull)
+  stopId        String?             @map("stop_id") @db.Uuid
+  stop          TransportStop?      @relation("StudentPassPickupStop", fields: [stopId], references: [id], onDelete: SetNull)
+  dropStopId    String?             @map("drop_stop_id") @db.Uuid
+  dropStop      TransportStop?      @relation("StudentPassDropStop", fields: [dropStopId], references: [id], onDelete: SetNull)
+  vehicleId     String?             @map("vehicle_id") @db.Uuid
+  vehicle       TransportVehicle?   @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  driverId      String?             @map("driver_id") @db.Uuid
+  driver        TransportDriver?    @relation(fields: [driverId], references: [id], onDelete: SetNull)
   routeCode     String?             @map("route_code")
   routeName     String              @map("route_name")
   pickupPoint   String?             @map("pickup_point")
@@ -4505,15 +4643,22 @@ model StudentTransportPass {
   periodEnd     DateTime?           @map("period_end")
   status        TransportPassStatus @default(ACTIVE)
   amountCents   Int?                @map("amount_cents")
+  dailyPickupTime String?           @map("daily_pickup_time")
+  dailyDropTime   String?           @map("daily_drop_time")
+  issuedOn      DateTime?           @map("issued_on")
+  issuedByUserId String?            @map("issued_by_user_id")
   remarks       String?
   createdBy     String?             @map("created_by")
   updatedBy     String?             @map("updated_by")
   createdAt     DateTime            @default(now()) @map("created_at")
   updatedAt     DateTime            @updatedAt @map("updated_at")
+  feeCharges    StudentFee[]
 
   @@index([tenantId])
   @@index([studentId])
   @@index([tenantId, status])
+  @@index([tenantId, routeId])
+  @@index([tenantId, vehicleId])
   @@map("student_transport_passes")
 }
 
@@ -6280,4 +6425,395 @@ model LibrarySequence {
 
   @@unique([tenantId, kind, prefix])
   @@map("library_sequences")
+}
+
+// ---------------------------------------------------------------------------
+// Transport Management (Phase 8) — vehicles, drivers, routes/stops, trip runs,
+// student passes & fees, maintenance, GPS tracking architecture, alerts & reports.
+// The module lives in apps/api/src/modules/transport; the GPS provider abstraction
+// in packages/gps (mock provider + registry + adapter protocol) is shared with the
+// worker's scheduled GPS sweep (apps/worker/src/queues/transport-gps).
+// ---------------------------------------------------------------------------
+
+/// A school vehicle (bus/van/car) held on the transport register. registrationNumber is unique per
+/// tenant. Status/paperwork are tracked here and mirrored into checked-in at trip dispatch time.
+model TransportVehicle {
+  id                  String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String                 @map("tenant_id") @db.Uuid
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId            String?                @map("campus_id") @db.Uuid
+  campus              Campus?                @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  type                TransportVehicleType   @default(BUS)
+  registrationNumber  String                 @map("registration_number")
+  chassisNumber       String?                @map("chassis_number")
+  engineNumber        String?                @map("engine_number")
+  make                String?
+  model               String?
+  yearOfManufacture   Int?                   @map("year_of_manufacture")
+  fuelType            String?                @map("fuel_type")
+  seatingCapacity     Int?                   @map("seating_capacity")
+  standingCapacity    Int?                   @map("standing_capacity")
+  isAc                Boolean                @default(false) @map("is_ac")
+  /// GPS hardware/device id, when the vehicle is fitted. Polled by the GPS provider adapters.
+  gpsDeviceId         String?                @map("gps_device_id")
+  status              TransportVehicleStatus @default(IN_SERVICE)
+  /// Derivable-at-read convenience flags (registration/fitness/insurance/permit expiry) are
+  /// computed by the transport service's vehicle builder from its TransportVehicleDocument rows.
+  createdBy           String?                @map("created_by")
+  updatedBy           String?                @map("updated_by")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+  deletedAt           DateTime?              @map("deleted_at")
+
+  documents       TransportVehicleDocument[]
+  driverAssignments TransportDriverAssignment[]
+  routes          TransportRoute[]
+  trips           TransportTrip[]
+  gpsPositions    TransportGPSPosition[]
+  alerts          TransportAlert[]
+  passAssignments StudentTransportPass[]
+  maintenanceRecords TransportMaintenanceRecord[]
+
+  @@unique([tenantId, registrationNumber])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, deletedAt])
+  @@map("transport_vehicles")
+}
+
+/// A regulatory/ownership document attached to a vehicle (insurance, fitness cert, permit, PUC, …).
+/// Uploaded files live in the shared Documents/storage infrastructure; this row carries the
+/// storageKey + metadata. status is recomputed on read from expiryDate by the service builder.
+model TransportVehicleDocument {
+  id               String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String                  @map("tenant_id") @db.Uuid
+  tenant           Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  vehicleId        String                  @map("vehicle_id") @db.Uuid
+  vehicle          TransportVehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  documentType     TransportDocumentType   @map("document_type")
+  documentNumber   String?                 @map("document_number")
+  issueDate        DateTime?               @map("issue_date")
+  expiryDate       DateTime?               @map("expiry_date")
+  issuer           String?
+  storageKey       String?                 @map("storage_key")
+  originalFilename String?                 @map("original_filename")
+  mimeType         String?                 @map("mime_type")
+  sizeBytes        Int?                    @map("size_bytes")
+  status           TransportDocumentStatus @default(VALID)
+  remarks          String?
+  createdBy        String?                 @map("created_by")
+  updatedBy        String?                 @map("updated_by")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, vehicleId])
+  @@index([tenantId, documentType, status])
+  @@map("transport_vehicle_documents")
+}
+
+/// A driver eligible to run a transport route. licenseNumber is unique per tenant. Optionally
+/// linked to a User account (userId) so a driver can sign in and see their own trips.
+model TransportDriver {
+  id             String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String                @map("tenant_id") @db.Uuid
+  tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId         String?               @map("user_id") @db.Uuid
+  user           User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name           String
+  phone          String?
+  alternatePhone String?               @map("alternate_phone")
+  email          String?
+  licenseNumber  String                @map("license_number")
+  licenseClass   String?               @map("license_class")
+  licenseExpiry  DateTime?             @map("license_expiry")
+  profilePhotoKey String?              @map("profile_photo_key")
+  joinedAt       DateTime?             @map("joined_at")
+  status         TransportDriverStatus @default(ACTIVE)
+  notes          String?
+  createdBy      String?               @map("created_by")
+  updatedBy      String?               @map("updated_by")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+  deletedAt      DateTime?             @map("deleted_at")
+
+  assignments    TransportDriverAssignment[]
+  trips          TransportTrip[]
+  passAssignments StudentTransportPass[]
+
+  @@unique([tenantId, licenseNumber])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, deletedAt])
+  @@map("transport_drivers")
+}
+
+/// Assignment history of a driver to a fleet vehicle — currently riding/assigned vs released.
+/// The route-level "who rides today" still lives on the trip's driverId; this is the persistent
+/// driver↔vehicle fleet assignment ledger (and the source for roster planning).
+model TransportDriverAssignment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  driverId   String   @map("driver_id") @db.Uuid
+  driver     TransportDriver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicleId  String   @map("vehicle_id") @db.Uuid
+  vehicle    TransportVehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  isActive   Boolean  @default(true) @map("is_active")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+  releasedAt DateTime? @map("released_at")
+  remarks    String?
+  createdBy  String?  @map("created_by")
+  updatedBy  String?  @map("updated_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, driverId, isActive])
+  @@index([tenantId, vehicleId, isActive])
+  @@map("transport_driver_assignments")
+}
+
+/// A scheduled school route between stops. Fee for the route is carried as monthlyFeeCents and is
+/// charged onto the student fee ledger (StudentFee.transportPassId) when a pass is allocated.
+model TransportRoute {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String               @map("tenant_id") @db.Uuid
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId            String?              @map("campus_id") @db.Uuid
+  campus              Campus?              @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  code                String               @map("code")
+  name                String
+  status              TransportRouteStatus @default(ACTIVE)
+  distanceKm          Float?               @map("distance_km")
+  estimatedDurationMin Int?                @map("estimated_duration_min")
+  monthlyFeeCents     Int?                 @map("monthly_fee_cents")
+  description         String?
+  isActive            Boolean              @default(true) @map("is_active")
+  vehicleId           String?              @map("vehicle_id") @db.Uuid
+  vehicle             TransportVehicle?    @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  createdBy           String?              @map("created_by")
+  updatedBy           String?              @map("updated_by")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  deletedAt           DateTime?            @map("deleted_at")
+
+  stops        TransportStop[]
+  trips        TransportTrip[]
+  passAssignments StudentTransportPass[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, deletedAt])
+  @@map("transport_routes")
+}
+
+/// Physical pick-up/drop-off point along a route, ordered by `order`. Coordinates are what the
+/// GPS geofence evaluator compares against live vehicle positions. pickupTime/dropTime are local
+/// clock strings ("07:30") defining the intended schedule for the associated leg/direction.
+model TransportStop {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String           @map("tenant_id") @db.Uuid
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  routeId         String           @map("route_id") @db.Uuid
+  route           TransportRoute   @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  name            String
+  order           Int
+  type            TransportStopType @default(PICKUP)
+  address         String?
+  latitude        Float?
+  longitude       Float?
+  pickupTime      String?          @map("pickup_time")
+  dropTime        String?          @map("drop_time")
+  reachRadiusMeters Int            @default(50) @map("reach_radius_meters")
+  isActive        Boolean          @default(true) @map("is_active")
+  createdBy       String?          @map("created_by")
+  updatedBy       String?          @map("updated_by")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
+
+  tripStops   TransportTripStop[]
+  passAssignments     StudentTransportPass[] @relation("StudentPassPickupStop")
+  dropPassAssignments StudentTransportPass[] @relation("StudentPassDropStop")
+
+  @@unique([tenantId, routeId, order])
+  @@index([tenantId])
+  @@index([tenantId, routeId])
+  @@map("transport_stops")
+}
+
+/// A planned/executed run of a route on a given date. Status moves SCHEDULED → ONGOING (driver
+/// starts the route in the app) → COMPLETED; CANCELLED with a reason. GPS positions during the run
+/// are linked through transportGpsPositions.tripId and alerts through transportAlerts.tripId.
+model TransportTrip {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String              @map("tenant_id") @db.Uuid
+  tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  routeId            String              @map("route_id") @db.Uuid
+  route              TransportRoute      @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  vehicleId          String?             @map("vehicle_id") @db.Uuid
+  vehicle            TransportVehicle?   @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  driverId           String?             @map("driver_id") @db.Uuid
+  driver             TransportDriver?    @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  date               DateTime            @map("date")
+  status             TransportTripStatus @default(SCHEDULED)
+  scheduledDeparture DateTime?           @map("scheduled_departure")
+  scheduledArrival   DateTime?           @map("scheduled_arrival")
+  actualDepartureAt  DateTime?           @map("actual_departure_at")
+  actualArrivalAt    DateTime?           @map("actual_arrival_at")
+  distanceKm         Float?              @map("distance_km")
+  cancelledAt        DateTime?           @map("cancelled_at")
+  cancelReason       String?             @map("cancel_reason")
+  remarks            String?
+  createdBy          String?             @map("created_by")
+  updatedBy          String?             @map("updated_by")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  tripStops  TransportTripStop[]
+  gpsPositions TransportGPSPosition[]
+  alerts     TransportAlert[]
+
+  @@unique([tenantId, routeId, date])
+  @@index([tenantId])
+  @@index([tenantId, routeId, date])
+  @@index([tenantId, vehicleId, date])
+  @@index([tenantId, status])
+  @@map("transport_trips")
+}
+
+/// Per-stop checkpoints of a trip run (used for route tracking: boarded/alighted counts, actual
+/// arrival/departure, skipped stops).
+model TransportTripStop {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tripId          String   @map("trip_id") @db.Uuid
+  trip            TransportTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  stopId          String   @map("stop_id") @db.Uuid
+  stop            TransportStop @relation(fields: [stopId], references: [id], onDelete: Restrict)
+  order           Int
+  scheduledTime   DateTime? @map("scheduled_time")
+  actualArrivalAt DateTime? @map("actual_arrival_at")
+  actualDepartureAt DateTime? @map("actual_departure_at")
+  studentsBoarded Int      @default(0) @map("students_boarded")
+  studentsAlighted Int     @default(0) @map("students_alighted")
+  skipped         Boolean  @default(false)
+  notes           String?
+
+  @@index([tenantId])
+  @@index([tenantId, tripId])
+  @@map("transport_trip_stops")
+}
+
+/// Fleet maintenance/repair record for a vehicle.
+model TransportMaintenanceRecord {
+  id            String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                      @map("tenant_id") @db.Uuid
+  tenant        Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  vehicleId     String                      @map("vehicle_id") @db.Uuid
+  vehicle       TransportVehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type          TransportMaintenanceType
+  status        TransportMaintenanceStatus  @default(SCHEDULED)
+  scheduledDate DateTime?                   @map("scheduled_date")
+  startedAt     DateTime?                   @map("started_at")
+  completedAt   DateTime?                   @map("completed_at")
+  odometerKm    Int?                        @map("odometer_km")
+  description   String?
+  vendor        String?
+  costCents     Int?                        @map("cost_cents")
+  performedBy   String?                     @map("performed_by")
+  notes         String?
+  createdBy     String?                     @map("created_by")
+  updatedBy     String?                     @map("updated_by")
+  createdAt     DateTime                    @default(now()) @map("created_at")
+  updatedAt     DateTime                    @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, vehicleId])
+  @@index([tenantId, status])
+  @@map("transport_maintenance_records")
+}
+
+/// One GPS fix for a vehicle. Written either by the ingress endpoint (device/provider push),
+/// by an on-demand poll from the transport module's GPS service, or by the worker's scheduled
+/// polling sweep (both of which route through the shared packages/gps provider abstraction).
+model TransportGPSPosition {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  vehicleId      String    @map("vehicle_id") @db.Uuid
+  vehicle        TransportVehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  tripId         String?   @map("trip_id") @db.Uuid
+  trip           TransportTrip? @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  latitude       Float
+  longitude      Float
+  speedKmh       Float?    @map("speed_kmh")
+  heading        Int?      @map("heading")
+  accuracyMeters Float?    @map("accuracy_meters")
+  recordedAt     DateTime  @default(now()) @map("recorded_at")
+  source         String    @default("mock")
+  rawData        Json?     @map("raw_data")
+
+  @@index([tenantId])
+  @@index([tenantId, vehicleId, recordedAt])
+  @@index([tenantId, tripId, recordedAt])
+  @@map("transport_gps_positions")
+}
+
+/// A transport alert — GPS-derived (SPEEDING/OFF_ROUTE/GEOFENCE from the sweep/ingress pipeline)
+/// or operator/flag-driven (MAINTENANCE_DUE/DOCUMENT_EXPIRING/DELAYED/OTHER). CRITICAL alerts are
+/// fanned out to transport-manager users as notifications on creation.
+model TransportAlert {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String               @map("tenant_id") @db.Uuid
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  vehicleId        String?              @map("vehicle_id") @db.Uuid
+  vehicle          TransportVehicle?    @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  tripId           String?              @map("trip_id") @db.Uuid
+  trip             TransportTrip?       @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  type             TransportAlertType
+  severity         TransportAlertSeverity
+  title            String
+  message          String
+  latitude         Float?
+  longitude        Float?
+  meta             Json?
+  acknowledgedAt   DateTime?            @map("acknowledged_at")
+  acknowledgedByUserId String?          @map("acknowledged_by_user_id")
+  resolvedAt       DateTime?            @map("resolved_at")
+  resolvedByUserId String?              @map("resolved_by_user_id")
+  resolution       String?
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, severity, resolvedAt])
+  @@index([tenantId, vehicleId, createdAt])
+  @@index([tenantId, tripId])
+  @@map("transport_alerts")
+}
+
+/// Per-tenant GPS provider wiring — which provider adapter the tenant's vehicles are tracked
+/// through, whether polling is enabled, and provider-specific settings. This is what keeps the
+/// GPS integration provider-agnostic: adding a vendor means registering an adapter implementing
+/// the TransportGpsProvider interface in packages/gps, not touching the module's data model.
+model TransportGpsConfig {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @unique @map("tenant_id") @db.Uuid
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  provider          String   @default("mock")
+  enabled           Boolean  @default(false)
+  pollEnabled       Boolean  @default(false) @map("poll_enabled")
+  pollIntervalSeconds Int    @default(30) @map("poll_interval_seconds")
+  settings          Json?
+  lastPolledAt      DateTime? @map("last_polled_at")
+  createdBy         String?  @map("created_by")
+  updatedBy         String?  @map("updated_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("transport_gps_configs")
 }
