@@ -47,6 +47,10 @@ export const apiEnvSchema = z.object({
   S3_BUCKET: z.string().min(1),
   S3_FORCE_PATH_STYLE: boolFromString,
 
+  /** Global cap on a single document file upload in bytes (25 MiB). Overridable per
+   *  DocumentType via its maxSizeBytes. */
+  DOCUMENT_MAX_UPLOAD_SIZE_BYTES: z.coerce.number().int().positive().default(26_214_400),
+
   COOKIE_DOMAIN: z.string().optional(),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   /** Base URL embedded in certificate QR codes so an offline printed document can be verified
@@ -68,6 +72,32 @@ export const workerEnvSchema = z.object({
   NOTIFICATION_SECRET_KEY: z
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'NOTIFICATION_SECRET_KEY must be 64 hex characters (32 bytes)'),
+
+  /** Object-storage credentials for the document virus-scan + retention processors, which
+   *  delete/quarantine infected or expired objects (the same bucket the API signs URLs into). */
+  S3_ENDPOINT: z.string().min(1),
+  S3_REGION: z.string().default('us-east-1'),
+  S3_ACCESS_KEY: z.string().min(1),
+  S3_SECRET_KEY: z.string().min(1),
+  S3_BUCKET: z.string().min(1),
+  S3_FORCE_PATH_STYLE: boolFromString,
+
+  /** Which virus scanner the DocumentVirusScanProcessor uses: `mock` (dev default — every file
+   *  scans clean unless the payload opts into a simulated infection), `clamav` (clamd TCP
+   *  protocol), or `http` (generic scanning API returning { clean: boolean }). */
+  VIRUS_SCAN_PROVIDER: z.enum(['mock', 'clamav', 'http']).default('mock'),
+  CLAMAV_HOST: z.string().default('clamav'),
+  CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
+  /** Optional generic scanning API (used when VIRUS_SCAN_PROVIDER=http). Empty string (e.g. an
+   *  unset compose var) is treated as unset. */
+  VIRUS_SCAN_API_URL: z
+    .union([z.string().url(), z.literal('')])
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  VIRUS_SCAN_API_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
 });
 
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;

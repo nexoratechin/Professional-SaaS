@@ -1,15 +1,2 @@
-import { IsString, MinLength } from 'class-validator';
-
-export class RequestUploadUrlDto {
-  @IsString()
-  @MinLength(1)
-  filename!: string;
-
-  @IsString()
-  @MinLength(1)
-  mimeType!: string;
-
-  @IsString()
-  @MinLength(1)
-  category!: string;
-}
+/** Backward-compatible alias — see dto/documents.dto.ts for the full DTO set. */
+export { RequestUploadUrlDto } from './documents.dto';

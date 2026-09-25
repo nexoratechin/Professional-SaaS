@@ -1,11 +1,25 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AppConfigService } from '../../config/app-config.service';
 
 const UPLOAD_URL_TTL_SECONDS = 300;
 const DOWNLOAD_URL_TTL_SECONDS = 300;
+
+/** Server-side HEAD of a stored object (see StorageService.getObjectMetadata). */
+export interface ObjectMetadata {
+  sizeBytes: number;
+  contentType: string | null;
+  etag: string | null;
+  lastModified: Date | null;
+}
 
 /**
  * Tenant-aware file access: every key this service will sign a URL for (or delete) must live
@@ -79,5 +93,44 @@ export class StorageService {
   async delete(tenantId: string, key: string): Promise<void> {
     this.assertKeyBelongsToTenant(tenantId, key);
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  /** True if an object exists at key — used by confirm-upload to reject confirms for files that
+   *  never actually reached storage. */
+  async objectExists(tenantId: string, key: string): Promise<boolean> {
+    this.assertKeyBelongsToTenant(tenantId, key);
+    try {
+      await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Server-side HEAD of an uploaded object — the trusted size/MIME source at confirm time. The
+   *  frontend's Content-Length/MIME claims are never trusted; only what MinIO reports back is. */
+  async getObjectMetadata(tenantId: string, key: string): Promise<ObjectMetadata> {
+    this.assertKeyBelongsToTenant(tenantId, key);
+    const result = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+    return {
+      sizeBytes: result.ContentLength ?? 0,
+      contentType: result.ContentType ?? null,
+      etag: result.ETag ?? null,
+      lastModified: result.LastModified ?? null,
+    };
+  }
+
+  /** Streams the object's bytes through SHA-256 — the content fingerprint stored on the
+   *  DocumentVersion and used to detect upload/replacement corruption and tampering. */
+  async computeObjectSha256(tenantId: string, key: string): Promise<string> {
+    this.assertKeyBelongsToTenant(tenantId, key);
+    const result = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    const hash = createHash('sha256');
+    if (result.Body) {
+      for await (const chunk of result.Body as unknown as AsyncIterable<Uint8Array>) {
+        hash.update(chunk);
+      }
+    }
+    return hash.digest('hex');
   }
 }

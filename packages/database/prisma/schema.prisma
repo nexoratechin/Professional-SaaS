@@ -159,9 +159,42 @@ enum NotificationDeliveryStatus {
   SUPPRESSED
 }
 
+/// Lifecycle of a centralized-managed document. PENDING_UPLOAD: upload URL issued, file not yet
+/// uploaded. UPLOADED: upload confirmed, queued (or waiting) for virus scan. AWAITING_SCAN:
+/// scan job in flight. READY: current version scanned clean and available for download.
+/// VERIFIED: an authorized reviewer confirmed the document's authenticity. REJECTED: rejected
+/// by reviewer decision or infected upload — the document is re-uploadable (replacement).
+/// REPLACED: superseded by a newer version (kept for history). EXPIRED: past expiresAt or the
+/// document type's retention period (worker sweep or explicit action). QUARANTINED: a
+/// virus-scanned version was found infected and its object was removed from storage.
 enum DocumentStatus {
   PENDING_UPLOAD
   UPLOADED
+  AWAITING_SCAN
+  READY
+  VERIFIED
+  REJECTED
+  REPLACED
+  EXPIRED
+  QUARANTINED
+}
+
+/// Per-file (DocumentVersion) virus-scan lifecycle. PENDING → SCANNING → CLEAN | INFECTED |
+/// ERROR. QUARANTINED: INFECTED and the object was deleted from storage (kept for forensics
+/// only). Errors leave the file untouched and are retryable via a re-scan.
+enum DocumentScanStatus {
+  PENDING
+  SCANNING
+  CLEAN
+  INFECTED
+  ERROR
+  QUARANTINED
+}
+
+/// Who a DocumentAccessGrant is scoped to — an individual tenant user or a tenant Role.
+enum DocumentGranteeType {
+  USER
+  ROLE
 }
 
 enum PermissionAction {
@@ -405,6 +438,10 @@ model Tenant {
   notificationPreferences           NotificationPreference[]
   notificationUserPushDevices       UserPushDevice[]
   documents                         Document[]
+  documentTypes                     DocumentType[]
+  documentVersions                  DocumentVersion[]
+  documentAccessGrants              DocumentAccessGrant[]
+  documentDownloadLogs              DocumentDownloadLog[]
   passwordResetTokens               PasswordResetToken[]
   emailVerificationTokens           EmailVerificationToken[]
   mfaBackupCodes                    MfaBackupCode[]
@@ -2301,36 +2338,36 @@ enum CommunicationDirection {
 // ---------------------------------------------------------------------------
 
 model Notification {
-  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId        String              @map("tenant_id") @db.Uuid
-  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  recipientUserId String?             @map("recipient_user_id") @db.Uuid
-  channel         NotificationChannel
-  subject         String
-  body            String
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  recipientUserId   String?               @map("recipient_user_id") @db.Uuid
+  channel           NotificationChannel
+  subject           String
+  body              String
   /// Template this notification was rendered from, when applicable (system/direct sends may be null).
-  templateId      String?             @map("template_id") @db.Uuid
-  template        NotificationTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateId        String?               @map("template_id") @db.Uuid
+  template          NotificationTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   /// Campaign this notification belongs to (a campaign fan-out creates one row per recipient).
-  campaignId      String?             @map("campaign_id") @db.Uuid
-  campaign        NotificationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  campaignId        String?               @map("campaign_id") @db.Uuid
+  campaign          NotificationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   /// Variable values used at render time, for traceability/audit of what a recipient actually got.
-  variables       Json?
+  variables         Json?
   /// For scheduled one-off sends: the earliest time the delivery job may run (BullMQ delay).
-  scheduledAt     DateTime?           @map("scheduled_at")
-  status          NotificationStatus  @default(PENDING)
-  error           String?
+  scheduledAt       DateTime?             @map("scheduled_at")
+  status            NotificationStatus    @default(PENDING)
+  error             String?
   /// Provider used for the most recent attempt (e.g. smtp, http, console, in_app).
-  provider        String?
+  provider          String?
   /// Provider-reported message id from the most recent attempt.
-  providerMessageId String?           @map("provider_message_id")
-  attempts        Int                 @default(0)
-  lastAttemptAt   DateTime?           @map("last_attempt_at")
-  readAt          DateTime?           @map("read_at")
-  sentAt          DateTime?           @map("sent_at")
-  createdBy       String?             @map("created_by")
-  createdAt       DateTime            @default(now()) @map("created_at")
-  updatedAt       DateTime            @updatedAt @map("updated_at")
+  providerMessageId String?               @map("provider_message_id")
+  attempts          Int                   @default(0)
+  lastAttemptAt     DateTime?             @map("last_attempt_at")
+  readAt            DateTime?             @map("read_at")
+  sentAt            DateTime?             @map("sent_at")
+  createdBy         String?               @map("created_by")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
 
   deliveryLogs NotificationDeliveryLog[]
 
@@ -2375,29 +2412,29 @@ model NotificationTemplate {
 }
 
 model NotificationCampaign {
-  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId       String                 @map("tenant_id") @db.Uuid
-  tenant         Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  id             String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String                     @map("tenant_id") @db.Uuid
+  tenant         Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   name           String
   description    String?
-  templateId     String                 @map("template_id") @db.Uuid
-  template       NotificationTemplate   @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  templateId     String                     @map("template_id") @db.Uuid
+  template       NotificationTemplate       @relation(fields: [templateId], references: [id], onDelete: Restrict)
   status         NotificationCampaignStatus @default(DRAFT)
   /// The audience filter definition (see NotificationAudienceFilter in @college-erp/types) —
   /// resolved by @college-erp/notifications' resolveAudience at launch time.
-  audienceFilter Json                   @map("audience_filter")
+  audienceFilter Json                       @map("audience_filter")
   /// Snapshot of the resolved recipient count once the campaign has been launched.
-  audienceCount  Int?                   @map("audience_count")
+  audienceCount  Int?                       @map("audience_count")
   /// null = launch immediately when the API launches it; future = delayed BullMQ job.
-  scheduledAt    DateTime?              @map("scheduled_at")
-  startedAt      DateTime?              @map("started_at")
-  completedAt    DateTime?              @map("completed_at")
-  canceledAt     DateTime?              @map("canceled_at")
-  createdBy      String?                @map("created_by")
-  updatedBy      String?                @map("updated_by")
-  createdAt      DateTime               @default(now()) @map("created_at")
-  updatedAt      DateTime               @updatedAt @map("updated_at")
-  deletedAt      DateTime?              @map("deleted_at")
+  scheduledAt    DateTime?                  @map("scheduled_at")
+  startedAt      DateTime?                  @map("started_at")
+  completedAt    DateTime?                  @map("completed_at")
+  canceledAt     DateTime?                  @map("canceled_at")
+  createdBy      String?                    @map("created_by")
+  updatedBy      String?                    @map("updated_by")
+  createdAt      DateTime                   @default(now()) @map("created_at")
+  updatedAt      DateTime                   @updatedAt @map("updated_at")
+  deletedAt      DateTime?                  @map("deleted_at")
 
   notifications Notification[]
 
@@ -2412,22 +2449,22 @@ model NotificationCampaign {
 /// log — retries show up here as successive attempts, so a notification that eventually SENT has
 /// an auditable trail of everything the pipeline tried.
 model NotificationDeliveryLog {
-  id                String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String                  @map("tenant_id") @db.Uuid
-  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  notificationId    String                  @map("notification_id") @db.Uuid
-  notification      Notification            @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-  attempt           Int                     @default(1)
+  id                String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                     @map("tenant_id") @db.Uuid
+  tenant            Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  notificationId    String                     @map("notification_id") @db.Uuid
+  notification      Notification               @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  attempt           Int                        @default(1)
   channel           NotificationChannel
   provider          String
   status            NotificationDeliveryStatus
-  providerMessageId String?                 @map("provider_message_id")
+  providerMessageId String?                    @map("provider_message_id")
   /// Sanitized request snapshot (no credentials ever written here).
   request           Json?
   response          Json?
   error             String?
-  latencyMs         Int?                    @map("latency_ms")
-  createdAt         DateTime                @default(now()) @map("created_at")
+  latencyMs         Int?                       @map("latency_ms")
+  createdAt         DateTime                   @default(now()) @map("created_at")
 
   @@index([tenantId, notificationId])
   @@index([tenantId, status])
@@ -2439,22 +2476,22 @@ model NotificationDeliveryLog {
 /// (AES-256-GCM, @college-erp/notifications NotificationSecretCipher) and never returned by the
 /// API. One row may be flagged isDefault so the worker picks it without ambiguity.
 model NotificationProviderConfig {
-  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId            String              @map("tenant_id") @db.Uuid
-  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  channel             NotificationChannel
-  provider            String
-  name                String?
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String              @map("tenant_id") @db.Uuid
+  tenant               Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  channel              NotificationChannel
+  provider             String
+  name                 String?
   /// Non-secret settings (host/port/from/url/headers/body template …).
-  config              Json?
+  config               Json?
   /// Encrypted JSON of the credential bag ({username,password} for SMTP, {token} for gateways).
-  credentialsEncrypted String?            @map("credentials_encrypted")
-  isActive            Boolean             @default(false) @map("is_active")
-  isDefault           Boolean             @default(false) @map("is_default")
-  createdBy           String?             @map("created_by")
-  updatedBy           String?             @map("updated_by")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
+  credentialsEncrypted String?             @map("credentials_encrypted")
+  isActive             Boolean             @default(false) @map("is_active")
+  isDefault            Boolean             @default(false) @map("is_default")
+  createdBy            String?             @map("created_by")
+  updatedBy            String?             @map("updated_by")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
 
   @@unique([tenantId, channel, provider])
   @@index([tenantId, channel, isActive])
@@ -2467,16 +2504,16 @@ model NotificationProviderConfig {
 /// the emitting module (e.g. `helpdesk.ticket.created`), never an enum, so a future module plugs
 /// in with no schema change.
 model NotificationEventTrigger {
-  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String              @map("tenant_id") @db.Uuid
-  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  eventKey   String              @map("event_key")
-  templateId String              @map("template_id") @db.Uuid
+  id         String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String               @map("tenant_id") @db.Uuid
+  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  eventKey   String               @map("event_key")
+  templateId String               @map("template_id") @db.Uuid
   template   NotificationTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  isActive   Boolean             @default(true) @map("is_active")
-  createdBy  String?             @map("created_by")
-  createdAt  DateTime            @default(now()) @map("created_at")
-  updatedAt  DateTime            @updatedAt @map("updated_at")
+  isActive   Boolean              @default(true) @map("is_active")
+  createdBy  String?              @map("created_by")
+  createdAt  DateTime             @default(now()) @map("created_at")
+  updatedAt  DateTime             @updatedAt @map("updated_at")
 
   @@unique([tenantId, eventKey, templateId])
   @@index([tenantId, eventKey])
@@ -2519,31 +2556,188 @@ model UserPushDevice {
 
 // ---------------------------------------------------------------------------
 // Documents (tenant-scoped file metadata â€” see apps/api's StorageService/
-// DocumentsModule). storageKey always embeds the owning tenantId as a path
-// prefix; StorageService refuses to sign a URL for a key outside the caller's
-// tenant prefix regardless of what this table says, so tenant isolation for
-// file access is enforced twice: once by the tenant-scoped Prisma query that
-// finds the Document row, once by the key-prefix check before signing.
+// DocumentsModule). The Document row is the LOGICAL document (title, type, lifecycle,
+// verification, expiry, retention); every physical upload is a DocumentVersion row
+// underneath it (versioning, virus scan, per-file metadata). storageKey always embeds
+// the owning tenantId as a path prefix; StorageService refuses to sign a URL for a
+// key outside the caller's tenant prefix regardless of what these tables say, so
+// tenant isolation for file access is enforced twice: once by the tenant-scoped
+// Prisma query that finds the row, once by the key-prefix check before signing.
+// Download access is additionally gated by DocumentAccessGrant grants + document
+// status, and every download is recorded in DocumentDownloadLog (+ the immutable
+// PlatformAuditLog trail via AuditService).
 // ---------------------------------------------------------------------------
 
+/// Tenant-configurable catalog of document categories/types. Restricts what may be uploaded
+/// for a type (MIME types, file extensions, max size), whether documents can expire, and the
+/// retention period applied by the worker's document-retention sweep. Codes are unique per
+/// tenant and soft-deletable (deletedAt) so historical documents keep resolving.
+model DocumentType {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  code              String
+  name              String
+  description       String?
+  /// MIME types allowed for upload (JSON array of strings). Null = inherit the global allowlist.
+  allowedMimeTypes  Json?     @map("allowed_mime_types")
+  /// File extensions allowed for upload (JSON array of strings, no leading dot). Null = any.
+  allowedExtensions Json?     @map("allowed_extensions")
+  /// Per-file size cap in bytes. Null = inherit the global DOCUMENT_MAX_UPLOAD_SIZE_BYTES.
+  maxSizeBytes      Int?      @map("max_size_bytes")
+  /// Marks documents as sensitive — reviewers must verify; downloads are strictly audited.
+  isSensitive       Boolean   @default(false) @map("is_sensitive")
+  /// Whether documents of this type may be given an explicit expiresAt.
+  canExpire         Boolean   @default(false) @map("can_expire")
+  /// Retention period in days after upload: the retention sweep EXPIRES the document (and
+  /// removes its storage objects) once this period elapses. Null = keep indefinitely.
+  retentionDays     Int?      @map("retention_days")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdBy         String?   @map("created_by")
+  updatedBy         String?   @map("updated_by")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+
+  documents Document[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("document_types")
+}
+
 model Document {
-  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId         String         @map("tenant_id") @db.Uuid
-  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  tenant           Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  documentTypeId   String?          @map("document_type_id") @db.Uuid
+  documentType     DocumentType?    @relation(fields: [documentTypeId], references: [id], onDelete: SetNull)
+  title            String           @default("")
+  description      String?
+  /// Legacy free-form bucket used by the key builder / other modules (helpdesk attachments
+  /// reference Document rows by id only — category stays for storage-key partitioning).
   category         String
-  storageKey       String         @unique @map("storage_key")
-  originalFilename String         @map("original_filename")
-  mimeType         String         @map("mime_type")
-  sizeBytes        Int?           @map("size_bytes")
-  status           DocumentStatus @default(PENDING_UPLOAD)
-  uploadedBy       String?        @map("uploaded_by") @db.Uuid
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @updatedAt @map("updated_at")
-  deletedAt        DateTime?      @map("deleted_at")
+  status           DocumentStatus   @default(PENDING_UPLOAD)
+  /// Free-form structured metadata (issuer, document number, notes, custom fields).
+  metadata         Json?
+  tags             String[]         @default([])
+  /// Current/latest physical file. Kept on the logical row so list views and legacy
+  /// consumers (platform dashboard storage usage) don't need to join versions.
+  currentVersionId String?          @map("current_version_id") @db.Uuid
+  currentVersion   DocumentVersion? @relation("CurrentDocumentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  /// Denormalized snapshot of the current version's file metadata (see currentVersionId).
+  storageKey       String?          @unique @map("storage_key")
+  originalFilename String?          @map("original_filename")
+  mimeType         String?          @map("mime_type")
+  sizeBytes        Int?             @map("size_bytes")
+  /// Optional hard expiry (only settable when the document type allows expiry). The retention
+  /// sweep (or an explicit expire action) flips the document to EXPIRED once this passes.
+  expiresAt        DateTime?        @map("expires_at")
+  expiredAt        DateTime?        @map("expired_at")
+  verifiedBy       String?          @map("verified_by") @db.Uuid
+  verifiedAt       DateTime?        @map("verified_at")
+  verificationNote String?          @map("verification_note")
+  rejectedBy       String?          @map("rejected_by") @db.Uuid
+  rejectedAt       DateTime?        @map("rejected_at")
+  rejectionReason  String?          @map("rejection_reason")
+  uploadedBy       String?          @map("uploaded_by") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  deletedAt        DateTime?        @map("deleted_at")
+
+  versions     DocumentVersion[]     @relation("DocumentVersions")
+  accessGrants DocumentAccessGrant[]
+  downloadLogs DocumentDownloadLog[]
 
   @@index([tenantId])
   @@index([tenantId, category])
+  @@index([tenantId, documentTypeId])
+  @@index([tenantId, status])
   @@map("documents")
+}
+
+/// One physical file upload of a logical Document. versionNumber is 1-based and unique per
+/// document; confirming a new version marks every previous version REPLACED and sets the new
+/// one as the document's currentVersion. Virus scanning runs per version (never per logical
+/// document) so history is preserved alongside each scan outcome.
+model DocumentVersion {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String             @map("tenant_id") @db.Uuid
+  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  documentId          String             @map("document_id") @db.Uuid
+  document            Document           @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  versionNumber       Int                @map("version_number")
+  storageKey          String             @unique @map("storage_key")
+  originalFilename    String             @map("original_filename")
+  mimeType            String             @map("mime_type")
+  sizeBytes           Int?               @map("size_bytes")
+  /// Hex SHA-256 of the object bytes, computed server-side at confirm time.
+  sha256              String?
+  scanStatus          DocumentScanStatus @default(PENDING) @map("scan_status")
+  /// The scanner that produced the scan result (e.g. clamav | mock | http).
+  scanEngine          String?            @map("scan_engine")
+  scanError           String?            @map("scan_error")
+  scannedAt           DateTime?          @map("scanned_at")
+  uploadedBy          String?            @map("uploaded_by") @db.Uuid
+  confirmedAt         DateTime?          @map("confirmed_at")
+  /// Id of the version that superseded this one (set when a newer version is confirmed).
+  replacedByVersionId String?            @map("replaced_by_version_id") @db.Uuid
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+  deletedAt           DateTime?          @map("deleted_at")
+
+  documentCurrent Document[] @relation("CurrentDocumentVersion")
+
+  @@unique([documentId, versionNumber])
+  @@index([tenantId])
+  @@index([documentId])
+  @@map("document_versions")
+}
+
+/// Explicit per-document access grants: who may view and/or download a specific document.
+/// A grant targets one tenant user (granteeUserId) OR one tenant role (granteeRoleId) — the
+/// service enforces exactly one of the two. Absent any grant for the caller, access is denied
+/// (documents are private by default; uploaders/sensitive types require grants to share).
+model DocumentAccessGrant {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  documentId    String              @map("document_id") @db.Uuid
+  document      Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  granteeType   DocumentGranteeType @default(USER) @map("grantee_type")
+  granteeUserId String?             @map("grantee_user_id") @db.Uuid
+  granteeRoleId String?             @map("grantee_role_id")
+  canView       Boolean             @default(true) @map("can_view")
+  canDownload   Boolean             @default(true) @map("can_download")
+  grantedBy     String?             @map("granted_by") @db.Uuid
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  @@unique([documentId, granteeType, granteeUserId, granteeRoleId])
+  @@index([tenantId])
+  @@index([documentId])
+  @@index([granteeUserId])
+  @@index([granteeRoleId])
+  @@map("document_access_grants")
+}
+
+/// Download-history ledger: one row per signed download URL issuance. Complements the immutable
+/// PlatformAuditLog trail with a queryable, per-document operational view (who downloaded which
+/// version, when, from where). Both are written on every download.
+model DocumentDownloadLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  documentId   String   @map("document_id") @db.Uuid
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  versionId    String?  @map("version_id") @db.Uuid
+  downloadedBy String?  @map("downloaded_by") @db.Uuid
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, documentId])
+  @@index([documentId, createdAt])
+  @@map("document_download_logs")
 }
 
 // ---------------------------------------------------------------------------

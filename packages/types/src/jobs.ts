@@ -5,6 +5,8 @@ export const QUEUE_NAMES = {
   SUBSCRIPTION_LIFECYCLE: 'subscription-lifecycle',
   TRANSPORT_GPS_SWEEP: 'transport-gps-sweep',
   HELPDESK_SLA: 'helpdesk-sla',
+  DOCUMENT_VIRUS_SCAN: 'document-virus-scan',
+  DOCUMENT_RETENTION: 'document-retention',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -66,3 +68,21 @@ export type TransportGpsSweepJobData = Record<string, never>;
  * tenant up front.
  */
 export type HelpdeskSlaSweepJobData = Record<string, never>;
+
+/**
+ * Per-virus-scan job: enqueued by the API when an upload is confirmed (DocumentVirusScanProcessor
+ * in apps/worker). All work runs through the tenant-scoped client built from tenantId; the
+ * processor marks the version CLEAN/INFECTED + the document READY/QUARANTINED, deleting the
+ * storage object when infected.
+ */
+export interface DocumentVirusScanJobData extends TenantJobData {
+  documentId: string;
+  versionId: string;
+}
+
+/**
+ * Same cross-tenant maintenance-sweep shape: DocumentRetentionSweepProcessor finds documents
+ * whose expiresAt (or their DocumentType's retention window) has passed, then expires each one
+ * and removes its storage objects through tenant-scoped clients.
+ */
+export type DocumentRetentionSweepJobData = Record<string, never>;

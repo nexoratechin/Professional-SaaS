@@ -102,6 +102,7 @@ export const PERMISSION_KEYS = {
   NOTIFICATIONS_CONFIG_MANAGE: 'notifications.config.manage',
   DOCUMENTS_VIEW: 'documents.read',
   DOCUMENTS_MANAGE: 'documents.manage',
+  DOCUMENTS_APPROVE: 'documents.approve',
 
   // --- Student 360 ---
   STUDENTS_VIEW: 'students.view',
@@ -344,8 +345,21 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
     [PERMISSION_KEYS.NOTIFICATIONS_CONFIG_MANAGE, MANAGE, 'Configure tenant sender providers (SMTP, SMS/WhatsApp/push gateways).'],
   ]),
   ...modulePermissions('documents', [
-    [PERMISSION_KEYS.DOCUMENTS_VIEW, VIEW, "View and download the tenant's documents."],
-    [PERMISSION_KEYS.DOCUMENTS_MANAGE, MANAGE, 'Upload and remove tenant documents.'],
+    [
+      PERMISSION_KEYS.DOCUMENTS_VIEW,
+      VIEW,
+      "View and download the tenant's documents (subject to per-document access grants).",
+    ],
+    [
+      PERMISSION_KEYS.DOCUMENTS_MANAGE,
+      MANAGE,
+      'Upload, replace, expire, delete, and share tenant documents; manage document types and access grants.',
+    ],
+    [
+      PERMISSION_KEYS.DOCUMENTS_APPROVE,
+      APPROVE,
+      'Verify or reject tenant documents (reviewers).',
+    ],
   ]),
   ...modulePermissions('students', [
     [PERMISSION_KEYS.STUDENTS_VIEW, VIEW, 'View student profiles.'],
@@ -574,6 +588,8 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.REPORTS_VIEW },
       { key: K.REPORTS_EXPORT },
       { key: K.NOTIFICATIONS_VIEW },
+      { key: K.DOCUMENTS_VIEW },
+      { key: K.DOCUMENTS_APPROVE },
       { key: K.WORKFLOWS_VIEW },
       { key: K.WORKFLOWS_APPROVE },
       { key: K.HELPDESK_VIEW },
@@ -610,6 +626,8 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.NOTIFICATIONS_CAMPAIGNS_MANAGE },
       { key: K.NOTIFICATIONS_TRIGGERS_MANAGE },
       { key: K.NOTIFICATIONS_CONFIG_MANAGE },
+      { key: K.DOCUMENTS_MANAGE },
+      { key: K.DOCUMENTS_APPROVE },
     ],
   },
   {
@@ -715,6 +733,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.WORKFLOWS_APPROVE },
       { key: K.HELPDESK_VIEW },
       { key: K.HELPDESK_MANAGE },
+      { key: K.DOCUMENTS_MANAGE },
     ],
   },
   {

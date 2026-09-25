@@ -431,3 +431,135 @@ export interface NotificationSummaryDto {
   failed: number;
   pending: number;
 }
+
+// ---------------------------------------------------------------------------
+// Centralized secure documents (apps/api modules/documents + apps/worker queues)
+// ---------------------------------------------------------------------------
+
+/** Mirrors the Prisma DocumentStatus enum over the wire. */
+export type DocumentStatus =
+  | 'PENDING_UPLOAD'
+  | 'UPLOADED'
+  | 'AWAITING_SCAN'
+  | 'READY'
+  | 'VERIFIED'
+  | 'REJECTED'
+  | 'REPLACED'
+  | 'EXPIRED'
+  | 'QUARANTINED';
+
+/** Mirrors the Prisma DocumentScanStatus enum over the wire. */
+export type DocumentScanStatus = 'PENDING' | 'SCANNING' | 'CLEAN' | 'INFECTED' | 'ERROR' | 'QUARANTINED';
+
+/** Mirrors the Prisma DocumentGranteeType enum over the wire. */
+export type DocumentGranteeType = 'USER' | 'ROLE';
+
+export interface DocumentTypeDto {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+  description: string | null;
+  allowedMimeTypes: string[] | null;
+  allowedExtensions: string[] | null;
+  maxSizeBytes: number | null;
+  isSensitive: boolean;
+  canExpire: boolean;
+  retentionDays: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DocumentVersionDto {
+  id: string;
+  documentId: string;
+  versionNumber: number;
+  storageKey: string;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number | null;
+  sha256: string | null;
+  scanStatus: DocumentScanStatus;
+  scanEngine: string | null;
+  scanError: string | null;
+  scannedAt: string | null;
+  uploadedBy: string | null;
+  confirmedAt: string | null;
+  createdAt: string;
+}
+
+export interface DocumentDto {
+  id: string;
+  tenantId: string;
+  documentTypeId: string | null;
+  documentType: { id: string; code: string; name: string } | null;
+  title: string;
+  description: string | null;
+  category: string;
+  status: DocumentStatus;
+  metadata: Record<string, unknown> | null;
+  tags: string[];
+  currentVersionId: string | null;
+  currentVersion: DocumentVersionDto | null;
+  storageKey: string | null;
+  originalFilename: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  expiresAt: string | null;
+  expiredAt: string | null;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+  verificationNote: string | null;
+  rejectedBy: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
+  uploadedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** POST /documents/upload-url response (kept backward compatible with the original
+ * `{ document: { id }, uploadUrl }` shape the helpdesk module consumes). */
+export interface DocumentUploadUrlResponseDto {
+  document: { id: string };
+  uploadUrl: string;
+  /** Optional headers the caller must send with the PUT (e.g. Content-Type of the file). */
+  uploadHeaders?: Record<string, string>;
+  /** Populated only when a new logical document is created (not when replacing a version). */
+  documentId?: string;
+}
+
+export interface DocumentDownloadUrlResponseDto {
+  downloadUrl: string;
+  /** When the document is not yet downloadable (e.g. awaiting scan), the HTTP status the
+   *  frontend should surface as a friendly message. */
+  reason?: string;
+}
+
+export interface DocumentAccessGrantDto {
+  id: string;
+  documentId: string;
+  granteeType: DocumentGranteeType;
+  granteeUserId: string | null;
+  granteeRoleId: string | null;
+  canView: boolean;
+  canDownload: boolean;
+  grantedBy: string | null;
+  createdAt: string;
+}
+
+export interface DocumentDownloadLogDto {
+  id: string;
+  documentId: string;
+  versionId: string | null;
+  downloadedBy: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface DocumentListDto {
+  data: DocumentDto[];
+  total: number;
+}
