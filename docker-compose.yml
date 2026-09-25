@@ -59,6 +59,7 @@ services:
       S3_PUBLIC_ENDPOINT: http://localhost:9100
       S3_ACCESS_KEY: ${MINIO_ROOT_USER:-college_erp_minio}
       S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-college_erp_minio_password}
+      NOTIFICATION_SECRET_KEY: ${NOTIFICATION_SECRET_KEY:-cc8abfe479f38178bf712a90343e27496c0f31cde1778615eff668ad2b199cd2}
     ports:
       - '3000:3000'
     depends_on:
@@ -77,6 +78,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-college_erp}:${POSTGRES_PASSWORD:-college_erp_dev_password}@postgres:5432/${POSTGRES_DB:-college_erp}
       REDIS_URL: redis://redis:6379
+      # MUST match the API's NOTIFICATION_SECRET_KEY — the worker decrypts what the API encrypted.
+      NOTIFICATION_SECRET_KEY: ${NOTIFICATION_SECRET_KEY:-cc8abfe479f38178bf712a90343e27496c0f31cde1778615eff668ad2b199cd2}
     depends_on:
       postgres:
         condition: service_healthy

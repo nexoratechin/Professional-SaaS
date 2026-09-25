@@ -1,5 +1,6 @@
 export const QUEUE_NAMES = {
   NOTIFICATIONS: 'notifications',
+  NOTIFICATIONS_CAMPAIGN: 'notifications-campaign',
   WORKFLOW_ESCALATION: 'workflow-escalation',
   SUBSCRIPTION_LIFECYCLE: 'subscription-lifecycle',
   TRANSPORT_GPS_SWEEP: 'transport-gps-sweep',
@@ -21,6 +22,15 @@ export interface TenantJobData {
 
 export interface NotificationJobData extends TenantJobData {
   notificationId: string;
+}
+
+/**
+ * Scheduled campaign launch: the API enqueues this with a BullMQ `delay` until the campaign's
+ * scheduledAt; the NotificationsCampaignProcessor then resolves the audience (tenant-scoped) and
+ * fans each recipient out onto the `notifications` queue through per-recipient Notification rows.
+ */
+export interface NotificationCampaignJobData extends TenantJobData {
+  campaignId: string;
 }
 
 /**

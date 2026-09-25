@@ -96,6 +96,10 @@ export const PERMISSION_KEYS = {
   // --- Notifications / Documents (have controllers) ---
   NOTIFICATIONS_VIEW: 'notifications.read',
   NOTIFICATIONS_SEND: 'notifications.send',
+  NOTIFICATIONS_TEMPLATES_MANAGE: 'notifications.templates.manage',
+  NOTIFICATIONS_CAMPAIGNS_MANAGE: 'notifications.campaigns.manage',
+  NOTIFICATIONS_TRIGGERS_MANAGE: 'notifications.triggers.manage',
+  NOTIFICATIONS_CONFIG_MANAGE: 'notifications.config.manage',
   DOCUMENTS_VIEW: 'documents.read',
   DOCUMENTS_MANAGE: 'documents.manage',
 
@@ -332,8 +336,12 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
     [PERMISSION_KEYS.BATCHES_MANAGE, MANAGE, 'Create, update, and archive batches.'],
   ]),
   ...modulePermissions('notifications', [
-    [PERMISSION_KEYS.NOTIFICATIONS_VIEW, VIEW, "View the tenant's notification history."],
+    [PERMISSION_KEYS.NOTIFICATIONS_VIEW, VIEW, "View the tenant's notification history, campaigns and delivery logs."],
     [PERMISSION_KEYS.NOTIFICATIONS_SEND, CREATE, 'Send notifications to tenant users.'],
+    [PERMISSION_KEYS.NOTIFICATIONS_TEMPLATES_MANAGE, MANAGE, 'Create, edit and archive notification templates.'],
+    [PERMISSION_KEYS.NOTIFICATIONS_CAMPAIGNS_MANAGE, MANAGE, 'Create, schedule, launch, and cancel notification campaigns.'],
+    [PERMISSION_KEYS.NOTIFICATIONS_TRIGGERS_MANAGE, MANAGE, 'Map event keys to notification templates (event-triggered notifications).'],
+    [PERMISSION_KEYS.NOTIFICATIONS_CONFIG_MANAGE, MANAGE, 'Configure tenant sender providers (SMTP, SMS/WhatsApp/push gateways).'],
   ]),
   ...modulePermissions('documents', [
     [PERMISSION_KEYS.DOCUMENTS_VIEW, VIEW, "View and download the tenant's documents."],
@@ -598,6 +606,10 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.REPORTS_EXPORT },
       { key: K.WORKFLOWS_VIEW },
       { key: K.WORKFLOWS_APPROVE },
+      { key: K.NOTIFICATIONS_TEMPLATES_MANAGE },
+      { key: K.NOTIFICATIONS_CAMPAIGNS_MANAGE },
+      { key: K.NOTIFICATIONS_TRIGGERS_MANAGE },
+      { key: K.NOTIFICATIONS_CONFIG_MANAGE },
     ],
   },
   {

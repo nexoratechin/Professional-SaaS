@@ -6,7 +6,11 @@ import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 
 @Module({
-  imports: [BullModule.registerQueue({ name: QUEUE_NAMES.NOTIFICATIONS }), CommonGuardsModule],
+  imports: [
+    BullModule.registerQueue({ name: QUEUE_NAMES.NOTIFICATIONS }),
+    BullModule.registerQueue({ name: QUEUE_NAMES.NOTIFICATIONS_CAMPAIGN }),
+    CommonGuardsModule,
+  ],
   controllers: [NotificationsController],
   providers: [NotificationsService],
   exports: [NotificationsService],

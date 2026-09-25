@@ -38,6 +38,7 @@ import { TransportPage } from './routes/transport';
 import { HrPage } from './routes/hr';
 import { PlacementsPage } from './routes/placements';
 import { HelpdeskPage } from './routes/helpdesk';
+import { NotificationsPage } from './routes/notifications';
 
 function ProfileRoute() {
   const { id } = useParams<{ id: string }>();
@@ -250,6 +251,14 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <HelpdeskPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
             </ProtectedRoute>
           }
         />

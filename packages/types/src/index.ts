@@ -380,3 +380,54 @@ export interface TenantConfigurationResponseDto {
   config: TenantConfigurationDto;
   updatedAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Centralized notifications (apps/api modules/notifications + apps/worker queues)
+// ---------------------------------------------------------------------------
+
+/** Mirrors the Prisma NotificationChannel enum over the wire. */
+export type NotificationChannel = 'EMAIL' | 'SMS' | 'WHATSAPP' | 'PUSH' | 'IN_APP';
+
+/** Mirrors the Prisma NotificationStatus enum over the wire. */
+export type NotificationStatus = 'PENDING' | 'QUEUED' | 'SENT' | 'SUPPRESSED' | 'FAILED';
+
+/** Mirrors the Prisma NotificationCampaignStatus enum over the wire. */
+export type NotificationCampaignStatus = 'DRAFT' | 'SCHEDULED' | 'RUNNING' | 'COMPLETED' | 'CANCELED' | 'FAILED';
+
+/** Campaign audience definition — how a campaign decides who receives it. Stored as JSONB on the
+ * campaign row and resolved through @college-erp/notifications' resolveAudience (shared by the
+ * API's preview endpoint and the worker's fan-out, so both sides always agree). */
+export interface NotificationAudienceFilter {
+  type: 'ALL' | 'ROLES' | 'DEPARTMENTS' | 'CAMPUSES' | 'BATCHES' | 'STUDENTS' | 'USERS';
+  roleCodes?: string[];
+  departmentIds?: string[];
+  campusIds?: string[];
+  batchIds?: string[];
+  studentIds?: string[];
+  userIds?: string[];
+}
+
+/** Delivery-log entry shape — one row per provider attempt for a notification. */
+export interface NotificationDeliveryLogDto {
+  id: string;
+  notificationId: string;
+  attempt: number;
+  channel: NotificationChannel;
+  provider: string;
+  status: 'SENT' | 'DELIVERED' | 'FAILED' | 'SUPPRESSED';
+  providerMessageId: string | null;
+  request: unknown;
+  response: unknown;
+  error: string | null;
+  latencyMs: number | null;
+  createdAt: string;
+}
+
+/** GET /notifications/summary — aggregate counts for the notifications UI header. */
+export interface NotificationSummaryDto {
+  byStatus: Record<string, number>;
+  byChannel: Record<string, number>;
+  total: number;
+  failed: number;
+  pending: number;
+}

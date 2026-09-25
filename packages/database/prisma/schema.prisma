@@ -124,12 +124,39 @@ enum NotificationChannel {
   EMAIL
   SMS
   IN_APP
+  WHATSAPP
+  PUSH
 }
 
+/// QUEUED: the BullMQ job for this notification is currently in flight (a restart-safe way to
+/// distinguish "created, waiting for a worker" from "worker is actively attempting delivery").
+/// SUPPRESSED: delivery was skipped without an error — the recipient opted out of the channel,
+/// or the tenant has no active provider for the channel in production (dev falls back to console).
 enum NotificationStatus {
   PENDING
+  QUEUED
   SENT
+  SUPPRESSED
   FAILED
+}
+
+enum NotificationCampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  CANCELED
+  FAILED
+}
+
+/// One row per provider delivery attempt — the delivery log. SENT = handed to the provider;
+/// DELIVERED = provider confirmed receipt (in-app, or provider-reported); FAILED/SUPPRESSED as on
+/// NotificationStatus.
+enum NotificationDeliveryStatus {
+  SENT
+  DELIVERED
+  FAILED
+  SUPPRESSED
 }
 
 enum DocumentStatus {
@@ -370,6 +397,13 @@ model Tenant {
   sections                          Section[]
   batches                           Batch[]
   notifications                     Notification[]
+  notificationTemplates             NotificationTemplate[]
+  notificationCampaigns             NotificationCampaign[]
+  notificationDeliveryLogs          NotificationDeliveryLog[]
+  notificationProviderConfigs       NotificationProviderConfig[]
+  notificationEventTriggers         NotificationEventTrigger[]
+  notificationPreferences           NotificationPreference[]
+  notificationUserPushDevices       UserPushDevice[]
   documents                         Document[]
   passwordResetTokens               PasswordResetToken[]
   emailVerificationTokens           EmailVerificationToken[]
@@ -1013,6 +1047,9 @@ model User {
   email               String
   passwordHash        String?    @map("password_hash")
   fullName            String     @map("full_name")
+  /// Mobile number for SMS/WhatsApp delivery. Nullable: not every user has one, and the
+  /// notifications worker marks those deliveries FAILED (not suppressed) so it surfaces clearly.
+  phone               String?
   status              UserStatus @default(INVITED)
   emailVerifiedAt     DateTime?  @map("email_verified_at")
   lastLoginAt         DateTime?  @map("last_login_at")
@@ -1058,6 +1095,7 @@ model User {
   hrReviewedPerformances     EmployeePerformanceReview[]   @relation("PerformanceReviewers")
   hrProcessedPayrollRuns     PayrollRun[]                  @relation("PayrollRunProcessors")
   hrApprovedPayrollRuns      PayrollRun[]                  @relation("PayrollRunApprovers")
+  pushDevices                UserPushDevice[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -2248,10 +2286,18 @@ enum CommunicationDirection {
 }
 
 // ---------------------------------------------------------------------------
-// Notifications (minimal vertical slice proving tenant-aware background jobs â€”
-// see apps/api's NotificationsModule and apps/worker's NotificationsProcessor).
-// Templates/broadcasts/delivery-provider integrations are Phase 8+; this is the
-// tenant-isolation-correct dispatch mechanism only.
+// Notifications — centralized, tenant-aware notification infrastructure
+// (see apps/api's NotificationsModule, apps/worker's NotificationsProcessor +
+// NotificationsCampaignProcessor, and package @college-erp/notifications).
+//
+// One `Notification` row is created per recipient×channel at enqueue time, always with the
+// FINAL rendered subject/body (templates are rendered in the API single-pass — the worker never
+// re-renders). Jobs on the BullMQ `notifications` queue carry only tenantId + notificationId;
+// the worker rebuilds a tenant-scoped client and re-fetches the row, exactly like an HTTP
+// request can only ever touch its own tenant. Delivery attempts are appended to
+// NotificationDeliveryLog, retries/backoff are BullMQ job attempts, and per-tenant sender
+// configuration lives in NotificationProviderConfig (credentials encrypted at rest with the
+// NOTIFICATION_SECRET_KEY cipher from @college-erp/notifications).
 // ---------------------------------------------------------------------------
 
 model Notification {
@@ -2262,17 +2308,213 @@ model Notification {
   channel         NotificationChannel
   subject         String
   body            String
+  /// Template this notification was rendered from, when applicable (system/direct sends may be null).
+  templateId      String?             @map("template_id") @db.Uuid
+  template        NotificationTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  /// Campaign this notification belongs to (a campaign fan-out creates one row per recipient).
+  campaignId      String?             @map("campaign_id") @db.Uuid
+  campaign        NotificationCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  /// Variable values used at render time, for traceability/audit of what a recipient actually got.
+  variables       Json?
+  /// For scheduled one-off sends: the earliest time the delivery job may run (BullMQ delay).
+  scheduledAt     DateTime?           @map("scheduled_at")
   status          NotificationStatus  @default(PENDING)
   error           String?
+  /// Provider used for the most recent attempt (e.g. smtp, http, console, in_app).
+  provider        String?
+  /// Provider-reported message id from the most recent attempt.
+  providerMessageId String?           @map("provider_message_id")
+  attempts        Int                 @default(0)
+  lastAttemptAt   DateTime?           @map("last_attempt_at")
+  readAt          DateTime?           @map("read_at")
   sentAt          DateTime?           @map("sent_at")
   createdBy       String?             @map("created_by")
   createdAt       DateTime            @default(now()) @map("created_at")
   updatedAt       DateTime            @updatedAt @map("updated_at")
 
+  deliveryLogs NotificationDeliveryLog[]
+
   @@index([tenantId])
   @@index([tenantId, status])
+  @@index([tenantId, channel])
+  @@index([tenantId, campaignId])
   @@index([recipientUserId])
   @@map("notifications")
+}
+
+model NotificationTemplate {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String              @map("tenant_id") @db.Uuid
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  /// Stable, referenceable identifier within a tenant (unique even across soft-deleted rows).
+  code            String
+  name            String
+  description     String?
+  channel         NotificationChannel
+  /// Rendered with {{variable}} interpolation (see @college-erp/notifications renderTemplate).
+  subjectTemplate String              @map("subject_template")
+  bodyTemplate    String              @map("body_template")
+  /// Declared variables: array of {key, description, required} — informational/human-readable.
+  variables       Json?
+  isActive        Boolean             @default(true) @map("is_active")
+  createdBy       String?             @map("created_by")
+  updatedBy       String?             @map("updated_by")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  deletedAt       DateTime?           @map("deleted_at")
+
+  notifications Notification[]
+  campaigns     NotificationCampaign[]
+  eventTriggers NotificationEventTrigger[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, channel])
+  @@index([tenantId, isActive])
+  @@index([tenantId, deletedAt])
+  @@map("notification_templates")
+}
+
+model NotificationCampaign {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String                 @map("tenant_id") @db.Uuid
+  tenant         Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  name           String
+  description    String?
+  templateId     String                 @map("template_id") @db.Uuid
+  template       NotificationTemplate   @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  status         NotificationCampaignStatus @default(DRAFT)
+  /// The audience filter definition (see NotificationAudienceFilter in @college-erp/types) —
+  /// resolved by @college-erp/notifications' resolveAudience at launch time.
+  audienceFilter Json                   @map("audience_filter")
+  /// Snapshot of the resolved recipient count once the campaign has been launched.
+  audienceCount  Int?                   @map("audience_count")
+  /// null = launch immediately when the API launches it; future = delayed BullMQ job.
+  scheduledAt    DateTime?              @map("scheduled_at")
+  startedAt      DateTime?              @map("started_at")
+  completedAt    DateTime?              @map("completed_at")
+  canceledAt     DateTime?              @map("canceled_at")
+  createdBy      String?                @map("created_by")
+  updatedBy      String?                @map("updated_by")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+  deletedAt      DateTime?              @map("deleted_at")
+
+  notifications Notification[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, templateId])
+  @@index([tenantId, deletedAt])
+  @@map("notification_campaigns")
+}
+
+/// Append-only per-attempt delivery record: one row per provider attempt per notification,
+/// including provider name, payload/response snapshots, latency, and error. This is the delivery
+/// log — retries show up here as successive attempts, so a notification that eventually SENT has
+/// an auditable trail of everything the pipeline tried.
+model NotificationDeliveryLog {
+  id                String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                  @map("tenant_id") @db.Uuid
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  notificationId    String                  @map("notification_id") @db.Uuid
+  notification      Notification            @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  attempt           Int                     @default(1)
+  channel           NotificationChannel
+  provider          String
+  status            NotificationDeliveryStatus
+  providerMessageId String?                 @map("provider_message_id")
+  /// Sanitized request snapshot (no credentials ever written here).
+  request           Json?
+  response          Json?
+  error             String?
+  latencyMs         Int?                    @map("latency_ms")
+  createdAt         DateTime                @default(now()) @map("created_at")
+
+  @@index([tenantId, notificationId])
+  @@index([tenantId, status])
+  @@map("notification_delivery_logs")
+}
+
+/// Tenant-specific sender configuration. A channel only delivers when the tenant has an ACTIVE
+/// config row whose provider the worker recognizes; the credentials are encrypted at rest
+/// (AES-256-GCM, @college-erp/notifications NotificationSecretCipher) and never returned by the
+/// API. One row may be flagged isDefault so the worker picks it without ambiguity.
+model NotificationProviderConfig {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String              @map("tenant_id") @db.Uuid
+  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  channel             NotificationChannel
+  provider            String
+  name                String?
+  /// Non-secret settings (host/port/from/url/headers/body template …).
+  config              Json?
+  /// Encrypted JSON of the credential bag ({username,password} for SMTP, {token} for gateways).
+  credentialsEncrypted String?            @map("credentials_encrypted")
+  isActive            Boolean             @default(false) @map("is_active")
+  isDefault           Boolean             @default(false) @map("is_default")
+  createdBy           String?             @map("created_by")
+  updatedBy           String?             @map("updated_by")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+
+  @@unique([tenantId, channel, provider])
+  @@index([tenantId, channel, isActive])
+  @@map("notification_provider_configs")
+}
+
+/// Event-triggered notification mapping: when a domain module fires `triggerEvent(eventKey, …)`
+/// the NotificationsService looks up every ACTIVE trigger for that eventKey and creates +
+/// enqueues a notification per trigger's template. Event keys are free-form strings chosen by
+/// the emitting module (e.g. `helpdesk.ticket.created`), never an enum, so a future module plugs
+/// in with no schema change.
+model NotificationEventTrigger {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String              @map("tenant_id") @db.Uuid
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  eventKey   String              @map("event_key")
+  templateId String              @map("template_id") @db.Uuid
+  template   NotificationTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  isActive   Boolean             @default(true) @map("is_active")
+  createdBy  String?             @map("created_by")
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  @@unique([tenantId, eventKey, templateId])
+  @@index([tenantId, eventKey])
+  @@map("notification_event_triggers")
+}
+
+/// Per-user, per-channel opt-out: the worker suppresses delivery to a user who disabled a channel
+/// (absent row = enabled by default).
+model NotificationPreference {
+  id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String              @map("tenant_id") @db.Uuid
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId    String              @map("user_id") @db.Uuid
+  channel   NotificationChannel
+  enabled   Boolean             @default(true)
+  updatedAt DateTime            @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userId, channel])
+  @@index([tenantId, userId])
+  @@map("notification_preferences")
+}
+
+/// Registered push-capable devices per user (mobile app tokens). The worker sends PUSH-channel
+/// notifications to every current device token of the recipient.
+model UserPushDevice {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId      String    @map("user_id") @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceToken String    @map("device_token")
+  platform    String
+  lastSeenAt  DateTime? @map("last_seen_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@unique([tenantId, userId, deviceToken])
+  @@index([tenantId, userId])
+  @@map("user_push_devices")
 }
 
 // ---------------------------------------------------------------------------
