@@ -231,6 +231,7 @@ export const PERMISSION_KEYS = {
   // --- Reports / Analytics ---
   REPORTS_VIEW: 'reports.view',
   REPORTS_EXPORT: 'reports.export',
+  REPORTS_MANAGE: 'reports.manage',
 
   // --- External integrations ---
   INTEGRATIONS_VIEW: 'integrations.view',
@@ -492,6 +493,7 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
   ...modulePermissions('reports', [
     [PERMISSION_KEYS.REPORTS_VIEW, VIEW, 'View management/operational reports and dashboards.'],
     [PERMISSION_KEYS.REPORTS_EXPORT, EXPORT, 'Export reports.'],
+    [PERMISSION_KEYS.REPORTS_MANAGE, MANAGE, 'Manage saved reports, templates, schedules, and report runs.'],
   ]),
   ...modulePermissions('integrations', [
     [PERMISSION_KEYS.INTEGRATIONS_VIEW, VIEW, 'View configured external integrations.'],
@@ -587,6 +589,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.PLACEMENTS_VIEW },
       { key: K.REPORTS_VIEW },
       { key: K.REPORTS_EXPORT },
+      { key: K.REPORTS_MANAGE },
       { key: K.NOTIFICATIONS_VIEW },
       { key: K.DOCUMENTS_VIEW },
       { key: K.DOCUMENTS_APPROVE },
@@ -620,6 +623,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.BATCHES_VIEW },
       { key: K.REPORTS_VIEW },
       { key: K.REPORTS_EXPORT },
+      { key: K.REPORTS_MANAGE },
       { key: K.WORKFLOWS_VIEW },
       { key: K.WORKFLOWS_APPROVE },
       { key: K.NOTIFICATIONS_TEMPLATES_MANAGE },
@@ -684,6 +688,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.STUDENTS_VIEW },
       { key: K.REPORTS_VIEW },
       { key: K.REPORTS_EXPORT },
+      { key: K.REPORTS_MANAGE },
       { key: K.WORKFLOWS_VIEW },
       { key: K.WORKFLOWS_APPROVE },
     ],

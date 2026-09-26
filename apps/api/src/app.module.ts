@@ -38,6 +38,7 @@ import { HrModule } from './modules/hr/hr.module';
 import { PlacementsModule } from './modules/placements/placements.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { HelpdeskModule } from './modules/helpdesk/helpdesk.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { HelpdeskModule } from './modules/helpdesk/helpdesk.module';
     PlacementsModule,
     InventoryModule,
     HelpdeskModule,
+    ReportsModule,
     BillingModule,
     SupportModule,
     PlatformOpsModule,

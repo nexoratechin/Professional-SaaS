@@ -3,6 +3,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { AppConfigService } from '../../config/app-config.service';
@@ -49,9 +50,16 @@ export class WorkerStorageService {
     }
   }
 
+  /** Writes a backend-generated artifact (report export) under the tenant prefix. */
+  async uploadBuffer(tenantId: string, key: string, body: Buffer, contentType: string): Promise<void> {
+    this.assertKeyBelongsToTenant(tenantId, key);
+    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }));
+  }
+
   /** Removes an object. Missing objects are NOT an error (already-deleted/quarantined files are
    *  naturally idempotent across retries). */
   async deleteObject(tenantId: string, key: string): Promise<void> {
+
     this.assertKeyBelongsToTenant(tenantId, key);
     try {
       await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));

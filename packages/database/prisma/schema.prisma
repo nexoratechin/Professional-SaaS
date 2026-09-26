@@ -639,6 +639,10 @@ model Tenant {
   helpdeskTicketHistory             HelpdeskTicketHistory[]
   helpdeskEscalations               HelpdeskEscalation[]
   helpdeskFeedback                  HelpdeskFeedback[]
+  savedReports                      SavedReport[]
+  reportTemplates                   ReportTemplate[]
+  reportSchedules                   ReportSchedule[]
+  reportRuns                        ReportRun[]
 
   @@index([status])
   @@map("tenants")
@@ -1133,6 +1137,10 @@ model User {
   hrProcessedPayrollRuns     PayrollRun[]                  @relation("PayrollRunProcessors")
   hrApprovedPayrollRuns      PayrollRun[]                  @relation("PayrollRunApprovers")
   pushDevices                UserPushDevice[]
+  savedReports               SavedReport[]                 @relation("SavedReportOwner")
+  createdReportTemplates     ReportTemplate[]              @relation("ReportTemplateCreator")
+  createdReportSchedules     ReportSchedule[]              @relation("ReportScheduleCreator")
+  requestedReportRuns        ReportRun[]                   @relation("ReportRunRequester")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -9544,4 +9552,168 @@ model HelpdeskFeedback {
   @@unique([tenantId, ticketId])
   @@index([tenantId])
   @@map("helpdesk_feedback")
+}
+
+// ---------------------------------------------------------------------------
+// Reporting Engine (cross-cutting) — predefined operational report definitions
+// live in @college-erp/reporting; these tables persist tenant users' saved
+// configurations, reusable column templates, recurring schedules and the
+// immutable execution/audit history for async exports.
+// ---------------------------------------------------------------------------
+
+enum ReportType {
+  ADMISSIONS
+  STUDENTS
+  ATTENDANCE
+  FEES
+  EXAMS
+  PLACEMENTS
+  LIBRARY
+  HOSTEL
+  TRANSPORT
+  INVENTORY
+}
+
+enum ReportExportFormat {
+  CSV
+  EXCEL
+  PDF
+}
+
+enum ReportRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ReportScheduleFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+/// A tenant user's named, reusable filter configuration for one report type. Private to its
+/// owner unless the caller separately holds reports.manage.
+model SavedReport {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String     @map("tenant_id") @db.Uuid
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ownerId    String     @map("owner_id") @db.Uuid
+  owner      User       @relation("SavedReportOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  name       String
+  reportType ReportType @map("report_type")
+  filters    Json
+  createdBy  String?    @map("created_by")
+  updatedBy  String?    @map("updated_by")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  runs ReportRun[]
+
+  @@unique([tenantId, ownerId, name])
+  @@index([tenantId])
+  @@index([tenantId, ownerId])
+  @@index([tenantId, reportType])
+  @@map("saved_reports")
+}
+
+/// A reusable column selection/order/label set for one report type. System templates are
+/// catalog-owned and protected from mutation; user templates are tenant-wide read-only data
+/// managed by reports.manage holders.
+model ReportTemplate {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String     @map("tenant_id") @db.Uuid
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  name        String
+  description String?
+  reportType  ReportType @map("report_type")
+  definition  Json
+  isSystem    Boolean    @default(false) @map("is_system")
+  createdById String?    @map("created_by_id") @db.Uuid
+  createdBy   User?      @relation("ReportTemplateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  runs      ReportRun[]
+  schedules ReportSchedule[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([tenantId, reportType])
+  @@map("report_templates")
+}
+
+/// A recurring export definition. The creator's effective reports.view + source-domain scope is
+/// snapshotted so the worker executes with the same tenant/source bounds even without an HTTP
+/// request; role revocation is re-checked at dispatch time by the worker.
+model ReportSchedule {
+  id            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                  @map("tenant_id") @db.Uuid
+  tenant        Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  name          String
+  reportType    ReportType              @map("report_type")
+  templateId    String?                 @map("template_id") @db.Uuid
+  template      ReportTemplate?         @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdById   String                  @map("created_by_id") @db.Uuid
+  createdBy     User                    @relation("ReportScheduleCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  frequency     ReportScheduleFrequency
+  format        ReportExportFormat
+  filters       Json
+  scopeSnapshot Json                    @map("scope_snapshot")
+  timezone      String                  @default("Asia/Kolkata")
+  timeOfDay     String                  @map("time_of_day") @db.VarChar(5)
+  dayOfWeek     Int?                    @map("day_of_week")
+  dayOfMonth    Int?                    @map("day_of_month")
+  nextRunAt     DateTime                @map("next_run_at")
+  lastRunAt     DateTime?               @map("last_run_at")
+  isActive      Boolean                 @default(true) @map("is_active")
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @updatedAt @map("updated_at")
+
+  runs ReportRun[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([tenantId, createdById])
+  @@index([tenantId, isActive, nextRunAt])
+  @@map("report_schedules")
+}
+
+/// Durable execution + audit record for one async export. filters/scopeSnapshot/templateSnapshot
+/// freeze exactly what was run so the produced file remains explainable after templates, saved
+/// reports, schedules or role assignments change.
+model ReportRun {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String             @map("tenant_id") @db.Uuid
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  reportType       ReportType         @map("report_type")
+  format           ReportExportFormat
+  status           ReportRunStatus    @default(QUEUED)
+  filters          Json
+  scopeSnapshot    Json               @map("scope_snapshot")
+  templateSnapshot Json?              @map("template_snapshot")
+  requestedById    String?            @map("requested_by_id") @db.Uuid
+  requestedBy      User?              @relation("ReportRunRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  savedReportId    String?            @map("saved_report_id") @db.Uuid
+  savedReport      SavedReport?       @relation(fields: [savedReportId], references: [id], onDelete: SetNull)
+  templateId       String?            @map("template_id") @db.Uuid
+  template         ReportTemplate?    @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  scheduleId       String?            @map("schedule_id") @db.Uuid
+  schedule         ReportSchedule?    @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  rowCount         Int                @default(0) @map("row_count")
+  fileName         String?            @map("file_name")
+  objectKey        String?            @map("object_key")
+  errorMessage     String?            @map("error_message")
+  startedAt        DateTime?          @map("started_at")
+  completedAt      DateTime?          @map("completed_at")
+  expiresAt        DateTime?          @map("expires_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, requestedById])
+  @@index([tenantId, scheduleId])
+  @@map("report_runs")
 }

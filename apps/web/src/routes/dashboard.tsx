@@ -22,6 +22,7 @@ const HR_VIEW_PERMISSION = 'hr.view';
 const PLACEMENTS_VIEW_PERMISSION = 'placements.view';
 const NOTIFICATIONS_VIEW_PERMISSION = 'notifications.read';
 const DOCUMENTS_VIEW_PERMISSION = 'documents.read';
+const REPORTS_VIEW_PERMISSION = 'reports.view';
 const ORG_VIEW_PERMISSIONS = ['campuses.read', 'departments.read', 'programs.read', 'academicYears.read', 'terms.read', 'rooms.read', 'buildings.read', 'sections.read', 'batches.read'];
 
 /** Entitlement-gated navigation section — rendered links are only as trustworthy as the
@@ -77,6 +78,7 @@ export function DashboardPage() {
           {permissions.includes(PLACEMENTS_VIEW_PERMISSION) && <Link to="/placements">Placements</Link>}
           {permissions.includes(NOTIFICATIONS_VIEW_PERMISSION) && <Link to="/notifications">Notifications</Link>}
           {permissions.includes(DOCUMENTS_VIEW_PERMISSION) && <Link to="/documents">Documents</Link>}
+          {permissions.includes(REPORTS_VIEW_PERMISSION) && <Link to="/reports">Reports</Link>}
           {permissions.some((p) => ORG_VIEW_PERMISSIONS.includes(p)) && <Link to="/organization">Organization</Link>}
           {permissions.includes(AUDIT_VIEW_PERMISSION) && <Link to="/audit">Audit log</Link>}
           {permissions.includes(BILLING_VIEW_PERMISSION) && <Link to="/billing">Billing</Link>}

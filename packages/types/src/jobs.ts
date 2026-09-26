@@ -7,6 +7,7 @@ export const QUEUE_NAMES = {
   HELPDESK_SLA: 'helpdesk-sla',
   DOCUMENT_VIRUS_SCAN: 'document-virus-scan',
   DOCUMENT_RETENTION: 'document-retention',
+  REPORT_EXPORTS: 'report-exports',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -86,3 +87,13 @@ export interface DocumentVirusScanJobData extends TenantJobData {
  * and removes its storage objects through tenant-scoped clients.
  */
 export type DocumentRetentionSweepJobData = Record<string, never>;
+
+/**
+ * One async report export. Enqueued by the API when an export is requested and by the worker's
+ * due-schedule dispatcher. The processor loads the ReportRun through a tenant-scoped client built
+ * from tenantId, renders the stored filters/template snapshot, uploads the file under the tenant's
+ * prefix and advances the run lifecycle QUEUED/RUNNING -> COMPLETED/FAILED.
+ */
+export interface ReportExportJobData extends TenantJobData {
+  runId: string;
+}

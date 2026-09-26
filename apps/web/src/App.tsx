@@ -40,6 +40,7 @@ import { PlacementsPage } from './routes/placements';
 import { HelpdeskPage } from './routes/helpdesk';
 import { NotificationsPage } from './routes/notifications';
 import { DocumentsPage } from './routes/documents';
+import { ReportsPage } from './routes/reports';
 
 function ProfileRoute() {
   const { id } = useParams<{ id: string }>();
@@ -116,6 +117,14 @@ function TenantArea() {
               <EntitlementRoute entitlement="analytics.advanced">
                 <AdvancedAnalyticsPage />
               </EntitlementRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <ReportsPage />
             </ProtectedRoute>
           }
         />

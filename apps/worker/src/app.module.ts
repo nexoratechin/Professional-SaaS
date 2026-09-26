@@ -8,6 +8,7 @@ import { DocumentVirusScanProcessorModule } from './queues/document-virus-scan/d
 import { HelpdeskSlaProcessorModule } from './queues/helpdesk-sla/helpdesk-sla-processor.module';
 import { NotificationsProcessorModule } from './queues/notifications/notifications-processor.module';
 import { NotificationsCampaignProcessorModule } from './queues/notifications/notifications-campaign-processor.module';
+import { ReportExportProcessorModule } from './queues/report-exports/report-export-processor.module';
 import { SubscriptionLifecycleProcessorModule } from './queues/subscription-lifecycle/subscription-lifecycle-processor.module';
 import { TransportGpsSweepProcessorModule } from './queues/transport-gps/transport-gps-sweep-processor.module';
 import { WorkflowEscalationProcessorModule } from './queues/workflow-escalation/workflow-escalation-processor.module';
@@ -37,6 +38,7 @@ import { WorkflowEscalationProcessorModule } from './queues/workflow-escalation/
     HelpdeskSlaProcessorModule,
     DocumentVirusScanProcessorModule,
     DocumentRetentionProcessorModule,
+    ReportExportProcessorModule,
   ],
 })
 export class AppModule {}

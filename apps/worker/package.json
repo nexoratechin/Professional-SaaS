@@ -17,6 +17,7 @@
     "@college-erp/database": "workspace:*",
     "@college-erp/gps": "workspace:*",
     "@college-erp/notifications": "workspace:*",
+    "@college-erp/reporting": "workspace:*",
     "@college-erp/types": "workspace:*",
     "@aws-sdk/client-s3": "^3.658.1",
     "@nestjs/bullmq": "^10.2.1",
