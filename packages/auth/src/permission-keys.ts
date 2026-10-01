@@ -232,6 +232,11 @@ export const PERMISSION_KEYS = {
   REPORTS_VIEW: 'reports.view',
   REPORTS_EXPORT: 'reports.export',
   REPORTS_MANAGE: 'reports.manage',
+  /** Read the advanced analytics dashboards (SaaS control-plane view and the college view). Kept
+   * separate from reports.view so BI access can be granted without granting report templates. */
+  ANALYTICS_VIEW: 'analytics.view',
+  /** Trigger a live recompute / manual refresh of the materialized rollups. */
+  ANALYTICS_REFRESH: 'analytics.refresh',
 
   // --- External integrations ---
   INTEGRATIONS_VIEW: 'integrations.view',
@@ -494,6 +499,8 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
     [PERMISSION_KEYS.REPORTS_VIEW, VIEW, 'View management/operational reports and dashboards.'],
     [PERMISSION_KEYS.REPORTS_EXPORT, EXPORT, 'Export reports.'],
     [PERMISSION_KEYS.REPORTS_MANAGE, MANAGE, 'Manage saved reports, templates, schedules, and report runs.'],
+    [PERMISSION_KEYS.ANALYTICS_VIEW, VIEW, 'View the advanced analytics dashboards (SaaS and college).'],
+    [PERMISSION_KEYS.ANALYTICS_REFRESH, MANAGE, 'Trigger a manual refresh of the materialized analytics rollups.'],
   ]),
   ...modulePermissions('integrations', [
     [PERMISSION_KEYS.INTEGRATIONS_VIEW, VIEW, 'View configured external integrations.'],
@@ -590,6 +597,8 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.REPORTS_VIEW },
       { key: K.REPORTS_EXPORT },
       { key: K.REPORTS_MANAGE },
+      { key: K.ANALYTICS_VIEW },
+      { key: K.ANALYTICS_REFRESH },
       { key: K.NOTIFICATIONS_VIEW },
       { key: K.DOCUMENTS_VIEW },
       { key: K.DOCUMENTS_APPROVE },
@@ -624,6 +633,8 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.REPORTS_VIEW },
       { key: K.REPORTS_EXPORT },
       { key: K.REPORTS_MANAGE },
+      { key: K.ANALYTICS_VIEW },
+      { key: K.ANALYTICS_REFRESH },
       { key: K.WORKFLOWS_VIEW },
       { key: K.WORKFLOWS_APPROVE },
       { key: K.NOTIFICATIONS_TEMPLATES_MANAGE },
@@ -653,6 +664,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.EXAMS_APPROVE, scopeType: S.DEPARTMENT },
       { key: K.RESULTS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.REPORTS_VIEW, scopeType: S.DEPARTMENT },
+      { key: K.ANALYTICS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.HR_VIEW, scopeType: S.DEPARTMENT },
       { key: K.WORKFLOWS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.WORKFLOWS_APPROVE, scopeType: S.DEPARTMENT },
@@ -689,6 +701,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       { key: K.REPORTS_VIEW },
       { key: K.REPORTS_EXPORT },
       { key: K.REPORTS_MANAGE },
+      { key: K.ANALYTICS_VIEW },
       { key: K.WORKFLOWS_VIEW },
       { key: K.WORKFLOWS_APPROVE },
     ],

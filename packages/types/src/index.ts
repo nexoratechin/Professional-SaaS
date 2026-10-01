@@ -4,6 +4,7 @@
 export * from './jobs';
 export * from './students';
 export * from './admissions';
+export * from './analytics';
 export * from './hr';
 export * from './placements';
 

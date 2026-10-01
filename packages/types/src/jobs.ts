@@ -8,6 +8,7 @@ export const QUEUE_NAMES = {
   DOCUMENT_VIRUS_SCAN: 'document-virus-scan',
   DOCUMENT_RETENTION: 'document-retention',
   REPORT_EXPORTS: 'report-exports',
+  ANALYTICS_REFRESH: 'analytics-refresh',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -96,4 +97,28 @@ export type DocumentRetentionSweepJobData = Record<string, never>;
  */
 export interface ReportExportJobData extends TenantJobData {
   runId: string;
+}
+
+/**
+ * Analytics rollup refresh. Same cross-tenant maintenance-sweep shape as
+ * SubscriptionLifecycleSweepJobData: AnalyticsRefreshProcessor walks every tenant with the
+ * analytics refresh registered, recomputes each (scope, period) bucket through
+ * @college-erp/analytics, and upserts it onto AnalyticsSnapshot. Never a job scoped to a single
+ * tenant up front - one sweep covers the whole platform because the SaaS rollup is itself
+ * cross-tenant.
+ */
+export type AnalyticsRefreshSweepJobData = Record<string, never>;
+
+/**
+ * One tenant's rollup recompute, enqueued by the sweep (or by an API "refresh now" request) when
+ * only a single tenant is out of date. The processor builds its tenant-scoped client from
+ * `tenantId` alone, exactly like every other tenant-scoped job.
+ */
+export interface AnalyticsRefreshTenantJobData extends TenantJobData {
+  /** Bucket width to recompute. MONTHLY for the durable MRR baseline, DAILY for the trend charts. */
+  granularity: 'DAILY' | 'MONTHLY';
+  /** Number of trailing buckets to recompute, so a re-run repairs gaps a missed sweep left behind. */
+  periods: number;
+  /** True when the caller explicitly asked for a live recompute; only ever logged, never trusted. */
+  requestedByApi?: boolean;
 }

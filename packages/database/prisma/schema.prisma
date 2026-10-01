@@ -643,8 +643,10 @@ model Tenant {
   reportTemplates                   ReportTemplate[]
   reportSchedules                   ReportSchedule[]
   reportRuns                        ReportRun[]
+  analyticsSnapshots                AnalyticsSnapshot[]
 
   @@index([status])
+  @@index([createdAt])
   @@map("tenants")
 }
 
@@ -692,6 +694,8 @@ model Subscription {
 
   @@index([tenantId])
   @@index([tenantId, status])
+  @@index([currentPeriodStart])
+  @@index([status, currentPeriodEnd])
   @@map("subscriptions")
 }
 
@@ -716,6 +720,7 @@ model SubscriptionItem {
 
   @@index([tenantId])
   @@index([subscriptionId])
+  @@index([tenantId, itemType])
   @@map("subscription_items")
 }
 
@@ -791,6 +796,7 @@ model UsageEvent {
   metadata   Json?
 
   @@index([tenantId, eventType, occurredAt])
+  @@index([occurredAt])
   @@map("usage_events")
 }
 
@@ -867,6 +873,8 @@ model Invoice {
 
   @@index([tenantId])
   @@index([tenantId, status])
+  @@index([periodStart])
+  @@index([status, periodStart])
   @@map("invoices")
 }
 
@@ -901,6 +909,8 @@ model Payment {
   @@index([invoiceId])
   @@index([subscriptionId])
   @@index([status])
+  @@index([paidAt])
+  @@index([status, paidAt])
   @@map("payments")
 }
 
@@ -1145,6 +1155,7 @@ model User {
   @@unique([tenantId, email])
   @@index([tenantId])
   @@index([tenantId, status])
+  @@index([lastLoginAt])
   @@map("users")
 }
 
@@ -3081,6 +3092,8 @@ model Student {
   @@index([batchId])
   @@index([sectionId])
   @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, campusId, status])
   @@map("students")
 }
 
@@ -3273,6 +3286,8 @@ model StudentAttendance {
   @@index([studentId, date])
   @@index([tenantId, status])
   @@index([tenantId, sessionId])
+  @@index([tenantId, date])
+  @@index([tenantId, date, status])
   @@map("student_attendance")
 }
 
@@ -3578,6 +3593,7 @@ model StudentFee {
   @@index([studentId, status])
   @@index([tenantId, demandId])
   @@index([tenantId, structureId])
+  @@index([tenantId, dueDate, status])
   @@map("student_fees")
 }
 
@@ -3615,6 +3631,8 @@ model StudentPayment {
   @@index([tenantId])
   @@index([studentId])
   @@index([studentFeeId])
+  @@index([tenantId, paymentDate])
+  @@index([tenantId, paymentDate, status])
   @@map("student_payments")
 }
 
@@ -4687,6 +4705,8 @@ model StudentResult {
   @@index([tenantId])
   @@index([studentId])
   @@index([examId])
+  @@index([tenantId, outcome])
+  @@index([tenantId, publishedAt])
   @@map("student_results")
 }
 
@@ -5525,6 +5545,7 @@ model AdmissionApplication {
   @@index([academicYearId])
   @@index([meritScore])
   @@index([duplicateOfId])
+  @@index([tenantId, createdAt])
   @@map("admission_applications")
 }
 
@@ -7681,6 +7702,7 @@ model FacultyWorkload {
   @@index([tenantId])
   @@index([tenantId, employeeId, termId])
   @@index([tenantId, workloadType])
+  @@index([tenantId, isActive])
   @@map("faculty_workloads")
 }
 
@@ -8416,6 +8438,7 @@ model PlacementOutcome {
   @@index([academicYearId])
   @@index([studentId])
   @@index([tenantId, outcomeStatus])
+  @@index([tenantId, academicYearId, outcomeStatus])
   @@map("placement_outcomes")
 }
 
@@ -9716,4 +9739,58 @@ model ReportRun {
   @@index([tenantId, requestedById])
   @@index([tenantId, scheduleId])
   @@map("report_runs")
+}
+
+/// Which side of the boundary a materialized analytics rollup describes.
+enum AnalyticsSnapshotScope {
+  PLATFORM
+  TENANT
+}
+
+/// Bucketing width of one AnalyticsSnapshot row. DAILY drives trend charts; MONTHLY is the
+/// durable baseline the SaaS MRR/ARR/churn series is derived from.
+enum AnalyticsGranularity {
+  DAILY
+  MONTHLY
+}
+
+/// Materialized analytics rollup. Analytics over a multi-million-row ledger is far too expensive
+/// to compute inside a request, so the worker precomputes each (scope, period) bucket into `metrics`
+/// (JSONB, shaped by @college-erp/analytics' SaasSnapshotMetrics / CollegeSnapshotMetrics) and the
+/// read APIs serve that row - optionally recomputing live when a caller explicitly asks for it.
+///
+/// Idempotent by construction: the unique key below is (scope, scopeKey, granularity, periodStart),
+/// and the refresh path upserts on it, so re-running a sweep over the same day overwrites in place
+/// instead of accumulating duplicates.
+///
+/// ACCESS CONVENTION (mirrors PlatformAuditLog/LoginEvent): `tenantId` is nullable because the
+/// same table also holds PLATFORM-scope rollups, which by definition belong to no tenant. That also
+/// keeps this model OUT of packages/database's auto-derived TENANT_SCOPED_MODELS set, so the
+/// tenant-guard extension will not auto-inject a filter for it. Both API read paths and the worker
+/// therefore go through the unscoped client and are required to filter explicitly and safely:
+/// the platform path filters on `scope: 'PLATFORM'`, and the college path filters on
+/// `scope: 'TENANT', scopeKey: <tenantId taken from the authenticated JWT, never from input>`.
+/// TENANT rows are written with scopeKey === tenantId, so that single clause is the isolation
+/// boundary - AnalyticsService centralizes it in one place rather than re-deriving it per query.
+model AnalyticsSnapshot {
+  id          String                 @id @default(cuid())
+  scope       AnalyticsSnapshotScope @default(TENANT)
+  /// Non-null scope discriminator: the tenant id for TENANT scope, the literal 'platform' for
+  /// PLATFORM scope. Kept alongside (not instead of) tenantId because Postgres treats NULLs as
+  /// distinct, which would make the unique constraint below unenforceable for platform rows.
+  scopeKey    String                 @map("scope_key")
+  tenantId    String?                @map("tenant_id") @db.Uuid
+  tenant      Tenant?                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  granularity AnalyticsGranularity   @default(DAILY)
+  periodStart DateTime               @map("period_start")
+  periodEnd   DateTime               @map("period_end")
+  metrics     Json
+  computedAt  DateTime               @default(now()) @map("computed_at")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  @@unique([scope, scopeKey, granularity, periodStart])
+  @@index([scopeKey, periodStart(sort: Desc)])
+  @@index([tenantId, periodStart(sort: Desc)])
+  @@map("analytics_snapshots")
 }

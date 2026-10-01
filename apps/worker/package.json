@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@college-erp/auth": "workspace:*",
+    "@college-erp/analytics": "workspace:*",
     "@college-erp/config": "workspace:*",
     "@college-erp/database": "workspace:*",
     "@college-erp/gps": "workspace:*",

@@ -8,6 +8,7 @@ import { BillingPage } from './routes/billing';
 import { DashboardPage } from './routes/dashboard';
 import { EntitlementRoute } from './routes/entitlement-route';
 import { LoginPage } from './routes/login';
+import { PlatformAnalyticsPage } from './routes/platform/platform-analytics';
 import { PlatformAuditLogPage } from './routes/platform/platform-audit-log';
 import { PlatformBillingPage } from './routes/platform/platform-billing';
 import { PlatformCatalogPage } from './routes/platform/platform-catalog';
@@ -78,6 +79,7 @@ function PlatformArea() {
           <Route path="tenants/new" element={<PlatformTenantNewPage />} />
           <Route path="tenants/:id" element={<PlatformTenantDetailPage />} />
           <Route path="billing" element={<PlatformBillingPage />} />
+          <Route path="analytics" element={<PlatformAnalyticsPage />} />
           <Route path="catalog" element={<PlatformCatalogPage />} />
           <Route path="support" element={<PlatformSupportPage />} />
           <Route path="audit-log" element={<PlatformAuditLogPage />} />

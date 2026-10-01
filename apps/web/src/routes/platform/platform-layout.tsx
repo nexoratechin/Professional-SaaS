@@ -5,6 +5,7 @@ import { usePlatformAuth } from '../../features/platform-auth/platform-auth-cont
 
 const NAV_LINKS = [
   { to: '/platform/dashboard', label: 'Dashboard' },
+  { to: '/platform/analytics', label: 'Analytics' },
   { to: '/platform/tenants', label: 'Tenants' },
   { to: '/platform/billing', label: 'Billing' },
   { to: '/platform/catalog', label: 'Plans & Features' },
