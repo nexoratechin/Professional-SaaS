@@ -24,6 +24,10 @@ export const FEATURE_KEYS = {
   NOTIFICATIONS: 'notifications',
   REPORTS: 'reports',
   ADVANCED_ANALYTICS: 'advanced_analytics',
+  /** The AI ERP Assistant module (apps/api's ai-assistant module). A module flag in its own
+   *  right rather than something hung off `reports`: the assistant reads students/attendance/
+   *  fees/exams/admissions/placements directly and must be sellable (and disable-able) on its own. */
+  AI: 'ai',
   INTEGRATIONS: 'integrations',
   MFA: 'mfa',
 } as const;
@@ -59,7 +63,7 @@ export const ENTITLEMENT_KEYS = {
   // --- Reports / analytics (module: reports) ---
   ANALYTICS_ADVANCED: 'analytics.advanced',
 
-  // --- AI assistant (cross-cutting, module: ai) ---
+  // --- AI assistant (module: ai — see FEATURE_KEYS.AI) ---
   AI_ASSISTANT: 'ai.assistant',
 
   // --- Transport (module: transport) ---
@@ -95,7 +99,7 @@ export const ENTITLEMENT_CATALOG: EntitlementCatalogEntry[] = [
   { key: ENTITLEMENT_KEYS.FEES_INSTALLMENT, module: FEATURE_KEYS.FEES, name: 'Installment plans', description: 'Split fee demands into installments.' },
   { key: ENTITLEMENT_KEYS.EXAMS_REVALUATION, module: FEATURE_KEYS.EXAMS, name: 'Revaluation', description: 'Result revaluation/retotalling workflow.' },
   { key: ENTITLEMENT_KEYS.ANALYTICS_ADVANCED, module: FEATURE_KEYS.REPORTS, name: 'Advanced analytics', description: 'Advanced BI/analytics dashboards and exports.' },
-  { key: ENTITLEMENT_KEYS.AI_ASSISTANT, module: FEATURE_KEYS.REPORTS, name: 'AI assistant', description: 'AI-powered assistant across the platform.' },
+  { key: ENTITLEMENT_KEYS.AI_ASSISTANT, module: FEATURE_KEYS.AI, name: 'AI assistant', description: 'AI-powered assistant across the platform.' },
   { key: ENTITLEMENT_KEYS.TRANSPORT_GPS, module: FEATURE_KEYS.TRANSPORT, name: 'GPS tracking', description: 'Live GPS vehicle tracking.' },
   { key: ENTITLEMENT_KEYS.LIBRARY_BARCODE, module: FEATURE_KEYS.LIBRARY, name: 'Barcode scanning', description: 'Barcode scanning for library check-in/out.' },
   { key: ENTITLEMENT_KEYS.MULTI_CAMPUS_ENABLED, module: FEATURE_KEYS.ACADEMICS, name: 'Multi-campus', description: 'Multiple campuses under one tenant.' },
@@ -138,6 +142,7 @@ export const FEATURE_FLAG_CATALOG: FeatureFlagCatalogEntry[] = [
   { key: FEATURE_KEYS.NOTIFICATIONS, name: 'Notifications', module: 'notifications' },
   { key: FEATURE_KEYS.REPORTS, name: 'Basic Reports', module: 'reports' },
   { key: FEATURE_KEYS.ADVANCED_ANALYTICS, name: 'Advanced Analytics', module: 'reports' },
+  { key: FEATURE_KEYS.AI, name: 'AI Assistant', module: 'ai' },
   { key: FEATURE_KEYS.INTEGRATIONS, name: 'External Integrations', module: 'integrations' },
   { key: FEATURE_KEYS.MFA, name: 'Multi-Factor Authentication', module: 'security' },
 ];
@@ -208,6 +213,11 @@ export const PLAN_DEFINITIONS: PlanDefinition[] = [
       FEATURE_KEYS.INVENTORY,
       FEATURE_KEYS.HELPDESK,
       FEATURE_KEYS.ADVANCED_ANALYTICS,
+      // The AI assistant is an Enterprise-only capability. Leaving it off Starter/Professional is
+      // what makes `ai.assistant` a real gate rather than a no-op: both EntitlementFlagsGuard and
+      // FeatureFlagsGuard read the tenant's materialized Entitlement rows, which are derived from
+      // exactly these plan->feature mappings (see seedPlanModules / EntitlementsService.recompute).
+      FEATURE_KEYS.AI,
       FEATURE_KEYS.MFA,
     ],
   },

@@ -24,6 +24,7 @@ const NOTIFICATIONS_VIEW_PERMISSION = 'notifications.read';
 const DOCUMENTS_VIEW_PERMISSION = 'documents.read';
 const REPORTS_VIEW_PERMISSION = 'reports.view';
 const ANALYTICS_VIEW_PERMISSION = 'analytics.view';
+const AI_VIEW_PERMISSION = 'ai.view';
 const ORG_VIEW_PERMISSIONS = ['campuses.read', 'departments.read', 'programs.read', 'academicYears.read', 'terms.read', 'rooms.read', 'buildings.read', 'sections.read', 'batches.read'];
 
 /** Entitlement-gated navigation section — rendered links are only as trustworthy as the
@@ -33,6 +34,7 @@ function EntitlementNav() {
   const entitleModules = useEntitlement('attendance.qr');
   const entitleFees = useEntitlement('fees.online_payment');
   const entitleAnalytics = useEntitlement('analytics.advanced');
+  const entitleAi = useEntitlement('ai.assistant');
 
   return (
     <Card>
@@ -41,8 +43,9 @@ function EntitlementNav() {
         {entitleModules && <li>QR attendance — <Link to="/dashboard">available</Link></li>}
         {entitleFees && <li>Online fee payments — <Link to="/dashboard">available</Link></li>}
         {entitleAnalytics && <li>Advanced analytics — <Link to="/analytics">open</Link></li>}
+        {entitleAi && <li>AI assistant — <Link to="/ai-assistant">open</Link></li>}
       </ul>
-      {!entitleModules && !entitleFees && !entitleAnalytics && (
+      {!entitleModules && !entitleFees && !entitleAnalytics && !entitleAi && (
         <p style={{ color: '#9ca3af' }}>No extra entitlements in this tenant's plan.</p>
       )}
     </Card>
@@ -52,6 +55,10 @@ function EntitlementNav() {
 export function DashboardPage() {
   const { user, permissions, features, entitlements, tenantSlug, logout } = useAuth();
   const navigate = useNavigate();
+  // The AI link needs BOTH gates: the plan entitlement (so a tenant that has not bought it never
+  // sees it) and the `ai.view` RBAC grant (so a user whose role excludes it never sees it either).
+  // Neither is enforcement — the API's guard stack and resolveAiScope are.
+  const entitledAi = useEntitlement('ai.assistant');
 
   const handleLogout = async () => {
     await logout();
@@ -81,6 +88,7 @@ export function DashboardPage() {
           {permissions.includes(DOCUMENTS_VIEW_PERMISSION) && <Link to="/documents">Documents</Link>}
           {permissions.includes(REPORTS_VIEW_PERMISSION) && <Link to="/reports">Reports</Link>}
           {permissions.includes(ANALYTICS_VIEW_PERMISSION) && <Link to="/analytics">Analytics</Link>}
+          {entitledAi && permissions.includes(AI_VIEW_PERMISSION) && <Link to="/ai-assistant">AI Assistant</Link>}
           {permissions.some((p) => ORG_VIEW_PERMISSIONS.includes(p)) && <Link to="/organization">Organization</Link>}
           {permissions.includes(AUDIT_VIEW_PERMISSION) && <Link to="/audit">Audit log</Link>}
           {permissions.includes(BILLING_VIEW_PERMISSION) && <Link to="/billing">Billing</Link>}

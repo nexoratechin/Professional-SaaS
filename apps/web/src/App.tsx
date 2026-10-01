@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { AuthProvider } from './features/auth/auth-context';
 import { PlatformAuthProvider } from './features/platform-auth/platform-auth-context';
 import { AdvancedAnalyticsPage } from './routes/analytics';
+import { AiAssistantPage } from './routes/ai-assistant';
 import { AuditLogPage } from './routes/audit-log';
 import { BillingPage } from './routes/billing';
 import { DashboardPage } from './routes/dashboard';
@@ -127,6 +128,16 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <ReportsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-assistant"
+          element={
+            <ProtectedRoute>
+              <EntitlementRoute entitlement="ai.assistant">
+                <AiAssistantPage />
+              </EntitlementRoute>
             </ProtectedRoute>
           }
         />

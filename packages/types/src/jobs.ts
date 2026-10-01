@@ -9,6 +9,8 @@ export const QUEUE_NAMES = {
   DOCUMENT_RETENTION: 'document-retention',
   REPORT_EXPORTS: 'report-exports',
   ANALYTICS_REFRESH: 'analytics-refresh',
+  /** AI document classification + OCR extraction (apps/worker's ai queues). */
+  AI_DOCUMENT_PROCESSING: 'ai-document-processing',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -121,4 +123,28 @@ export interface AnalyticsRefreshTenantJobData extends TenantJobData {
   periods: number;
   /** True when the caller explicitly asked for a live recompute; only ever logged, never trusted. */
   requestedByApi?: boolean;
+}
+
+/**
+ * Classify one already-uploaded DocumentVersion and, when OCR is available for its mime type,
+ * extract its text into the AiDocumentClassification row.
+ *
+ * Enqueued by the API's AI classification endpoint (`POST /ai-assistant/documents/classifications`),
+ * which refuses a version that has not cleared the virus scan — and the processor re-checks that
+ * gate before touching anything, so a job that outlives a re-scan fails closed.
+ *
+ * SECURITY: the payload carries ids and a *derived* label hint only — never the file itself. The
+ * processor builds its tenant-scoped client from `tenantId` alone and re-checks that the document
+ * and version still belong to that tenant and are still CLEAN before touching anything, so a
+ * tampered payload cannot be used to read another tenant's object storage.
+ */
+export interface AiDocumentProcessingJobData extends TenantJobData {
+  documentId: string;
+  versionId: string;
+  /** What the processor should attempt. OCR is skipped (not failed) when the mime type has no
+   *  configured extractor. */
+  steps: Array<'CLASSIFY' | 'OCR'>;
+  /** True when a human has already confirmed/rejected this version's classification — set by the
+   *  review endpoint so a re-run never overwrites a verified decision. */
+  skipIfReviewed?: boolean;
 }

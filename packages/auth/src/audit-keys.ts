@@ -51,6 +51,8 @@ export const AUDIT_MODULES = {
   INVENTORY: 'inventory',
   REPORTS: 'reports',
   INTEGRATIONS: 'integrations',
+  /** AI assistant (apps/api/src/modules/ai-assistant) — see the reserved-modules note above. */
+  AI: 'ai',
 } as const;
 
 export type AuditModule = (typeof AUDIT_MODULES)[keyof typeof AUDIT_MODULES];
@@ -766,6 +768,34 @@ export const AUDIT_ACTIONS = {
   /** Written by apps/worker's HelpdeskSlaSweepProcessor, not an HTTP request. */
   HELPDESK_SLA_SWEEP: 'HELPDESK_SLA_SWEEP',
   HELPDESK_REPORT_VIEWED: 'HELPDESK_REPORT_VIEWED',
+
+  // --- AI assistant (module AI) ---
+  /** Every NL question is written, success or failure, with the resolved scope snapshot. `before`
+   *  carries the raw question + detected intent; `after` the answer shape, row count and timings —
+   *  the full record of what the model was shown and how much data it touched. */
+  AI_QUERY_EXECUTED: 'AI_QUERY_EXECUTED',
+  AI_QUERY_FAILED: 'AI_QUERY_FAILED',
+  /** A question the intent router could not map to any capability. Logged so unanswered phrasings
+   *  can be turned into new capabilities instead of silently failing for every user. */
+  AI_QUERY_UNSUPPORTED: 'AI_QUERY_UNSUPPORTED',
+  /** Written when the caller lacks the source-domain permission/scope a detected intent needs —
+   *  the audit trail of an authorization refusal, distinguishable from a bad question. */
+  AI_QUERY_FORBIDDEN: 'AI_QUERY_FORBIDDEN',
+  AI_CONVERSATION_CREATED: 'AI_CONVERSATION_CREATED',
+  AI_CONVERSATION_RENAMED: 'AI_CONVERSATION_RENAMED',
+  AI_CONVERSATION_DELETED: 'AI_CONVERSATION_DELETED',
+  AI_MESSAGE_RECORDED: 'AI_MESSAGE_RECORDED',
+  AI_REPORT_GENERATED: 'AI_REPORT_GENERATED',
+  AI_REPORT_EXPORTED: 'AI_REPORT_EXPORTED',
+  AI_DRAFT_GENERATED: 'AI_DRAFT_GENERATED',
+  AI_DRAFT_SENT: 'AI_DRAFT_SENT',
+  AI_RISK_INSIGHTS_VIEWED: 'AI_RISK_INSIGHTS_VIEWED',
+  AI_DOCUMENT_CLASSIFIED: 'AI_DOCUMENT_CLASSIFIED',
+  AI_DOCUMENT_CLASSIFICATION_REVIEWED: 'AI_DOCUMENT_CLASSIFICATION_REVIEWED',
+  AI_FEEDBACK_RECORDED: 'AI_FEEDBACK_RECORDED',
+  AI_PROVIDER_CONFIG_UPDATED: 'AI_PROVIDER_CONFIG_UPDATED',
+  /** Written by apps/worker's DocumentClassificationProcessor, not an HTTP request. */
+  AI_DOCUMENT_OCR_EXTRACTED: 'AI_DOCUMENT_OCR_EXTRACTED',
 
   // --- Cross-cutting (module PLATFORM) ---
   CROSS_TENANT_ACCESS_ATTEMPT: 'CROSS_TENANT_ACCESS_ATTEMPT',

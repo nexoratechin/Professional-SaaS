@@ -40,6 +40,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { HelpdeskModule } from './modules/helpdesk/helpdesk.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     HelpdeskModule,
     ReportsModule,
     AnalyticsModule,
+    AiAssistantModule,
     BillingModule,
     SupportModule,
     PlatformOpsModule,

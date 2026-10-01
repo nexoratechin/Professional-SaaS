@@ -17,6 +17,8 @@ import { CollegeAnalyticsService } from './college-analytics.service';
   imports: [CommonGuardsModule, BullModule.registerQueue({ name: QUEUE_NAMES.ANALYTICS_REFRESH })],
   controllers: [AnalyticsController],
   providers: [AnalyticsReadService, CollegeAnalyticsService],
-  exports: [AnalyticsReadService],
+  // CollegeAnalyticsService is exported so the AI assistant's ANALYTICS_OVERVIEW answer can reuse the
+  // exact same rollup rather than keeping a second copy of it — see AiAssistantService.execute.
+  exports: [AnalyticsReadService, CollegeAnalyticsService],
 })
 export class AnalyticsModule {}

@@ -40,6 +40,39 @@ export const apiEnvSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'NOTIFICATION_SECRET_KEY must be 64 hex characters (32 bytes)'),
 
+  // --- AI ERP Assistant ---------------------------------------------------------------
+  // All optional, all defaulting to "off". The assistant's *data* path (natural-language queries,
+  // risk insights, report/draft generation from already-scoped queries) works with no provider
+  // configured at all - it is scoped SQL plus deterministic formatting, which is why the feature
+  // is useful and testable before anyone buys an API key. Only the optional narration / drafting /
+  // OCR steps need a provider.
+
+  /** Master switch. When false the AI module's endpoints refuse even if RBAC and entitlements
+   *  pass, so an operator can turn the whole surface off without editing plans. */
+  AI_ENABLED: boolFromString,
+  /** `none` disables narration/drafting/OCR (same effect as no API key). */
+  AI_PROVIDER: z.enum(['none', 'anthropic', 'openai', 'mock']).default('none'),
+  AI_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().default('claude-sonnet-5'),
+  /** Hard ceiling on rows an assistant answer may return. Enforced on top of the reporting
+   *  engine's own limits: the assistant is an interactive surface, not a data dump. */
+  AI_MAX_ROWS: z.coerce.number().int().positive().max(500).default(50),
+  /** Ceiling on characters of extracted OCR text persisted per document version, so a 200-page
+   *  PDF cannot bloat the row (or the review UI) on its first classification. */
+  AI_MAX_EXTRACTED_TEXT_CHARS: z.coerce.number().int().positive().default(20000),
+  /** Confidence below which a classification is queued for human review instead of accepted. */
+  AI_AUTO_ACCEPT_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.9),
+  /** Optional generic OCR endpoint returning { text: string }. Unset disables the OCR step
+   *  (classification still runs). Same optional-URL treatment as VIRUS_SCAN_API_URL. */
+  AI_OCR_API_URL: z
+    .union([z.string().url(), z.literal('')])
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  AI_OCR_API_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+
   S3_ENDPOINT: z.string().min(1),
   S3_REGION: z.string().default('us-east-1'),
   S3_ACCESS_KEY: z.string().min(1),
@@ -81,6 +114,25 @@ export const workerEnvSchema = z.object({
   S3_SECRET_KEY: z.string().min(1),
   S3_BUCKET: z.string().min(1),
   S3_FORCE_PATH_STYLE: boolFromString,
+
+  /** Same AI provider settings as the API — the worker runs the OCR/classification step and must
+   *  classify/extract with exactly the provider the API would have, or a re-run would disagree
+   *  with the original. Unset AI_API_KEY means the worker records NO_TEXT rather than failing the
+   *  document: classification is best-effort, the virus scan is not. */
+  AI_ENABLED: boolFromString,
+  AI_PROVIDER: z.enum(['none', 'anthropic', 'openai', 'mock']).default('none'),
+  AI_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().default('claude-sonnet-5'),
+  AI_MAX_EXTRACTED_TEXT_CHARS: z.coerce.number().int().positive().default(20000),
+  AI_AUTO_ACCEPT_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.9),
+  AI_OCR_API_URL: z
+    .union([z.string().url(), z.literal('')])
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  AI_OCR_API_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
 
   /** Which virus scanner the DocumentVirusScanProcessor uses: `mock` (dev default — every file
    *  scans clean unless the payload opts into a simulated infection), `clamav` (clamd TCP

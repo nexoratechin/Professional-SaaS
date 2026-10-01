@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { AppConfigService } from './config/app-config.service';
 import { ConfigModule } from './config/config.module';
 import { EntitlementModule } from './entitlement/entitlement.module';
+import { AiDocumentProcessingProcessorModule } from './queues/ai/ai-document-processing-processor.module';
 import { AnalyticsRefreshProcessorModule } from './queues/analytics-refresh/analytics-refresh-processor.module';
 import { DocumentRetentionProcessorModule } from './queues/document-retention/document-retention-processor.module';
 import { DocumentVirusScanProcessorModule } from './queues/document-virus-scan/document-virus-scan-processor.module';
@@ -41,6 +42,7 @@ import { WorkflowEscalationProcessorModule } from './queues/workflow-escalation/
     DocumentRetentionProcessorModule,
     ReportExportProcessorModule,
     AnalyticsRefreshProcessorModule,
+    AiDocumentProcessingProcessorModule,
   ],
 })
 export class AppModule {}

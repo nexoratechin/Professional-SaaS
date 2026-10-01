@@ -644,6 +644,11 @@ model Tenant {
   reportSchedules                   ReportSchedule[]
   reportRuns                        ReportRun[]
   analyticsSnapshots                AnalyticsSnapshot[]
+  aiConversations                   AiConversation[]
+  aiMessages                        AiMessage[]
+  aiQueryLogs                       AiQueryLog[]
+  aiFeedback                        AiFeedback[]
+  aiDocumentClassifications          AiDocumentClassification[]
 
   @@index([status])
   @@index([createdAt])
@@ -1151,6 +1156,10 @@ model User {
   createdReportTemplates     ReportTemplate[]              @relation("ReportTemplateCreator")
   createdReportSchedules     ReportSchedule[]              @relation("ReportScheduleCreator")
   requestedReportRuns        ReportRun[]                   @relation("ReportRunRequester")
+  aiConversations           AiConversation[]               @relation("AiConversationOwner")
+  aiQueryLogs               AiQueryLog[]                  @relation("AiQueryLogUser")
+  aiFeedback                AiFeedback[]                  @relation("AiFeedbackUser")
+  reviewedAiClassifications AiDocumentClassification[]    @relation("AiDocumentClassificationReviewer")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -2667,6 +2676,10 @@ model Document {
   versions     DocumentVersion[]     @relation("DocumentVersions")
   accessGrants DocumentAccessGrant[]
   downloadLogs DocumentDownloadLog[]
+  /// AI classification output for this document's versions (apps/api's ai-assistant module).
+  /// The reverse side of AiDocumentClassification.document — declared here so the tenant-guard
+  /// extension can see the relation from a model it already knows about.
+  aiClassifications AiDocumentClassification[]
 
   @@index([tenantId])
   @@index([tenantId, category])
@@ -2706,6 +2719,7 @@ model DocumentVersion {
   deletedAt           DateTime?          @map("deleted_at")
 
   documentCurrent Document[] @relation("CurrentDocumentVersion")
+  aiClassifications AiDocumentClassification[]
 
   @@unique([documentId, versionNumber])
   @@index([tenantId])
@@ -9793,4 +9807,233 @@ model AnalyticsSnapshot {
   @@index([scopeKey, periodStart(sort: Desc)])
   @@index([tenantId, periodStart(sort: Desc)])
   @@map("analytics_snapshots")
+}
+
+// ---------------------------------------------------------------------------
+// AI ERP Assistant (apps/api/src/modules/ai-assistant, apps/worker queues/ai)
+// ---------------------------------------------------------------------------
+
+/// Which capability the intent router resolved a question to. Deliberately a closed enum rather
+/// than free text: every branch here has its own source-permission resolution, so an unknown
+/// value could never be executed. Adding a capability means adding a value here AND a branch in
+/// the router AND a required source permission — the DB constraint is the first of those three.
+enum AiIntent {
+  /// Students whose attendance rate is below a caller-supplied threshold.
+  LOW_ATTENDANCE_STUDENTS
+  /// Students with an unpaid fee balance (optionally only lines already past due).
+  OUTSTANDING_FEES
+  /// Admission applications grouped by status over a window.
+  ADMISSIONS_STATISTICS
+  /// Per-department rollups (students, attendance rate, results, fees) for comparison.
+  DEPARTMENT_PERFORMANCE
+  /// Per-subject / per-program exam outcome and pass-rate rollups.
+  EXAM_PERFORMANCE
+  /// Placement counts, rate and package statistics over a window.
+  PLACEMENT_STATISTICS
+  /// Free-form analytics rollup served from the materialized snapshots.
+  ANALYTICS_OVERVIEW
+  /// Turn the resolved data into a formatted, exportable report.
+  REPORT_GENERATION
+  /// Draft a communication (email/SMS/guardian note) from the resolved data.
+  COMMUNICATION_DRAFT
+  /// Students at risk across attendance, fees, results and holds.
+  STUDENT_RISK_INSIGHTS
+}
+
+/// Where an assistant response came from, so the UI can label it and the audit trail can prove no
+/// model was consulted for a pure data answer.
+enum AiResponseKind {
+  /// Executed against tenant data and summarized deterministically (no LLM call). The default.
+  DATA
+  /// The numbers came back and an LLM phrased them. Facts still originate from the scoped query.
+  DATA_WITH_NARRATION
+  /// Purely generated text (a draft/rewrite) with no tenant data in the prompt.
+  GENERATED_TEXT
+  /// The router could not map the question to a capability.
+  UNSUPPORTED
+  /// The capability was recognized but the caller's grants do not cover its source data.
+  FORBIDDEN
+  /// The capability was recognized and authorized but execution failed.
+  FAILED
+}
+
+/// A thread of assistant messages. One per UI conversation; never implicitly shared, because
+/// everything in it is tenant data and the scope it was answered under is per-user.
+model AiConversation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ownerId   String   @map("owner_id") @db.Uuid
+  owner     User     @relation("AiConversationOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  title     String
+  isArchived Boolean @default(false) @map("is_archived")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  messages AiMessage[]
+  queries   AiQueryLog[]
+
+  @@index([tenantId, ownerId, updatedAt(sort: Desc)])
+  @@index([tenantId])
+  @@map("ai_conversations")
+}
+
+/// One turn: the user's question and the assistant's answer, plus the frozen context the answer
+/// was produced under.
+///
+/// `scopeSnapshot` is the reason this table is append-only in spirit: it stores the *intersected*
+/// RBAC grants the answer was computed from, so an answer stays explainable after roles change.
+/// `intent`, `filters` and `rowCount` are the model's input trace — an assistant that can explain
+/// which scoped query produced its number is auditable; one that cannot is not.
+model AiMessage {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversationId String           @map("conversation_id") @db.Uuid
+  conversation   AiConversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  intent         AiIntent?
+  content        String
+  /// Structured payload (table columns/rows, summary, risk factors, draft metadata) for the UI.
+  payload        Json?
+  /// The resolved filters actually applied to the source query — never the raw user question.
+  filters        Json?
+  /// Frozen intersect(entryGrants, sourceGrants) this answer was computed under.
+  scopeSnapshot  Json?            @map("scope_snapshot")
+  responseKind   AiResponseKind   @default(DATA) @map("response_kind")
+  provider       String?
+  model          String?
+  promptTokens   Int?             @map("prompt_tokens")
+  completionTokens Int?           @map("completion_tokens")
+  latencyMs      Int?             @map("latency_ms")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  feedback AiFeedback?
+  /// The audit record of the turn this message produced. SetNull rather than cascade: an owner
+  /// deleting a message must not erase the fact that the question was asked.
+  queryLog AiQueryLog?
+
+  @@index([tenantId, conversationId, createdAt])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("ai_messages")
+}
+
+/// The immutable record that a question was asked, by whom, and what it was allowed to read.
+///
+/// Kept separate from AiMessage so the compliance question ("what did this tenant ask the AI,
+/// and what data was behind the answer?") is answerable with one indexed query over questions,
+/// including the ones whose conversation has since been deleted.
+model AiQueryLog {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String          @map("tenant_id") @db.Uuid
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversationId String?         @map("conversation_id") @db.Uuid
+  conversation   AiConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  /// Unique (nullable) so the relation is genuinely one log per answer — an assistant message
+/// corresponds to exactly one resolved (or refused) question. Postgres treats NULLs as distinct,
+/// so a failed query with no answer row still gets logged.
+  messageId      String?         @unique @map("message_id") @db.Uuid
+  message        AiMessage?      @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  userId         String          @map("user_id") @db.Uuid
+  user           User            @relation("AiQueryLogUser", fields: [userId], references: [id], onDelete: Cascade)
+  question       String
+  intent         AiIntent?
+  outcome        AiResponseKind  @default(DATA)
+  /// Frozen scope the answer was allowed to read. Null only when execution never got that far.
+  scopeSnapshot  Json?           @map("scope_snapshot")
+  filters        Json?
+  sourcePermission String?
+  rowCount       Int             @default(0) @map("row_count")
+  errorMessage   String?         @map("error_message")
+  latencyMs      Int?            @map("latency_ms")
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, userId, createdAt(sort: Desc)])
+  @@index([tenantId, intent, createdAt(sort: Desc)])
+  @@index([tenantId, outcome])
+  @@map("ai_query_logs")
+}
+
+/// Thumbs up/down on one assistant answer, plus the corrected fields when the user disputes a
+/// figure. The training signal for intent gaps and for the fixtures a routing regression test
+/// replays.
+model AiFeedback {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messageId String    @unique @map("message_id") @db.Uuid
+  message   AiMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation("AiFeedbackUser", fields: [userId], references: [id], onDelete: Cascade)
+  rating    String
+  comment   String?
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("ai_feedback")
+}
+
+/// AI/OCR output for one DocumentVersion, plus the human decision layered on top of it.
+///
+/// The machine suggestion is never authoritative: `suggestedCategory`/`confidence` are what the
+/// classifier produced, and `confirmedCategory`/`reviewedBy` are what a human decided. Downstream
+/// consumers (admissions verification, certificate generation) must read the *confirmed* value, so
+/// a mis-classification can never silently mis-file a document.
+model AiDocumentClassification {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String               @map("tenant_id") @db.Uuid
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  documentId        String               @map("document_id") @db.Uuid
+  document          Document             @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentVersionId String               @map("document_version_id") @db.Uuid
+  documentVersion   DocumentVersion      @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  /// What the classifier proposed (a DocumentType code, or a free-form label when the tenant has
+  /// no matching type).
+  suggestedCategory String?              @map("suggested_category")
+  suggestedTypeId   String?              @map("suggested_type_id") @db.Uuid
+  /// 0..1 model confidence. Below the tenant threshold the row is queued for review instead of
+  /// auto-applied — a low-confidence guess is still a guess.
+  confidence        Float?
+  /// Extracted text (OCR / parse). Truncated to a configured cap; never returned to a caller who
+  /// lacks documents.read on the owning document.
+  extractedText     String?              @map("extracted_text")
+  /// Structured fields the extractor recovered (name, dates, amounts, ids, …). Stored as JSONB
+  /// because the shape is type-dependent.
+  extractedFields   Json?                @map("extracted_fields")
+  /// Machine-only; a human decision below is what counts.
+  status            AiDocumentClassificationStatus @default(PENDING)
+  confirmedTypeId   String?              @map("confirmed_type_id") @db.Uuid
+  confirmedCategory String?              @map("confirmed_category")
+  reviewedBy        String?              @map("reviewed_by") @db.Uuid
+  reviewedByUser    User?                @relation("AiDocumentClassificationReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  reviewedAt        DateTime?            @map("reviewed_at")
+  reviewNote        String?              @map("review_note")
+  provider          String?
+  model             String?
+  errorMessage      String?              @map("error_message")
+  processedAt       DateTime?            @map("processed_at")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([tenantId, documentVersionId])
+  @@index([tenantId, status, createdAt])
+  /// The review queue reads "unreviewed, oldest first".
+  @@index([tenantId, status, reviewedAt])
+  @@index([tenantId, documentId])
+  @@map("ai_document_classifications")
+}
+
+enum AiDocumentClassificationStatus {
+  PENDING
+  CLASSIFIED
+  /// OCR ran but produced no usable text (scanned image with no extractor configured, blank page).
+  NO_TEXT
+  /// The provider could not be reached / refused. Retryable, unlike FAILED_ROWS.
+  ERROR
+  /// A human accepted the suggestion.
+  CONFIRMED
+  /// A human overrode the suggestion with confirmedCategory.
+  CORRECTED
+  FAILED
 }
