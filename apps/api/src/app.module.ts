@@ -42,6 +42,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { StudentPortalModule } from './modules/student-portal/student-portal.module';
+import { ParentPortalModule } from './modules/parent-portal/parent-portal.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { StudentPortalModule } from './modules/student-portal/student-portal.mod
     AnalyticsModule,
     AiAssistantModule,
     StudentPortalModule,
+    ParentPortalModule,
     BillingModule,
     SupportModule,
     PlatformOpsModule,

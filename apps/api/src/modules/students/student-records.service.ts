@@ -11,7 +11,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { PrismaClient } from '@college-erp/database';
 import { AUDIT_ACTIONS } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
@@ -85,6 +85,8 @@ export class StudentRecordsService {
     else if (resource === 'attendance') data.markedByUserId = userId;
     else if (CREATED_BY_MODELS.includes(meta.model)) data.createdBy = userId;
 
+    if (resource === 'guardian') await this.assertGuardianUserLink(data.userId);
+
     const row = await (this.tenantPrisma.client as any)[meta.model].create({ data });
 
     await this.auditService.record({
@@ -116,6 +118,9 @@ export class StudentRecordsService {
 
     const data: Record<string, any> = this.cleanData(dto, meta);
     if (UPDATED_BY_MODELS.includes(meta.model)) data.updatedBy = userId;
+
+    if (resource === 'guardian') await this.assertGuardianUserLink(data.userId);
+
     const row = await delegate.update({ where: { id: recordId }, data });
 
     await this.auditService.record({
@@ -496,6 +501,23 @@ export class StudentRecordsService {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /** Validates an optional Guardian.userId link. null unlinks; a value must resolve to a user in
+   *  THIS tenant (the lookup runs through the tenant-scoped client, so cross-tenant ids miss).
+   *  Linking is the Parent/Guardian Portal's authorization anchor, hence the strict check. */
+  private async assertGuardianUserLink(userId: unknown): Promise<void> {
+    if (userId === undefined || userId === null) return;
+    if (typeof userId !== 'string' || !userId) {
+      throw new BadRequestException('A valid portal user id is required to link a guardian account.');
+    }
+    const user = await this.tenantPrisma.client.user.findFirst({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new BadRequestException('The portal user account was not found in this tenant.');
+    }
+  }
 
   private cleanData(dto: Record<string, any>, meta: (typeof STUDENT_RESOURCE_META)[StudentResource]): Record<string, any> {
     const data = { ...dto };

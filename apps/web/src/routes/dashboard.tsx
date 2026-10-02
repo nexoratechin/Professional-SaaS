@@ -70,9 +70,14 @@ export function DashboardPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ fontSize: '1.25rem' }}>College ERP — Dashboard</h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          {user?.roles.some((role) => role === 'STUDENT' || role === 'PARENT') && (
+          {user?.roles.some((role) => role === 'STUDENT') && (
             <Link to="/portal/dashboard" style={{ fontWeight: 600 }}>
               Student Portal
+            </Link>
+          )}
+          {user?.roles.some((role) => role === 'PARENT') && (
+            <Link to="/parent/dashboard" style={{ fontWeight: 600 }}>
+              Parent Portal
             </Link>
           )}
           {permissions.includes(STUDENTS_VIEW_PERMISSION) && <Link to="/students">Students</Link>}

@@ -827,9 +827,9 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     code: SYSTEM_ROLE_CODES.PARENT,
     name: 'Parent',
     description:
-      "Read-only access to their linked child's academic, attendance, exam, and fee records " +
-      '(the student-guardian link is established when the Student module is built; scope is ' +
-      'OWN in the interim).',
+      "Read-only access to their linked children's academic, attendance, exam, and fee records " +
+      '(the actual student scope is anchored on the Guardian.userId link used by the Parent Portal; ' +
+      'OWN here is a conservative ceiling, never a grant).',
     grants: [
       { key: K.STUDENTS_VIEW, scopeType: S.OWN },
       { key: K.ATTENDANCE_VIEW, scopeType: S.OWN },

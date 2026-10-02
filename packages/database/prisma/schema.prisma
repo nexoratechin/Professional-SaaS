@@ -3120,6 +3120,12 @@ model Guardian {
   tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   studentId          String       @map("student_id") @db.Uuid
   student            Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  /// Optional link to the portal login account for this guardian (Parent/Guardian Portal). A bare
+  /// UUID mirroring Student.userId rather than a relation: a guardian may be linked to several
+  /// students (one Guardian row per child), and the portal resolves every child via this column.
+  /// The parent-portal access rule is *this link* — not the PARENT role — so it is the single
+  /// authorization anchor for guardian self-service.
+  userId             String?      @map("user_id") @db.Uuid
   name               String
   kind               GuardianKind
   role               GuardianRole @default(PRIMARY)
@@ -3135,6 +3141,7 @@ model Guardian {
 
   @@index([tenantId])
   @@index([studentId])
+  @@index([tenantId, userId])
   @@map("guardians")
 }
 

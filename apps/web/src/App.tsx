@@ -61,6 +61,20 @@ import { PortalTransportPage } from './routes/portal/portal-transport';
 import { PortalNoticesPage } from './routes/portal/portal-notices';
 import { PortalTicketsPage } from './routes/portal/portal-tickets';
 import { PortalDocumentsPage } from './routes/portal/portal-documents';
+import { ParentGate } from './routes/parent/parent-gate';
+import { ParentPortalLayout } from './routes/parent/parent-layout';
+import { ParentDashboardPage } from './routes/parent/parent-dashboard';
+import { ParentProfilePage } from './routes/parent/parent-profile';
+import { ParentAttendancePage } from './routes/parent/parent-attendance';
+import { ParentTimetablePage } from './routes/parent/parent-timetable';
+import { ParentFeesPage } from './routes/parent/parent-fees';
+import { ParentPaymentsPage } from './routes/parent/parent-payments';
+import { ParentExamsPage } from './routes/parent/parent-exams';
+import { ParentResultsPage } from './routes/parent/parent-results';
+import { ParentNoticesPage } from './routes/parent/parent-notices';
+import { ParentDocumentsPage } from './routes/parent/parent-documents';
+import { ParentTransportPage } from './routes/parent/parent-transport';
+import { ParentHostelPage } from './routes/parent/parent-hostel';
 
 function ProfileRoute() {
   const { id } = useParams<{ id: string }>();
@@ -339,6 +353,31 @@ function TenantArea() {
           <Route path="notices" element={<PortalNoticesPage />} />
           <Route path="tickets" element={<PortalTicketsPage />} />
           <Route path="documents" element={<PortalDocumentsPage />} />
+        </Route>
+        {/* Parent/Guardian portal — only reachable by users linked to a Guardian record. */}
+        <Route
+          path="/parent"
+          element={
+            <ProtectedRoute>
+              <ParentGate>
+                <ParentPortalLayout />
+              </ParentGate>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<ParentDashboardPage />} />
+          <Route path="profile" element={<ParentProfilePage />} />
+          <Route path="attendance" element={<ParentAttendancePage />} />
+          <Route path="timetable" element={<ParentTimetablePage />} />
+          <Route path="fees" element={<ParentFeesPage />} />
+          <Route path="payments" element={<ParentPaymentsPage />} />
+          <Route path="exams" element={<ParentExamsPage />} />
+          <Route path="results" element={<ParentResultsPage />} />
+          <Route path="notices" element={<ParentNoticesPage />} />
+          <Route path="documents" element={<ParentDocumentsPage />} />
+          <Route path="transport" element={<ParentTransportPage />} />
+          <Route path="hostel" element={<ParentHostelPage />} />
         </Route>
         {/* Public QR landing — intentionally outside ProtectedRoute; the token is the credential. */}
         <Route path="/verify/certificate" element={<CertificateVerifyPage />} />

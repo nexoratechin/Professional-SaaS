@@ -4,8 +4,9 @@ import { Button } from '@college-erp/ui';
 import { useAuth } from '../../features/auth/auth-context';
 
 /** Mobile-first responsive styles for the portal. The rest of the app uses inline styles; the
- *  portal needs a handful of media queries, so a single scoped stylesheet is injected here. */
-const PORTAL_CSS = `
+ *  portal needs a handful of media queries, so a single scoped stylesheet is injected here. Shared
+ *  with the parent portal (see routes/parent/parent-layout.tsx) so both stay visually consistent. */
+export const PORTAL_CSS = `
 .sp-shell { min-height: 100vh; background: #f8fafc; color: #0f172a; }
 .sp-header { position: sticky; top: 0; z-index: 30; background: #1e293b; color: #fff; }
 .sp-header-inner { max-width: 1180px; margin: 0 auto; padding: 0.7rem 1rem; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

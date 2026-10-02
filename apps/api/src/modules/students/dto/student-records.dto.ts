@@ -9,6 +9,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   Min,
 } from 'class-validator';
@@ -76,6 +77,12 @@ export class CreateGuardianDto {
   @IsIn(GUARDIAN_ROLES)
   role?: (typeof GUARDIAN_ROLES)[number];
 
+  /** Optional portal login account to link to this guardian row (Parent/Guardian Portal). The user
+   *  must belong to this tenant; linking is what grants the account access to THIS student only. */
+  @IsOptional()
+  @IsUUID()
+  userId?: string;
+
   @IsOptional()
   @IsString()
   phone?: string;
@@ -111,6 +118,11 @@ export class UpdateGuardianDto {
   @IsOptional()
   @IsIn(GUARDIAN_ROLES)
   role?: (typeof GUARDIAN_ROLES)[number];
+
+  /** Pass a user id to link, or null to unlink the portal account from this guardian row. */
+  @IsOptional()
+  @IsUUID()
+  userId?: string | null;
 
   @IsOptional()
   @IsString()
