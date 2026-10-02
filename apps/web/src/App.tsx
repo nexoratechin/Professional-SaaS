@@ -75,6 +75,20 @@ import { ParentNoticesPage } from './routes/parent/parent-notices';
 import { ParentDocumentsPage } from './routes/parent/parent-documents';
 import { ParentTransportPage } from './routes/parent/parent-transport';
 import { ParentHostelPage } from './routes/parent/parent-hostel';
+import { FacultyGate } from './routes/faculty/faculty-gate';
+import { FacultyPortalLayout } from './routes/faculty/faculty-layout';
+import { FacultyDashboardPage } from './routes/faculty/faculty-dashboard';
+import { FacultyProfilePage } from './routes/faculty/faculty-profile';
+import { FacultyCoursesPage } from './routes/faculty/faculty-courses';
+import { FacultyStudentsPage } from './routes/faculty/faculty-students';
+import { FacultyTimetablePage } from './routes/faculty/faculty-timetable';
+import { FacultyAttendancePage } from './routes/faculty/faculty-attendance';
+import { FacultyMarksPage } from './routes/faculty/faculty-marks';
+import { FacultyAcademicsPage } from './routes/faculty/faculty-academics';
+import { FacultyLeavePage } from './routes/faculty/faculty-leave';
+import { FacultyWorkloadPage } from './routes/faculty/faculty-workload';
+import { FacultyNotificationsPage } from './routes/faculty/faculty-notifications';
+import { FacultyReportsPage } from './routes/faculty/faculty-reports';
 
 function ProfileRoute() {
   const { id } = useParams<{ id: string }>();
@@ -378,6 +392,31 @@ function TenantArea() {
           <Route path="documents" element={<ParentDocumentsPage />} />
           <Route path="transport" element={<ParentTransportPage />} />
           <Route path="hostel" element={<ParentHostelPage />} />
+        </Route>
+        {/* Faculty self-service portal — only reachable by users linked to an Employee record. */}
+        <Route
+          path="/faculty"
+          element={
+            <ProtectedRoute>
+              <FacultyGate>
+                <FacultyPortalLayout />
+              </FacultyGate>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<FacultyDashboardPage />} />
+          <Route path="profile" element={<FacultyProfilePage />} />
+          <Route path="courses" element={<FacultyCoursesPage />} />
+          <Route path="students" element={<FacultyStudentsPage />} />
+          <Route path="timetable" element={<FacultyTimetablePage />} />
+          <Route path="attendance" element={<FacultyAttendancePage />} />
+          <Route path="marks" element={<FacultyMarksPage />} />
+          <Route path="academics" element={<FacultyAcademicsPage />} />
+          <Route path="leave" element={<FacultyLeavePage />} />
+          <Route path="workload" element={<FacultyWorkloadPage />} />
+          <Route path="notifications" element={<FacultyNotificationsPage />} />
+          <Route path="reports" element={<FacultyReportsPage />} />
         </Route>
         {/* Public QR landing — intentionally outside ProtectedRoute; the token is the credential. */}
         <Route path="/verify/certificate" element={<CertificateVerifyPage />} />

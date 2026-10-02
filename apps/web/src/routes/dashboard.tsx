@@ -80,6 +80,11 @@ export function DashboardPage() {
               Parent Portal
             </Link>
           )}
+          {user?.roles.some((role) => role === 'FACULTY') && (
+            <Link to="/faculty/dashboard" style={{ fontWeight: 600 }}>
+              Faculty Portal
+            </Link>
+          )}
           {permissions.includes(STUDENTS_VIEW_PERMISSION) && <Link to="/students">Students</Link>}
           {permissions.includes(ADMISSIONS_VIEW_PERMISSION) && <Link to="/admissions">Admissions</Link>}
           {permissions.includes(ACADEMICS_VIEW_PERMISSION) && <Link to="/academics">Academics</Link>}

@@ -16,5 +16,6 @@ import { DeviceIngestService } from './devices/device-ingest.service';
   imports: [CommonGuardsModule, RbacModule, AuthModule, NotificationsModule, StudentsModule],
   controllers: [AttendanceController, AttendanceDevicesController, AttendanceDeviceGatewayController],
   providers: [AttendanceService, AttendanceDevicesService, DeviceIngestService, DeviceSecretCipher],
+  exports: [AttendanceService],
 })
 export class AttendanceModule {}

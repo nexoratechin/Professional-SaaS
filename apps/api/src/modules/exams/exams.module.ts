@@ -10,5 +10,6 @@ import { ExamsService } from './exams.service';
   imports: [CommonGuardsModule, RbacModule, AuthModule, NotificationsModule],
   controllers: [ExamsController],
   providers: [ExamsService],
+  exports: [ExamsService],
 })
 export class ExamsModule {}

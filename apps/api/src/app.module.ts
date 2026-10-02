@@ -43,6 +43,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { StudentPortalModule } from './modules/student-portal/student-portal.module';
 import { ParentPortalModule } from './modules/parent-portal/parent-portal.module';
+import { FacultyPortalModule } from './modules/faculty-portal/faculty-portal.module';
 
 @Module({
   imports: [
@@ -83,6 +84,7 @@ import { ParentPortalModule } from './modules/parent-portal/parent-portal.module
     AiAssistantModule,
     StudentPortalModule,
     ParentPortalModule,
+    FacultyPortalModule,
     BillingModule,
     SupportModule,
     PlatformOpsModule,
