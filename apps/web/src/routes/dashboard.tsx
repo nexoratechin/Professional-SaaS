@@ -69,7 +69,12 @@ export function DashboardPage() {
     <div style={{ maxWidth: 720, margin: '2rem auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ fontSize: '1.25rem' }}>College ERP — Dashboard</h1>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          {user?.roles.some((role) => role === 'STUDENT' || role === 'PARENT') && (
+            <Link to="/portal/dashboard" style={{ fontWeight: 600 }}>
+              Student Portal
+            </Link>
+          )}
           {permissions.includes(STUDENTS_VIEW_PERMISSION) && <Link to="/students">Students</Link>}
           {permissions.includes(ADMISSIONS_VIEW_PERMISSION) && <Link to="/admissions">Admissions</Link>}
           {permissions.includes(ACADEMICS_VIEW_PERMISSION) && <Link to="/academics">Academics</Link>}

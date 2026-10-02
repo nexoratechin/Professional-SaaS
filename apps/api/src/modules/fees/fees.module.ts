@@ -42,6 +42,6 @@ import { FeeStructuresController } from './fee-structures.controller';
     FeeRefundsService,
     FeeReportsService,
   ],
-  exports: [FeeReportsService],
+  exports: [FeeReportsService, FeePaymentsService],
 })
 export class FeesModule {}

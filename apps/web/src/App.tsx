@@ -43,6 +43,24 @@ import { HelpdeskPage } from './routes/helpdesk';
 import { NotificationsPage } from './routes/notifications';
 import { DocumentsPage } from './routes/documents';
 import { ReportsPage } from './routes/reports';
+import { PortalGate } from './routes/portal/portal-gate';
+import { StudentPortalLayout } from './routes/portal/portal-layout';
+import { PortalDashboardPage } from './routes/portal/portal-dashboard';
+import { PortalProfilePage } from './routes/portal/portal-profile';
+import { PortalAttendancePage } from './routes/portal/portal-attendance';
+import { PortalTimetablePage } from './routes/portal/portal-timetable';
+import { PortalCoursesPage } from './routes/portal/portal-courses';
+import { PortalFeesPage } from './routes/portal/portal-fees';
+import { PortalPaymentsPage } from './routes/portal/portal-payments';
+import { PortalExamsPage } from './routes/portal/portal-exams';
+import { PortalResultsPage } from './routes/portal/portal-results';
+import { PortalCertificatesPage } from './routes/portal/portal-certificates';
+import { PortalLibraryPage } from './routes/portal/portal-library';
+import { PortalHostelPage } from './routes/portal/portal-hostel';
+import { PortalTransportPage } from './routes/portal/portal-transport';
+import { PortalNoticesPage } from './routes/portal/portal-notices';
+import { PortalTicketsPage } from './routes/portal/portal-tickets';
+import { PortalDocumentsPage } from './routes/portal/portal-documents';
 
 function ProfileRoute() {
   const { id } = useParams<{ id: string }>();
@@ -293,6 +311,35 @@ function TenantArea() {
             </ProtectedRoute>
           }
         />
+        {/* Student self-service portal — only reachable by users linked to a Student record. */}
+        <Route
+          path="/portal"
+          element={
+            <ProtectedRoute>
+              <PortalGate>
+                <StudentPortalLayout />
+              </PortalGate>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<PortalDashboardPage />} />
+          <Route path="profile" element={<PortalProfilePage />} />
+          <Route path="attendance" element={<PortalAttendancePage />} />
+          <Route path="timetable" element={<PortalTimetablePage />} />
+          <Route path="courses" element={<PortalCoursesPage />} />
+          <Route path="fees" element={<PortalFeesPage />} />
+          <Route path="payments" element={<PortalPaymentsPage />} />
+          <Route path="exams" element={<PortalExamsPage />} />
+          <Route path="results" element={<PortalResultsPage />} />
+          <Route path="certificates" element={<PortalCertificatesPage />} />
+          <Route path="library" element={<PortalLibraryPage />} />
+          <Route path="hostel" element={<PortalHostelPage />} />
+          <Route path="transport" element={<PortalTransportPage />} />
+          <Route path="notices" element={<PortalNoticesPage />} />
+          <Route path="tickets" element={<PortalTicketsPage />} />
+          <Route path="documents" element={<PortalDocumentsPage />} />
+        </Route>
         {/* Public QR landing — intentionally outside ProtectedRoute; the token is the credential. */}
         <Route path="/verify/certificate" element={<CertificateVerifyPage />} />
         <Route

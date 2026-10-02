@@ -197,6 +197,52 @@ export class NotificationsService {
     };
   }
 
+  // ── Per-user inbox (student/parent self-service) ────────────────────────────
+  // Additive: the admin list() above stays tenant-wide. These methods constrain every query to
+  // recipientUserId so a self-service user can only ever see their own notices.
+
+  listInbox(
+    userId: string,
+    query: { skip?: number; take?: number; status?: string; channel?: string; unreadOnly?: boolean } = {},
+  ) {
+    return this.tenantPrisma.client.notification.findMany({
+      where: {
+        recipientUserId: userId,
+        ...(query.status ? { status: query.status as never } : {}),
+        ...(query.channel ? { channel: query.channel as never } : {}),
+        ...(query.unreadOnly ? { readAt: null } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: query.skip ?? 0,
+      take: query.take ?? 50,
+    });
+  }
+
+  unreadCount(userId: string) {
+    return this.tenantPrisma.client.notification.count({
+      where: { recipientUserId: userId, readAt: null },
+    });
+  }
+
+  async getInboxItem(userId: string, id: string) {
+    const notification = await this.tenantPrisma.client.notification.findFirst({
+      where: { id, recipientUserId: userId },
+    });
+    if (!notification) throw new NotFoundException('Notification not found.');
+    return notification;
+  }
+
+  async markInboxItemRead(userId: string, id: string) {
+    const notification = await this.getInboxItem(userId, id);
+    if (notification.channel !== 'IN_APP') {
+      throw new BadRequestException('Only in-app notifications can be marked read.');
+    }
+    return this.tenantPrisma.client.notification.update({
+      where: { id: notification.id },
+      data: { readAt: notification.readAt ?? new Date() },
+    });
+  }
+
   async markRead(id: string) {
     const notification = await this.getOne(id);
     if (notification.channel !== 'IN_APP') {
