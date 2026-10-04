@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Button } from '@college-erp/ui';
 import { useAuth } from '../../features/auth/auth-context';
+import { MobileTabBar, PwaChrome, TabIcon } from '../../features/pwa/pwa-ui';
 import { PORTAL_CSS } from '../portal/portal-layout';
 
 const NAV_ITEMS: Array<{ to: string; label: string }> = [
@@ -19,6 +20,14 @@ const NAV_ITEMS: Array<{ to: string; label: string }> = [
   { to: 'reports', label: 'Reports' },
 ];
 
+const PRIMARY_TABS = [
+  { to: 'dashboard', label: 'Home', icon: <TabIcon name="home" /> },
+  { to: 'courses', label: 'Courses', icon: <TabIcon name="book" /> },
+  { to: 'attendance', label: 'Attendance', icon: <TabIcon name="check" /> },
+  { to: 'students', label: 'Students', icon: <TabIcon name="users" /> },
+  { to: 'notifications', label: 'Notices', icon: <TabIcon name="bell" /> },
+];
+
 export function FacultyPortalLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -32,6 +41,7 @@ export function FacultyPortalLayout() {
   return (
     <div className="sp-shell">
       <style>{PORTAL_CSS}</style>
+      <PwaChrome />
       <header className="sp-header">
         <div className="sp-header-inner">
           <a className="sp-brand" href="/faculty/dashboard">
@@ -66,6 +76,7 @@ export function FacultyPortalLayout() {
       <main className="sp-main">
         <Outlet />
       </main>
+      <MobileTabBar items={PRIMARY_TABS} />
     </div>
   );
 }

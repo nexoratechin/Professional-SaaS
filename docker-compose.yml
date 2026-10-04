@@ -74,6 +74,12 @@ services:
       S3_FORCE_PATH_STYLE: 'true'
       DOCUMENT_MAX_UPLOAD_SIZE_BYTES: ${DOCUMENT_MAX_UPLOAD_SIZE_BYTES:-26214400}
       NOTIFICATION_SECRET_KEY: ${NOTIFICATION_SECRET_KEY:-cc8abfe479f38178bf712a90343e27496c0f31cde1778615eff668ad2b199cd2}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@college-erp.local}
+      # Comma-separated origins; set CORS_ORIGIN=http://localhost:8080 when using the web-prod
+      # profile below.
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
     ports:
       - '3000:3000'
     depends_on:
@@ -94,6 +100,11 @@ services:
       REDIS_URL: redis://redis:6379
       # MUST match the API's NOTIFICATION_SECRET_KEY — the worker decrypts what the API encrypted.
       NOTIFICATION_SECRET_KEY: ${NOTIFICATION_SECRET_KEY:-cc8abfe479f38178bf712a90343e27496c0f31cde1778615eff668ad2b199cd2}
+      # MUST match the API's VAPID_* so browser subscriptions registered via the API can be
+      # delivered by the worker.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@college-erp.local}
       # Object storage for the document virus-scan + retention processors.
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
@@ -122,6 +133,23 @@ services:
       VITE_API_URL: http://localhost:3000
     ports:
       - '5173:5173'
+    depends_on:
+      - api
+
+  # Production-style PWA image (static Vite build + nginx). Off by default so the dev flow above
+  # is unchanged; start it with:
+  #   docker compose --profile prod up --build web-prod
+  # and set CORS_ORIGIN=http://localhost:8080 for the api service.
+  web-prod:
+    profiles: ['prod']
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.prod
+      args:
+        VITE_API_URL: ${WEB_PROD_API_URL:-http://localhost:3000}
+    restart: unless-stopped
+    ports:
+      - '${WEB_PROD_PORT:-8080}:80'
     depends_on:
       - api
 

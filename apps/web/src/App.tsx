@@ -33,6 +33,7 @@ import { AttendancePage } from './routes/attendance';
 import { ExamsPage } from './routes/exams';
 import { CertificatesPage } from './routes/certificates';
 import { CertificateVerifyPage } from './routes/certificate-verify';
+import { StudentIdVerifyPage } from './routes/student-id-verify';
 import { LibraryPage } from './routes/library';
 import { InventoryPage } from './routes/inventory';
 import { HostelPage } from './routes/hostel';
@@ -46,6 +47,7 @@ import { ReportsPage } from './routes/reports';
 import { PortalGate } from './routes/portal/portal-gate';
 import { StudentPortalLayout } from './routes/portal/portal-layout';
 import { PortalDashboardPage } from './routes/portal/portal-dashboard';
+import { PortalIdCardPage } from './routes/portal/portal-id-card';
 import { PortalProfilePage } from './routes/portal/portal-profile';
 import { PortalAttendancePage } from './routes/portal/portal-attendance';
 import { PortalTimetablePage } from './routes/portal/portal-timetable';
@@ -352,6 +354,7 @@ function TenantArea() {
         >
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<PortalDashboardPage />} />
+          <Route path="id-card" element={<PortalIdCardPage />} />
           <Route path="profile" element={<PortalProfilePage />} />
           <Route path="attendance" element={<PortalAttendancePage />} />
           <Route path="timetable" element={<PortalTimetablePage />} />
@@ -420,6 +423,7 @@ function TenantArea() {
         </Route>
         {/* Public QR landing — intentionally outside ProtectedRoute; the token is the credential. */}
         <Route path="/verify/certificate" element={<CertificateVerifyPage />} />
+        <Route path="/verify/student-id" element={<StudentIdVerifyPage />} />
         <Route
           path="/students/:id"
           element={

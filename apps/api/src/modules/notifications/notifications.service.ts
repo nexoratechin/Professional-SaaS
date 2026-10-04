@@ -645,6 +645,25 @@ export class NotificationsService {
     return { success: true };
   }
 
+  /** Removes the current user's subscription by its push-service endpoint — the value the
+   *  browser still has after it has lost/rotated the stored device id. Idempotent: a missing
+   *  device is treated as already-unsubscribed so a client can call it on logout safely. */
+  async unregisterPushDeviceByEndpoint(userId: string, endpoint: string) {
+    const devices = await this.tenantPrisma.client.userPushDevice.findMany({ where: { userId } });
+    const matches = devices.filter((device) => {
+      try {
+        return (JSON.parse(device.deviceToken) as { endpoint?: string }).endpoint === endpoint;
+      } catch {
+        return device.deviceToken === endpoint;
+      }
+    });
+    if (matches.length === 0) return { success: true, removed: 0 };
+    await this.tenantPrisma.client.userPushDevice.deleteMany({
+      where: { id: { in: matches.map((device) => device.id) }, userId },
+    });
+    return { success: true, removed: matches.length };
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   private async enqueueDeliver(tenantId: string, notificationId: string, scheduledAt?: Date) {

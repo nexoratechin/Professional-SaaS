@@ -4,6 +4,7 @@ import { QUEUE_NAMES } from '@college-erp/types';
 import { CommonGuardsModule } from '../../common/guards/common-guards.module';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
+import { PushController } from './push.controller';
 
 @Module({
   imports: [
@@ -11,7 +12,7 @@ import { NotificationsService } from './notifications.service';
     BullModule.registerQueue({ name: QUEUE_NAMES.NOTIFICATIONS_CAMPAIGN }),
     CommonGuardsModule,
   ],
-  controllers: [NotificationsController],
+  controllers: [NotificationsController, PushController],
   providers: [NotificationsService],
   exports: [NotificationsService],
 })

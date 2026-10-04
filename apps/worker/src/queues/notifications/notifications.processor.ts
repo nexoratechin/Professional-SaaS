@@ -179,7 +179,12 @@ export class NotificationsProcessor extends WorkerHost {
 
   /** Picks the tenant's active provider for the notification's channel. No active config ⇒
    *  terminal failure — except in development, where the console provider is used so the
-   *  pipeline completes locally without a real gateway. */
+   *  pipeline completes locally without a real gateway.
+   *
+   *  PUSH is special-cased for native Web Push: when the environment carries a VAPID keypair
+   *  (VAPID_*), a PUSH notification with no tenant config — or one whose config omits the keys —
+   *  is delivered through web-push. A tenant that explicitly configures an `http` gateway keeps
+   *  using it; a tenant `web_push` config may override individual VAPID values. */
   private async resolveProvider(notification: Notification & { tenantId: string }): Promise<{ provider: NotificationProvider; providerName: string }> {
     const tenantClient = createTenantScopedClient(notification.tenantId);
     const row = await tenantClient.notificationProviderConfig.findFirst({
@@ -187,8 +192,16 @@ export class NotificationsProcessor extends WorkerHost {
       orderBy: { isDefault: 'desc' },
     });
 
+    const vapid = this.vapidConfig();
+    const isDev = (this.appConfig?.get('NODE_ENV') ?? process.env.NODE_ENV) === 'development';
+
     if (!row) {
-      const isDev = (this.appConfig?.get('NODE_ENV') ?? process.env.NODE_ENV) === 'development';
+      if (notification.channel === 'PUSH' && vapid) {
+        return {
+          provider: createNotificationProvider({ channel: 'PUSH', provider: 'web_push', config: vapid, credentials: {} }),
+          providerName: 'web_push',
+        };
+      }
       if (isDev) {
         return { provider: devConsoleProviderFor(notification.channel), providerName: 'console' };
       }
@@ -199,16 +212,40 @@ export class NotificationsProcessor extends WorkerHost {
     }
 
     const credentials = this.decryptCredentials(row.credentialsEncrypted);
-    const provider = createNotificationProvider(
-      {
-        channel: notification.channel,
-        provider: row.provider,
-        config: (row.config as Record<string, unknown> | null) ?? {},
-        credentials,
-      },
-      { allowDevFallback: (this.appConfig?.get('NODE_ENV') ?? process.env.NODE_ENV) === 'development' },
-    );
+    const config = (row.config as Record<string, unknown> | null) ?? {};
+    const mergedConfig =
+      notification.channel === 'PUSH' && row.provider === 'web_push' ? { ...vapid, ...config } : config;
+
+    let provider: NotificationProvider;
+    try {
+      provider = createNotificationProvider(
+        {
+          channel: notification.channel,
+          provider: row.provider,
+          config: mergedConfig,
+          credentials,
+        },
+        { allowDevFallback: isDev },
+      );
+    } catch (error) {
+      // A provider that cannot even be constructed (bad/missing config) is a permanent failure —
+      // retrying the job would change nothing and would spin BullMQ forever.
+      throw new ProviderDeliveryError(
+        error instanceof Error ? error.message : 'Notification provider configuration is invalid.',
+        false,
+        error,
+      );
+    }
     return { provider, providerName: row.provider };
+  }
+
+  /** Reads the environment VAPID triple, returning undefined unless both keys are present. */
+  private vapidConfig(): { subject: string; publicKey: string; privateKey: string } | undefined {
+    const publicKey = this.appConfig?.get('VAPID_PUBLIC_KEY') ?? process.env.VAPID_PUBLIC_KEY;
+    const privateKey = this.appConfig?.get('VAPID_PRIVATE_KEY') ?? process.env.VAPID_PRIVATE_KEY;
+    if (!publicKey || !privateKey) return undefined;
+    const subject = this.appConfig?.get('VAPID_SUBJECT') ?? process.env.VAPID_SUBJECT ?? 'mailto:admin@college-erp.local';
+    return { subject, publicKey, privateKey };
   }
 
   private decryptCredentials(credentialsEncrypted: string | null): Record<string, unknown> {

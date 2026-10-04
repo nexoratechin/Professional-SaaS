@@ -17,6 +17,7 @@
  *  - ConsoleProvider       : dev-only — logs the payload and succeeds. Only instantiated when the
  *                            caller explicitly enables dev fallback (worker does, in development).
  */
+import webPush from 'web-push';
 import { sendSmtpEmail, type SmtpConnectionConfig } from './smtp';
 import {
   ProviderConfigError,
@@ -230,6 +231,94 @@ export class HttpJsonProvider implements NotificationProvider {
   }
 }
 
+// ── Web Push (native browser/PWA, VAPID) ─────────────────────────────────────
+
+/** The JSON shape the browser's `PushSubscription.toJSON()` produces — this is exactly what the
+ *  API stores as the device token, so the worker can hand it straight back to web-push. */
+export interface StoredWebPushSubscription {
+  endpoint: string;
+  expirationTime?: number | null;
+  keys: { p256dh: string; auth: string };
+}
+
+/**
+ * Native Web Push sender. The notification's `to` address is the serialized PushSubscription
+ * registered by the PWA; the message subject/body are encrypted for that subscription (RFC 8291)
+ * and signed with the VAPID keypair. Requires a full VAPID triple, supplied either by the tenant's
+ * provider config or (more commonly) by the environment.
+ */
+export class WebPushProvider implements NotificationProvider {
+  readonly name = 'web_push';
+  private readonly vapid: { subject: string; publicKey: string; privateKey: string };
+  private readonly ttlSeconds: number;
+
+  constructor(config: Record<string, unknown>) {
+    const publicKey = typeof config.publicKey === 'string' ? config.publicKey : '';
+    const privateKey = typeof config.privateKey === 'string' ? config.privateKey : '';
+    const subject = typeof config.subject === 'string' ? config.subject : '';
+    if (!publicKey || !privateKey || !subject) {
+      throw new ProviderConfigError(
+        'PUSH web_push provider requires a VAPID publicKey, privateKey and subject (set them on the provider config or via VAPID_* env).',
+      );
+    }
+    this.vapid = { subject, publicKey, privateKey };
+    this.ttlSeconds = Number.isFinite(Number(config.ttlSeconds)) ? Number(config.ttlSeconds) : 12 * 60 * 60;
+  }
+
+  async send(message: NotificationMessage): Promise<ProviderSendResult> {
+    let subscription: StoredWebPushSubscription;
+    try {
+      const parsed = JSON.parse(message.to) as Partial<StoredWebPushSubscription>;
+      if (!parsed.endpoint || !parsed.keys?.p256dh || !parsed.keys?.auth) {
+        throw new Error('missing endpoint/keys');
+      }
+      subscription = parsed as StoredWebPushSubscription;
+    } catch {
+      throw new ProviderDeliveryError(
+        'Push device token is not a valid Web Push subscription (expected serialized {endpoint, keys}).',
+        false,
+      );
+    }
+
+    const payload = JSON.stringify({
+      title: message.subject ?? 'College ERP',
+      body: message.body,
+      // The service worker falls back to these when the payload has no explicit url.
+      url: '/notifications',
+    });
+
+    try {
+      const result = await webPush.sendNotification(
+        { endpoint: subscription.endpoint, keys: subscription.keys },
+        payload,
+        { TTL: this.ttlSeconds, vapidDetails: this.vapid, urgency: 'normal' },
+      );
+      return {
+        providerMessageId: (result.headers?.location as string | undefined) ?? null,
+        raw: { statusCode: result.statusCode },
+      };
+    } catch (error) {
+      const statusCode = (error as { statusCode?: number } | null)?.statusCode;
+      // 404/410 = the subscription is gone forever (browser unsubscribed / endpoint expired).
+      if (statusCode === 404 || statusCode === 410) {
+        throw new ProviderDeliveryError(
+          'Web Push subscription is no longer valid (expired or unsubscribed).',
+          false,
+          error,
+        );
+      }
+      const retryable = statusCode === undefined || statusCode >= 500 || statusCode === 429;
+      throw new ProviderDeliveryError(
+        `Web Push delivery failed${statusCode !== undefined ? ` (${statusCode})` : ''}: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+        retryable,
+        error,
+      );
+    }
+  }
+}
+
 // ── Factory ──────────────────────────────────────────────────────────────────
 
 export interface CreateProviderOptions {
@@ -251,7 +340,10 @@ export function createNotificationProvider(
       return new ConsoleProvider();
     case 'SMS':
     case 'WHATSAPP':
+      if (input.provider === 'http') return new HttpJsonProvider(input.channel, input.provider, input.config, input.credentials);
+      return new ConsoleProvider();
     case 'PUSH':
+      if (input.provider === 'web_push') return new WebPushProvider(input.config);
       if (input.provider === 'http') return new HttpJsonProvider(input.channel, input.provider, input.config, input.credentials);
       return new ConsoleProvider();
   }

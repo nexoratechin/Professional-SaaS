@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Card, Input } from '@college-erp/ui';
+import { QrImage } from '../../features/pwa/qr-image';
 import {
   DataTable,
   PageShell,
@@ -42,6 +43,7 @@ interface SessionDetail {
   roster: RosterRow[];
   counts: { present: number; absent: number; late: number; leave: number };
   requiredPercent: number;
+  checkIn: { token: string; expiresAt: string } | null;
 }
 
 function SessionPanel({ id, onChanged, onClose }: { id: string; onChanged: () => void; onClose: () => void }) {
@@ -50,6 +52,26 @@ function SessionPanel({ id, onChanged, onClose }: { id: string; onChanged: () =>
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const checkInUrl = useMemo(() => {
+    if (!data?.checkIn) return null;
+    const url = new URL('/portal/attendance', window.location.origin);
+    url.searchParams.set('checkin', data.session.id);
+    url.searchParams.set('token', data.checkIn.token);
+    return url.toString();
+  }, [data]);
+
+  const copyCheckInLink = async () => {
+    if (!checkInUrl) return;
+    try {
+      await navigator.clipboard.writeText(checkInUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   useEffect(() => {
     if (!data) return;
@@ -111,6 +133,39 @@ function SessionPanel({ id, onChanged, onClose }: { id: string; onChanged: () =>
           <div className="sp-muted">
             {fmtDate(data.session.date)} · {data.session.courseOffering?.course.name ?? '—'} · required {data.requiredPercent}%
           </div>
+          {checkInUrl && data.session.status === 'OPEN' && (
+            <div
+              style={{
+                display: 'flex',
+                gap: 16,
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                border: '1px dashed #94a3b8',
+                borderRadius: 12,
+                padding: 12,
+                background: '#f8fafc',
+              }}
+            >
+              <QrImage value={checkInUrl} size={150} alt="Session check-in QR code" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 320 }}>
+                <strong>Mobile check-in</strong>
+                <span className="sp-muted">
+                  Students open their portal and scan this code (or the link) to mark themselves present.
+                </span>
+                <span className="sp-muted">
+                  Expires {new Date(data.checkIn?.expiresAt ?? Date.now()).toLocaleTimeString()} — reopen the session for a fresh code.
+                </span>
+                <div className="sp-actions">
+                  <Button variant="secondary" onClick={() => void copyCheckInLink()}>
+                    {copied ? 'Link copied' : 'Copy link'}
+                  </Button>
+                  <Button variant="secondary" onClick={() => void reload()}>
+                    Refresh code
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="sp-table-wrap">
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
               <thead>

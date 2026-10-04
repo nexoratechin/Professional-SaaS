@@ -14,7 +14,9 @@ export const PROVIDERS_BY_CHANNEL: Record<NotificationChannel, readonly string[]
   EMAIL: ['smtp', 'console'],
   SMS: ['http', 'console'],
   WHATSAPP: ['http', 'console'],
-  PUSH: ['http', 'console'],
+  // web_push = native browser/PWA Web Push (VAPID + RFC 8291 payload encryption). http remains
+  // for tenants that relay through an external gateway (FCM/OneSignal/…); console is dev-only.
+  PUSH: ['web_push', 'http', 'console'],
   IN_APP: ['in_app'],
 };
 
@@ -72,10 +74,26 @@ export function assertValidProviderConfig(input: ProviderConfigInput): void {
       break;
     case 'SMS':
     case 'WHATSAPP':
+      if (input.provider === 'http') {
+        if (typeof config.url !== 'string' || config.url.length === 0) {
+          throw new ProviderConfigError(`${input.channel} http provider requires config.url.`);
+        }
+      }
+      break;
     case 'PUSH':
       if (input.provider === 'http') {
         if (typeof config.url !== 'string' || config.url.length === 0) {
           throw new ProviderConfigError(`${input.channel} http provider requires config.url.`);
+        }
+      }
+      if (input.provider === 'web_push') {
+        // VAPID keys may be supplied by the environment at delivery time (worker injects them
+        // when the tenant config omits them), so a partial/empty config is valid here — but any
+        // value that IS supplied must be a string.
+        for (const key of ['publicKey', 'privateKey', 'subject'] as const) {
+          if (config[key] !== undefined && typeof config[key] !== 'string') {
+            throw new ProviderConfigError(`PUSH web_push config.${key} must be a string.`);
+          }
         }
       }
       break;

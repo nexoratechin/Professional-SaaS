@@ -215,6 +215,19 @@ export class PortalAttendanceQueryDto extends PortalPaginationDto {
   dateTo?: string;
 }
 
+/** QR self check-in payload: the session the student is attending plus the signed token shown
+ *  by the faculty member on screen (never a student id — the caller's own Student row is the
+ *  only identity anchor). */
+export class PortalAttendanceCheckInDto {
+  @IsUUID()
+  sessionId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(512)
+  token!: string;
+}
+
 export class PortalNoticesQueryDto extends PortalPaginationDto {
   @IsOptional()
   @Type(() => Boolean)

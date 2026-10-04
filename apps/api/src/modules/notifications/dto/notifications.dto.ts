@@ -34,7 +34,7 @@ export const NOTIFICATION_PROVIDERS_BY_CHANNEL: Record<(typeof NOTIFICATION_CHAN
   EMAIL: ['smtp', 'console'],
   SMS: ['http', 'console'],
   WHATSAPP: ['http', 'console'],
-  PUSH: ['http', 'console'],
+  PUSH: ['web_push', 'http', 'console'],
   IN_APP: ['in_app'],
 };
 
@@ -295,11 +295,27 @@ export class UpdateNotificationPreferenceDto {
 export class RegisterPushDeviceDto {
   @IsString()
   @IsNotEmpty()
-  @MaxLength(512)
+  // Native Web Push subscriptions serialize to a ~350-500 char JSON object; allow headroom for
+  // longer push-service endpoints while still bounding what can be persisted.
+  @MaxLength(2048)
   deviceToken!: string;
 
   @IsIn(['ios', 'android', 'web'])
   platform!: 'ios' | 'android' | 'web';
+}
+
+/** Raw browser PushSubscription (the JSON produced by `subscription.toJSON()`). Stored verbatim
+ *  as the device token after a shape check, so the worker can hand it straight to web-push. */
+export class PushSubscribeDto {
+  @IsObject()
+  subscription!: Record<string, unknown>;
+}
+
+export class PushUnsubscribeDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2048)
+  endpoint!: string;
 }
 
 // ── Shared pagination ────────────────────────────────────────────────────────

@@ -3001,6 +3001,10 @@ model Student {
   admissionNumber       String        @map("admission_number")
   rollNumber            String?       @map("roll_number")
   registrationNumber    String?       @map("registration_number")
+  /// Opaque, high-entropy token embedded in the student's digital ID QR (PWA). Scanned by campus
+  /// staff / gate devices and resolved by the public verification endpoint. Mirrors the
+  /// certificate qrToken pattern: random, unguessable, and never derived from the student id.
+  idCardToken           String?       @unique @map("id_card_token")
   firstName             String        @map("first_name")
   middleName            String?       @map("middle_name")
   lastName              String        @map("last_name")

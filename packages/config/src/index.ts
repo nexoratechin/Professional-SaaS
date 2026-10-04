@@ -40,6 +40,20 @@ export const apiEnvSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'NOTIFICATION_SECRET_KEY must be 64 hex characters (32 bytes)'),
 
+  /** Web Push (VAPID) keys for browser/PWA push. Generated once per environment with
+   *  `npx web-push generate-vapid-keys`. Optional: when unset, PUSH delivery falls back to the
+   *  tenant's configured gateway provider, exactly as before. The PUBLIC key is safe to hand to
+   *  browsers (served by GET /push/config); the PRIVATE key must never leave the server. */
+  VAPID_PUBLIC_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  VAPID_PRIVATE_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  VAPID_SUBJECT: z.string().default('mailto:admin@college-erp.local'),
+
   // --- AI ERP Assistant ---------------------------------------------------------------
   // All optional, all defaulting to "off". The assistant's *data* path (natural-language queries,
   // risk insights, report/draft generation from already-scoped queries) works with no provider
@@ -105,6 +119,18 @@ export const workerEnvSchema = z.object({
   NOTIFICATION_SECRET_KEY: z
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'NOTIFICATION_SECRET_KEY must be 64 hex characters (32 bytes)'),
+
+  /** Same VAPID keypair as the API — the worker signs and sends Web Push messages for PUSH
+   *  notifications whose recipient has registered a browser subscription. */
+  VAPID_PUBLIC_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  VAPID_PRIVATE_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  VAPID_SUBJECT: z.string().default('mailto:admin@college-erp.local'),
 
   /** Object-storage credentials for the document virus-scan + retention processors, which
    *  delete/quarantine infected or expired objects (the same bucket the API signs URLs into). */

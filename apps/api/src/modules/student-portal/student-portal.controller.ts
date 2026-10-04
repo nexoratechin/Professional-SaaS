@@ -7,9 +7,11 @@
  */
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { FEATURE_KEYS, type AuthenticatedUser } from '@college-erp/auth';
+import { ENTITLEMENT_KEYS, FEATURE_KEYS, type AuthenticatedUser } from '@college-erp/auth';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequireEntitlement } from '../../common/decorators/require-entitlement.decorator';
 import { RequireFeature } from '../../common/decorators/require-feature.decorator';
+import { EntitlementFlagsGuard } from '../../common/guards/entitlement-flag.guard';
 import { FeatureFlagsGuard } from '../../common/guards/feature-flag.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TenantMatchGuard } from '../../common/guards/tenant-match.guard';
@@ -19,6 +21,7 @@ import {
   CreateCertificateRequestDto,
   CreatePortalPaymentDto,
   CreatePortalTicketDto,
+  PortalAttendanceCheckInDto,
   PortalAttendanceQueryDto,
   PortalConfirmUploadDto,
   PortalDocumentQueryDto,
@@ -31,13 +34,18 @@ import {
 
 @ApiTags('student-portal')
 @Controller('student-portal')
-@UseGuards(JwtAuthGuard, TenantMatchGuard, FeatureFlagsGuard)
+@UseGuards(JwtAuthGuard, TenantMatchGuard, FeatureFlagsGuard, EntitlementFlagsGuard)
 export class StudentPortalController {
   constructor(private readonly portal: StudentPortalService) {}
 
   @Get('dashboard')
   dashboard(@CurrentUser() user: AuthenticatedUser) {
     return this.portal.dashboard(user);
+  }
+
+  @Get('id-card')
+  getIdCard(@CurrentUser() user: AuthenticatedUser) {
+    return this.portal.getIdCard(user);
   }
 
   @Get('profile')
@@ -54,6 +62,13 @@ export class StudentPortalController {
   @RequireFeature(FEATURE_KEYS.ATTENDANCE)
   getAttendance(@CurrentUser() user: AuthenticatedUser, @Query() query: PortalAttendanceQueryDto) {
     return this.portal.getAttendance(user, query);
+  }
+
+  @Post('attendance/check-in')
+  @RequireFeature(FEATURE_KEYS.ATTENDANCE)
+  @RequireEntitlement(ENTITLEMENT_KEYS.ATTENDANCE_QR)
+  checkIn(@CurrentUser() user: AuthenticatedUser, @Body() dto: PortalAttendanceCheckInDto) {
+    return this.portal.checkInAttendance(user, dto.sessionId, dto.token);
   }
 
   @Get('timetable')

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Button, Card } from '@college-erp/ui';
+import { PushToggle } from '../../features/pwa/pwa-ui';
 import { PageShell, Stat, StatusBadge, apiFetch, fmtDateTime, usePortalData } from './portal-shared';
 
 interface Notice {
@@ -53,6 +54,7 @@ export function PortalNoticesPage() {
             <Stat label="Unread" value={data.summary.unread} />
             <Stat label="Total" value={data.summary.total} />
           </div>
+          <PushToggle />
           {data.items.length === 0 && <Card>No notices.</Card>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {data.items.map((notice) => (

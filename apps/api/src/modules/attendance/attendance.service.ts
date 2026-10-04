@@ -20,6 +20,7 @@
  * students module's student-scope guard.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { createHmac, timingSafeEqual } from 'crypto';
 import {
   BadRequestException,
   Injectable,
@@ -34,6 +35,7 @@ import {
   CourseRegistrationStatus,
 } from '@college-erp/database';
 import { AUDIT_ACTIONS } from '@college-erp/auth';
+import { AppConfigService } from '../../config/app-config.service';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PermissionsService } from '../rbac/permissions.service';
@@ -99,6 +101,7 @@ export class AttendanceService {
     private readonly permissionsService: PermissionsService,
     private readonly notifications: NotificationsService,
     private readonly studentsService: StudentsService,
+    private readonly appConfig: AppConfigService,
   ) {}
 
   // ── Shared helpers ────────────────────────────────────────────────────────
@@ -383,7 +386,10 @@ export class AttendanceService {
       if (key in counts) (counts as any)[key] += 1;
     }
     const r = await this.rules(tenantId);
-    return { session, roster, counts, requiredPercent: r.thresholdPercent, rules: r };
+    // A short-lived signed token for QR self check-in — only meaningful while the session is
+    // open, and regenerated on every read so a leaked code expires quickly.
+    const checkIn = session.status === 'OPEN' ? this.issueSessionCheckInToken(tenantId, session.id) : null;
+    return { session, roster, counts, requiredPercent: r.thresholdPercent, rules: r, checkIn };
   }
 
   async createSession(tenantId: string, userId: string, dto: CreateSessionDto) {
@@ -546,6 +552,126 @@ export class AttendanceService {
     const detail = await this.sessionDetail(tenantId, id);
     const rosterWith = await this.withRoster(tenantId, detail);
     return { session: detail, roster: rosterWith, marked: records.length };
+  }
+
+  // ── QR self check-in (mobile / PWA) ───────────────────────────────────────
+
+  /** Signs a short-lived check-in token bound to a session + tenant. HMAC-SHA256 with the same
+   *  DEVICE_SECRET_KEY the attendance-device pipeline uses, so introducing phone-based check-in
+   *  needs no new secret. */
+  issueSessionCheckInToken(tenantId: string, sessionId: string, ttlMinutes = 15): { token: string; expiresAt: string } {
+    const expiresAt = Date.now() + Math.max(1, ttlMinutes) * 60_000;
+    const payload = Buffer.from(JSON.stringify({ s: sessionId, t: tenantId, e: expiresAt })).toString('base64url');
+    const signature = this.signCheckInPayload(payload);
+    return { token: `${payload}.${signature}`, expiresAt: new Date(expiresAt).toISOString() };
+  }
+
+  private signCheckInPayload(payload: string): string {
+    const secret = this.appConfig.get('DEVICE_SECRET_KEY') ?? process.env.DEVICE_SECRET_KEY ?? '';
+    return createHmac('sha256', secret).update(payload).digest('base64url');
+  }
+
+  private verifySessionCheckInToken(tenantId: string, sessionId: string, token: string): void {
+    const [payload, signature] = token.split('.');
+    if (!payload || !signature) throw new BadRequestException('Invalid check-in code.');
+    const expected = this.signCheckInPayload(payload);
+    const provided = Buffer.from(signature);
+    const wanted = Buffer.from(expected);
+    if (provided.length !== wanted.length || !timingSafeEqual(provided, wanted)) {
+      throw new BadRequestException('Invalid check-in code.');
+    }
+    let decoded: { s?: string; t?: string; e?: number };
+    try {
+      decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { s?: string; t?: string; e?: number };
+    } catch {
+      throw new BadRequestException('Invalid check-in code.');
+    }
+    if (decoded.s !== sessionId || decoded.t !== tenantId) {
+      throw new BadRequestException('This check-in code is not valid for this session.');
+    }
+    if (!decoded.e || Date.now() > decoded.e) {
+      throw new BadRequestException('This check-in code has expired. Ask your faculty member to refresh it.');
+    }
+  }
+
+  /** Applies a student's own QR check-in: verifies the signed code, confirms the session is open
+   *  and the student is on its roster, then upserts the row as PRESENT with markMethod QR. */
+  async selfMarkByToken(tenantId: string, studentId: string, sessionId: string, token: string) {
+    this.verifySessionCheckInToken(tenantId, sessionId, token);
+
+    const session = await this.client.attendanceSession.findFirst({
+      where: { id: sessionId, tenantId, deletedAt: null },
+    });
+    if (!session) throw new NotFoundException('Attendance session not found.');
+    if (session.status !== 'OPEN') {
+      throw new BadRequestException('This attendance session is no longer open for check-in.');
+    }
+
+    const roster = await this.rosterStudents(tenantId, session);
+    if (!roster.some((row) => row.id === studentId)) {
+      throw new BadRequestException('You are not enrolled in this class.');
+    }
+
+    const existing = await this.client.studentAttendance.findFirst({
+      where: { tenantId, sessionId, studentId },
+      select: { id: true, status: true },
+    });
+
+    const record = await this.client.studentAttendance.upsert({
+      where: { tenantId_sessionId_studentId: { tenantId, sessionId, studentId } },
+      create: {
+        tenantId,
+        studentId,
+        sessionId,
+        date: session.date,
+        attendanceType: session.attendanceType,
+        termId: session.termId,
+        subjectCode: session.subjectCode,
+        subjectName: session.subjectName,
+        status: AttendanceStatus.PRESENT,
+        markMethod: 'QR',
+        signInAt: new Date(),
+      },
+      update: {
+        status: AttendanceStatus.PRESENT,
+        markMethod: 'QR',
+        signInAt: new Date(),
+      },
+    });
+
+    const student = await this.client.student.findFirst({
+      where: { id: studentId, tenantId },
+      select: { userId: true },
+    });
+    if (student?.userId) {
+      await this.audit(tenantId, student.userId, AUDIT_ACTIONS.ATTENDANCE_MARKED, 'StudentAttendance', record.id, {
+        after: { sessionId, studentId, status: 'PRESENT', markMethod: 'QR', self: true },
+      });
+    }
+
+    return {
+      record: { id: record.id, status: record.status, markMethod: record.markMethod, signInAt: record.signInAt },
+      alreadyMarked: existing?.status === 'PRESENT',
+      session: {
+        id: session.id,
+        title: session.title,
+        subjectCode: session.subjectCode,
+        subjectName: session.subjectName,
+        date: session.date,
+      },
+      counts: await this.sessionCounts(tenantId, sessionId),
+    };
+  }
+
+  private async sessionCounts(tenantId: string, sessionId: string) {
+    const grouped = await this.client.studentAttendance.groupBy({
+      by: ['status'],
+      where: { tenantId, sessionId },
+      _count: { _all: true },
+    });
+    const counts: Record<string, number> = { PRESENT: 0, ABSENT: 0, LATE: 0, LEAVE: 0 };
+    for (const row of grouped) counts[row.status] = row._count._all;
+    return counts;
   }
 
   // ── Corrections ───────────────────────────────────────────────────────────

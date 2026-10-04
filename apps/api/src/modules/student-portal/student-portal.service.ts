@@ -15,13 +15,17 @@
  * Feature flags are honoured per section via TenantFeaturesService so a plan that excludes a
  * module never serves that module's data through the portal.
  */
+import { randomBytes } from 'crypto';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { FEATURE_KEYS, type AuthenticatedUser, type FeatureKey } from '@college-erp/auth';
 import { Prisma } from '@college-erp/database';
+import { AppConfigService } from '../../config/app-config.service';
+import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { TenantContextService } from '../../common/prisma/tenant-context.service';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
 import { TenantFeaturesService } from '../rbac/tenant-features.service';
 import { CertificatesService } from '../certificates/certificates.service';
+import { AttendanceService } from '../attendance/attendance.service';
 import { DocumentsService } from '../documents/documents.service';
 import { FeePaymentsService } from '../fees/fee-payments.service';
 import type { RecordFeePaymentDto } from '../fees/fees.dto';
@@ -89,6 +93,9 @@ export class StudentPortalService {
     private readonly helpdesk: HelpdeskTicketService,
     private readonly helpdeskConfig: HelpdeskConfigService,
     private readonly notifications: NotificationsService,
+    private readonly attendance: AttendanceService,
+    private readonly platformPrisma: PlatformPrismaService,
+    private readonly config: AppConfigService,
   ) {}
 
   private tid(): string {
@@ -234,6 +241,114 @@ export class StudentPortalService {
     return this.getProfile(user);
   }
 
+  // ── Digital ID card (PWA, QR) ──────────────────────────────────────────────
+
+  /** Returns the student's digital ID card plus a stable, scannable verification URL. The
+   *  opaque token is generated lazily on first view and persisted (unique) so a printed card
+   *  stays valid across devices/sessions; it can be rotated by clearing id_card_token. */
+  async getIdCard(user: AuthenticatedUser) {
+    const linked = await this.resolveStudent(user);
+    const token = await this.ensureIdCardToken(linked.id);
+    const row = await this.tenantPrisma.client.student.findFirst({
+      where: { id: linked.id },
+      select: {
+        id: true,
+        fullName: true,
+        admissionNumber: true,
+        rollNumber: true,
+        registrationNumber: true,
+        status: true,
+        dateOfBirth: true,
+        bloodGroup: true,
+        profilePhotoKey: true,
+        admittedOn: true,
+        campus: { select: { id: true, name: true, code: true } },
+        program: { select: { id: true, name: true, code: true } },
+        section: { select: { id: true, name: true, code: true } },
+        batch: { select: { id: true, name: true } },
+        academicYear: { select: { id: true, name: true } },
+      },
+    });
+    if (!row) throw new NotFoundException('Student profile not found.');
+
+    const baseUrl = this.config.get('PUBLIC_BASE_URL').replace(/\/+$/, '');
+    const verifyUrl = `${baseUrl}/verify/student-id?token=${token}`;
+    return {
+      student: {
+        id: row.id,
+        fullName: row.fullName,
+        admissionNumber: row.admissionNumber,
+        rollNumber: row.rollNumber,
+        registrationNumber: row.registrationNumber,
+        status: row.status,
+        dateOfBirth: row.dateOfBirth,
+        bloodGroup: row.bloodGroup,
+        hasPhoto: Boolean(row.profilePhotoKey),
+        admittedOn: row.admittedOn,
+        campus: row.campus,
+        program: row.program,
+        section: row.section,
+        batch: row.batch,
+        academicYear: row.academicYear,
+      },
+      token,
+      verifyUrl,
+      institutionName: 'College ERP',
+    };
+  }
+
+  private async ensureIdCardToken(studentId: string): Promise<string> {
+    const existing = await this.tenantPrisma.client.student.findFirst({
+      where: { id: studentId },
+      select: { idCardToken: true },
+    });
+    if (existing?.idCardToken) return existing.idCardToken;
+    // Retry once on the (astronomically unlikely) unique collision.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const token = randomBytes(24).toString('base64url');
+      try {
+        await this.tenantPrisma.client.student.update({ where: { id: studentId }, data: { idCardToken: token } });
+        return token;
+      } catch (error) {
+        if (attempt === 1) throw error;
+      }
+    }
+    throw new Error('Failed to generate an ID card token.');
+  }
+
+  /** Public verification (no auth): resolves a scanned ID-card token to a minimal, safe
+   *  projection. Uses the platform client deliberately — there is no tenant context on the
+   *  public route, and the unguessable token itself scopes the single-row lookup. */
+  async verifyIdCard(token: string) {
+    const student = await this.platformPrisma.client.student.findFirst({
+      where: { idCardToken: token, deletedAt: null },
+      select: {
+        id: true,
+        fullName: true,
+        admissionNumber: true,
+        rollNumber: true,
+        status: true,
+        profilePhotoKey: true,
+        campus: { select: { name: true, code: true } },
+        program: { select: { name: true, code: true } },
+      },
+    });
+    if (!student) return { valid: false as const };
+    return {
+      valid: true as const,
+      student: {
+        fullName: student.fullName,
+        admissionNumber: student.admissionNumber,
+        rollNumber: student.rollNumber,
+        status: student.status,
+        hasPhoto: Boolean(student.profilePhotoKey),
+        campus: student.campus,
+        program: student.program,
+      },
+      verifiedAt: new Date().toISOString(),
+    };
+  }
+
   // ── Attendance ─────────────────────────────────────────────────────────────
 
   private async attendanceSummary(studentId: string) {
@@ -280,6 +395,15 @@ export class StudentPortalService {
       this.attendanceSummary(student.id),
     ]);
     return { rows, total, summary };
+  }
+
+  /** QR self check-in: a student scans the check-in code shown by faculty for an OPEN session
+   *  and marks themselves PRESENT. Delegates to AttendanceService.selfMarkByToken, which owns
+   *  token verification, roster/enrolment checks and the upsert — no business logic is
+   *  duplicated here. */
+  async checkInAttendance(user: AuthenticatedUser, sessionId: string, token: string) {
+    const student = await this.resolveStudent(user);
+    return this.attendance.selfMarkByToken(this.tid(), student.id, sessionId, token);
   }
 
   // ── Timetable ──────────────────────────────────────────────────────────────

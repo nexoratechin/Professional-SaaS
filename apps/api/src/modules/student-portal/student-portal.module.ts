@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CommonGuardsModule } from '../../common/guards/common-guards.module';
 import { AuthModule } from '../auth/auth.module';
+import { AttendanceModule } from '../attendance/attendance.module';
 import { CertificatesModule } from '../certificates/certificates.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { FeesModule } from '../fees/fees.module';
@@ -8,6 +9,7 @@ import { HelpdeskModule } from '../helpdesk/helpdesk.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { StudentPortalController } from './student-portal.controller';
+import { PublicStudentIdController } from './public-student-id.controller';
 import { StudentPortalService } from './student-portal.service';
 
 /**
@@ -21,13 +23,14 @@ import { StudentPortalService } from './student-portal.service';
     CommonGuardsModule,
     RbacModule,
     AuthModule,
+    AttendanceModule,
     CertificatesModule,
     DocumentsModule,
     FeesModule,
     HelpdeskModule,
     NotificationsModule,
   ],
-  controllers: [StudentPortalController],
+  controllers: [StudentPortalController, PublicStudentIdController],
   providers: [StudentPortalService],
   exports: [StudentPortalService],
 })

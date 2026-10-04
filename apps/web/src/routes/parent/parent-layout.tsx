@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Button } from '@college-erp/ui';
 import { useAuth } from '../../features/auth/auth-context';
+import { PwaChrome } from '../../features/pwa/pwa-ui';
 import { PORTAL_CSS } from '../portal/portal-layout';
 import { useParentPortal } from './parent-context';
 
@@ -34,6 +35,7 @@ export function ParentPortalLayout() {
   return (
     <div className="sp-shell">
       <style>{PORTAL_CSS}</style>
+      <PwaChrome />
       <header className="sp-header">
         <div className="sp-header-inner">
           <a className="sp-brand" href="/parent/dashboard">

@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { CurrentUserDto, EffectiveEntitlementsResponseDto, FeatureFlagsResponseDto, LoginResponseDto, PermissionsResponseDto } from '@college-erp/types';
 import { apiFetch, setAccessToken, tryRefresh } from '../../lib/http';
+import { clearOfflineData } from '../pwa/pwa';
 
 const TENANT_SLUG_STORAGE_KEY = 'college_erp_tenant_slug';
 
@@ -104,6 +105,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setAccessToken(null);
     localStorage.removeItem(TENANT_SLUG_STORAGE_KEY);
+    // Purge the PWA's runtime cache of per-user self-service reads so a shared device never
+    // serves one user's data to the next.
+    await clearOfflineData().catch(() => undefined);
     setState({
       status: 'unauthenticated',
       user: null,
