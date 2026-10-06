@@ -73,6 +73,17 @@ describe('tenant-guard model classification (from Prisma DMMF)', () => {
     'FeeRefund',
     'FeeSequence',
     'StudentFeeAllocation',
+    // Generic integration framework. Each carries a REQUIRED tenantId, which is what makes the
+    // DMMF-derived guard auto-scope it — and therefore what stops one tenant reading another's
+    // payment credentials, webhook events, operations or sync ledger. Dropping tenantId here would
+    // be a silent cross-tenant data leak, not a type error.
+    'Integration',
+    'IntegrationWebhookEndpoint',
+    'IntegrationWebhookEvent',
+    'IntegrationOperation',
+    'IntegrationSyncRun',
+    'IntegrationSyncRecord',
+    'IntegrationFailure',
   ];
 
   const notTenantScoped = [

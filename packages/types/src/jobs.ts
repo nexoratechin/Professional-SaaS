@@ -11,6 +11,10 @@ export const QUEUE_NAMES = {
   ANALYTICS_REFRESH: 'analytics-refresh',
   /** AI document classification + OCR extraction (apps/worker's ai queues). */
   AI_DOCUMENT_PROCESSING: 'ai-document-processing',
+  /** Outbound calls to a tenant's configured third-party system (apps/worker's integration queues). */
+  INTEGRATION_OPERATIONS: 'integration-operations',
+  /** Inbound-data pulls/periodic sync fan-out (apps/worker's integration queues). */
+  INTEGRATION_SYNC: 'integration-sync',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -147,4 +151,51 @@ export interface AiDocumentProcessingJobData extends TenantJobData {
   /** True when a human has already confirmed/rejected this version's classification — set by the
    *  review endpoint so a re-run never overwrites a verified decision. */
   skipIfReviewed?: boolean;
+}
+
+/**
+ * One queued call to a tenant's configured third-party system (payment gateway, accounting
+ * export, LMS push, SMS/WhatsApp handoff, identity lookup — whatever `Integration.category` says).
+ *
+ * The processor resolves the integration by `integrationId` *through the tenant-scoped client
+ * built from `tenantId`* and re-checks that the row still belongs to that tenant and is enabled.
+ * The job payload deliberately carries no credentials and no URL: the adapter configuration lives
+ * encrypted on the Integration row, so a tampered or replayed payload cannot redirect a call at a
+ * host of its choosing or exfiltrate a secret that was not in the payload to begin with.
+ *
+ * `operationId` points at the pre-created IntegrationOperation row, so a duplicate delivery
+ * (BullMQ at-least-once) sees a terminal status and returns without issuing the call twice.
+ */
+export interface IntegrationOperationJobData extends TenantJobData {
+  integrationId: string;
+  operationId: string;
+  /** Retried manually via POST /integrations/operations/:id/retry; ignored by the processor,
+   *  which takes its attempts/backoff from the retry classification of the recorded error. */
+  isManualRetry?: boolean;
+}
+
+/**
+ * Same cross-tenant maintenance-sweep shape as DocumentRetentionSweepJobData: the sync sweep finds
+ * every tenant's enabled Integration whose config asks for periodic sync (via the unscoped
+ * platform client), then runs each run through its own tenant-scoped client. Never a job scoped to
+ * a single tenant up front — one sweep covers every tenant's schedule.
+ */
+export type IntegrationSyncSweepJobData = Record<string, never>;
+
+/**
+ * One synchronization run. Either `syncRunId` is set (the API created the run row and queued it —
+ * an operator-triggered or webhook-triggered sync) or `integrationId` is set (the sweep discovered
+ * the integration and the processor creates the run row itself, which keeps the cross-tenant sweep
+ * free of tenant-scoped writes).
+ *
+ * Like IntegrationOperationJobData, the payload carries ids only: the sync cursor, page size and the
+ * entity type come from the IntegrationSyncRun / Integration rows, so a tampered payload cannot
+ * redirect a sync at an entity type or range the tenant did not configure.
+ */
+export interface IntegrationSyncRunJobData extends TenantJobData {
+  integrationId?: string;
+  syncRunId?: string;
+  entityType?: string;
+  /** Defaults to PULL_SYNC in the processor when absent. */
+  mode?: 'PULL_SYNC' | 'PUSH_SYNC';
 }

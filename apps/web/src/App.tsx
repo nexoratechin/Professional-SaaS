@@ -43,6 +43,7 @@ import { PlacementsPage } from './routes/placements';
 import { HelpdeskPage } from './routes/helpdesk';
 import { NotificationsPage } from './routes/notifications';
 import { DocumentsPage } from './routes/documents';
+import { IntegrationsPage } from './routes/integrations';
 import { ReportsPage } from './routes/reports';
 import { PortalGate } from './routes/portal/portal-gate';
 import { StudentPortalLayout } from './routes/portal/portal-layout';
@@ -338,6 +339,14 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <DocumentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/integrations"
+          element={
+            <ProtectedRoute>
+              <IntegrationsPage />
             </ProtectedRoute>
           }
         />

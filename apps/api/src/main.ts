@@ -4,6 +4,8 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import express from 'express';
+import type { Request } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -19,6 +21,21 @@ async function bootstrap() {
 
   app.use(helmet());
   app.use(cookieParser());
+
+  // Inbound integration webhooks must be signature-verified against the bytes the provider actually
+  // sent. Nest's JSON body parser is the only reader of the body, so Express's `verify` hook captures
+  // the raw buffer onto the request before parsing — IntegrationWebhooksController reads it from
+  // there. Without this, the handler would only have the parsed object, and re-serializing it changes
+  // key order and whitespace, which invalidates every HMAC digest.
+  app.use(
+    express.json({
+      limit: '1mb',
+      verify: (req, _res, buf) => {
+        (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+      },
+    }),
+  );
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.enableCors({ origin: config.get('CORS_ORIGIN'), credentials: true });
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));

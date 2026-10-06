@@ -8,6 +8,7 @@ import { AnalyticsRefreshProcessorModule } from './queues/analytics-refresh/anal
 import { DocumentRetentionProcessorModule } from './queues/document-retention/document-retention-processor.module';
 import { DocumentVirusScanProcessorModule } from './queues/document-virus-scan/document-virus-scan-processor.module';
 import { HelpdeskSlaProcessorModule } from './queues/helpdesk-sla/helpdesk-sla-processor.module';
+import { IntegrationsProcessorModule } from './queues/integrations/integrations-processor.module';
 import { NotificationsProcessorModule } from './queues/notifications/notifications-processor.module';
 import { NotificationsCampaignProcessorModule } from './queues/notifications/notifications-campaign-processor.module';
 import { ReportExportProcessorModule } from './queues/report-exports/report-export-processor.module';
@@ -43,6 +44,7 @@ import { WorkflowEscalationProcessorModule } from './queues/workflow-escalation/
     ReportExportProcessorModule,
     AnalyticsRefreshProcessorModule,
     AiDocumentProcessingProcessorModule,
+    IntegrationsProcessorModule,
   ],
 })
 export class AppModule {}

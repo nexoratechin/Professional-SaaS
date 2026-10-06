@@ -797,6 +797,31 @@ export const AUDIT_ACTIONS = {
   /** Written by apps/worker's DocumentClassificationProcessor, not an HTTP request. */
   AI_DOCUMENT_OCR_EXTRACTED: 'AI_DOCUMENT_OCR_EXTRACTED',
 
+  // --- Generic integrations (module INTEGRATIONS) ---
+  // Connections, endpoints and credentials are the most sensitive configuration in the product:
+  // they hold a tenant's third-party API keys. Every mutation is audited, and the
+  // *_CREDENTIALS_* action is audited even though the values themselves are never logged.
+  INTEGRATION_CREATED: 'INTEGRATION_CREATED',
+  INTEGRATION_UPDATED: 'INTEGRATION_UPDATED',
+  /** Credential *keys* changed. Values are encrypted at rest and never appear in the audit payload. */
+  INTEGRATION_CREDENTIALS_UPDATED: 'INTEGRATION_CREDENTIALS_UPDATED',
+  INTEGRATION_STATUS_CHANGED: 'INTEGRATION_STATUS_CHANGED',
+  INTEGRATION_DELETED: 'INTEGRATION_DELETED',
+  /** Result of a connection test, whether or not it succeeded — a test is a live probe of the
+   *  provider, so it is worth recording even when it fails. */
+  INTEGRATION_CONNECTION_TESTED: 'INTEGRATION_CONNECTION_TESTED',
+  INTEGRATION_WEBHOOK_ENDPOINT_CREATED: 'INTEGRATION_WEBHOOK_ENDPOINT_CREATED',
+  INTEGRATION_WEBHOOK_ENDPOINT_UPDATED: 'INTEGRATION_WEBHOOK_ENDPOINT_UPDATED',
+  INTEGRATION_WEBHOOK_ENDPOINT_DELETED: 'INTEGRATION_WEBHOOK_ENDPOINT_DELETED',
+  /** A webhook URL's path token was rotated, revoking the previously public URL. */
+  INTEGRATION_WEBHOOK_ENDPOINT_ROTATED: 'INTEGRATION_WEBHOOK_ENDPOINT_ROTATED',
+  /** An operator asked for a failed outbound operation to be re-dispatched. */
+  INTEGRATION_OPERATION_RETRIED: 'INTEGRATION_OPERATION_RETRIED',
+  INTEGRATION_SYNC_STARTED: 'INTEGRATION_SYNC_STARTED',
+  INTEGRATION_SYNC_CANCELED: 'INTEGRATION_SYNC_CANCELED',
+  /** A failure row was marked resolved, i.e. a human triaged it. */
+  INTEGRATION_FAILURE_RESOLVED: 'INTEGRATION_FAILURE_RESOLVED',
+
   // --- Cross-cutting (module PLATFORM) ---
   CROSS_TENANT_ACCESS_ATTEMPT: 'CROSS_TENANT_ACCESS_ATTEMPT',
 } as const;

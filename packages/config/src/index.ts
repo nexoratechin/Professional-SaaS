@@ -40,6 +40,16 @@ export const apiEnvSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'NOTIFICATION_SECRET_KEY must be 64 hex characters (32 bytes)'),
 
+  /** AES-256-GCM key (64 hex chars = 32 bytes) encrypting *tenant-configured third-party
+   * credentials* at rest — payment gateway keys, accounting API tokens, LMS/RFID/identity vendor
+   * secrets — generate with `openssl rand -hex 32`. Reversible (not hashed) because adapters and
+   * webhook signature verification need the raw secret. Distinct from MFA/device/notification keys
+   * so one credential class leaking never decrypts another; this class is the one that holds
+   * third-party vendor secrets for an arbitrary number of tenants. */
+  INTEGRATION_SECRET_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'INTEGRATION_SECRET_KEY must be 64 hex characters (32 bytes)'),
+
   /** Web Push (VAPID) keys for browser/PWA push. Generated once per environment with
    *  `npx web-push generate-vapid-keys`. Optional: when unset, PUSH delivery falls back to the
    *  tenant's configured gateway provider, exactly as before. The PUBLIC key is safe to hand to
@@ -119,6 +129,13 @@ export const workerEnvSchema = z.object({
   NOTIFICATION_SECRET_KEY: z
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'NOTIFICATION_SECRET_KEY must be 64 hex characters (32 bytes)'),
+  /** Same 64-hex AES-256-GCM key as the API — the worker decrypts tenant-configured third-party
+   * credentials to actually call a provider (or verify an inbound webhook signature) on behalf of
+   * a tenant. Separate from NOTIFICATION_SECRET_KEY because these are third-party vendor secrets,
+   * not our own delivery credentials. */
+  INTEGRATION_SECRET_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'INTEGRATION_SECRET_KEY must be 64 hex characters (32 bytes)'),
 
   /** Same VAPID keypair as the API — the worker signs and sends Web Push messages for PUSH
    *  notifications whose recipient has registered a browser subscription. */

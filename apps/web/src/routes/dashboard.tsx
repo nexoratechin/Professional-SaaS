@@ -23,6 +23,7 @@ const PLACEMENTS_VIEW_PERMISSION = 'placements.view';
 const NOTIFICATIONS_VIEW_PERMISSION = 'notifications.read';
 const DOCUMENTS_VIEW_PERMISSION = 'documents.read';
 const REPORTS_VIEW_PERMISSION = 'reports.view';
+const INTEGRATIONS_VIEW_PERMISSION = 'integrations.view';
 const ANALYTICS_VIEW_PERMISSION = 'analytics.view';
 const AI_VIEW_PERMISSION = 'ai.view';
 const ORG_VIEW_PERMISSIONS = ['campuses.read', 'departments.read', 'programs.read', 'academicYears.read', 'terms.read', 'rooms.read', 'buildings.read', 'sections.read', 'batches.read'];
@@ -101,6 +102,7 @@ export function DashboardPage() {
           {permissions.includes(PLACEMENTS_VIEW_PERMISSION) && <Link to="/placements">Placements</Link>}
           {permissions.includes(NOTIFICATIONS_VIEW_PERMISSION) && <Link to="/notifications">Notifications</Link>}
           {permissions.includes(DOCUMENTS_VIEW_PERMISSION) && <Link to="/documents">Documents</Link>}
+          {permissions.includes(INTEGRATIONS_VIEW_PERMISSION) && <Link to="/integrations">Integrations</Link>}
           {permissions.includes(REPORTS_VIEW_PERMISSION) && <Link to="/reports">Reports</Link>}
           {permissions.includes(ANALYTICS_VIEW_PERMISSION) && <Link to="/analytics">Analytics</Link>}
           {entitledAi && permissions.includes(AI_VIEW_PERMISSION) && <Link to="/ai-assistant">AI Assistant</Link>}

@@ -74,6 +74,9 @@ services:
       S3_FORCE_PATH_STYLE: 'true'
       DOCUMENT_MAX_UPLOAD_SIZE_BYTES: ${DOCUMENT_MAX_UPLOAD_SIZE_BYTES:-26214400}
       NOTIFICATION_SECRET_KEY: ${NOTIFICATION_SECRET_KEY:-cc8abfe479f38178bf712a90343e27496c0f31cde1778615eff668ad2b199cd2}
+      # Deliberately a different key from NOTIFICATION_SECRET_KEY: one leaked integration key must not
+      # decrypt notification credentials (and vice versa). See .env.example.
+      INTEGRATION_SECRET_KEY: ${INTEGRATION_SECRET_KEY:-3f1c9a2b7e4d6085b13c2f7a9e0d41638cb25fe970a1d6438be5072ca4f18d93}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@college-erp.local}
@@ -98,8 +101,11 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-college_erp}:${POSTGRES_PASSWORD:-college_erp_dev_password}@postgres:5432/${POSTGRES_DB:-college_erp}
       REDIS_URL: redis://redis:6379
-      # MUST match the API's NOTIFICATION_SECRET_KEY — the worker decrypts what the API encrypted.
+      # MUST match the API's NOTIFICATION_SECRET_KEY - the worker decrypts what the API encrypted.
       NOTIFICATION_SECRET_KEY: ${NOTIFICATION_SECRET_KEY:-cc8abfe479f38178bf712a90343e27496c0f31cde1778615eff668ad2b199cd2}
+      # MUST match the API's INTEGRATION_SECRET_KEY - the worker decrypts integration credentials at
+      # dispatch time, exactly as it does for notification provider credentials.
+      INTEGRATION_SECRET_KEY: ${INTEGRATION_SECRET_KEY:-3f1c9a2b7e4d6085b13c2f7a9e0d41638cb25fe970a1d6438be5072ca4f18d93}
       # MUST match the API's VAPID_* so browser subscriptions registered via the API can be
       # delivered by the worker.
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}

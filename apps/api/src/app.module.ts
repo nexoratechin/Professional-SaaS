@@ -24,6 +24,7 @@ import { PlatformOpsModule } from './modules/platform-ops/platform-ops.module';
 import { SaasModule } from './modules/saas/saas.module';
 import { SupportModule } from './modules/support/support.module';
 import { StudentsModule } from './modules/students/students.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { TimetableModule } from './modules/timetable/timetable.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { FeesModule } from './modules/fees/fees.module';
@@ -62,6 +63,7 @@ import { FacultyPortalModule } from './modules/faculty-portal/faculty-portal.mod
     SaasModule,
     DocumentsModule,
     NotificationsModule,
+    IntegrationsModule,
     WorkflowModule,
     StudentsModule,
     AcademicsModule,
@@ -111,6 +113,9 @@ export class AppModule implements NestModule {
         { path: 'feature-flags', method: RequestMethod.ALL },
         { path: 'feature-flags/(.*)', method: RequestMethod.ALL },
         { path: 'attendance/devices/ingest/(.*)', method: RequestMethod.ALL },
+        // Inbound provider callbacks carry no tenant header/subdomain — the endpoint's random
+        // path token identifies the tenant. Same reasoning as the attendance device gateway above.
+        { path: 'integrations/webhooks/(.*)', method: RequestMethod.ALL },
         { path: 'subscriptions', method: RequestMethod.ALL },
         { path: 'subscriptions/(.*)', method: RequestMethod.ALL },
         { path: 'subscription-items/(.*)', method: RequestMethod.ALL },

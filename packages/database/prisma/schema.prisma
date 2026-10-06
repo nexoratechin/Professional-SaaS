@@ -649,6 +649,13 @@ model Tenant {
   aiQueryLogs                       AiQueryLog[]
   aiFeedback                        AiFeedback[]
   aiDocumentClassifications          AiDocumentClassification[]
+  integrations                       Integration[]
+  integrationWebhookEndpoints        IntegrationWebhookEndpoint[]
+  integrationWebhookEvents           IntegrationWebhookEvent[]
+  integrationOperations              IntegrationOperation[]
+  integrationSyncRuns                IntegrationSyncRun[]
+  integrationSyncRecords             IntegrationSyncRecord[]
+  integrationFailures                IntegrationFailure[]
 
   @@index([status])
   @@index([createdAt])
@@ -10047,4 +10054,449 @@ enum AiDocumentClassificationStatus {
   /// A human overrode the suggestion with confirmedCategory.
   CORRECTED
   FAILED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// Generic integration framework
+//
+// One vocabulary for every external system the platform talks to, so no module is coupled to a
+// single vendor: a tenant configures an Integration (category + provider adapter + config +
+// encrypted credentials), and the ERP's own modules call the framework rather than a vendor SDK.
+//
+// The category/provider split is what keeps this generic. `IntegrationCategory` says WHAT the
+// system is (so the UI can ask for the right config fields and permissions can scope it), while
+// `provider` names WHICH adapter speaks to it (`http_json`, `webhook`, `mock`, or one registered at
+// runtime). A new vendor is a new `provider` value, never a schema change — the same approach
+// packages/notifications takes with PROVIDERS_BY_CHANNEL.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/// The kind of external system, closed so the API can validate a config's required fields and the
+/// UI can render a category-appropriate form. Free-form categories would make "which fields does a
+/// payment gateway need?" unanswerable at runtime.
+enum IntegrationCategory {
+  PAYMENT_GATEWAY
+  ACCOUNTING
+  LMS
+  BIOMETRIC
+  RFID
+  IDENTITY_PROVIDER
+  DOCUMENT_SERVICE
+  SMS
+  WHATSAPP
+  EMAIL
+}
+
+/// Whether the ERP calls the system (OUTBOUND), the system calls the ERP through a webhook
+/// endpoint (INBOUND), or both. Purely declarative — the framework routes outbound work through
+/// IntegrationOperation and inbound through IntegrationWebhookEvent regardless.
+enum IntegrationDirection {
+  OUTBOUND
+  INBOUND
+  BIDIRECTIONAL
+}
+
+/// Configured lifecycle. DRAFT is the state an integration is created in and can be tested in
+/// without ever sending real traffic; only ACTIVE participates in dispatch and webhook handling.
+/// DISABLED is an intentional pause (config and credentials are retained) as opposed to deleting.
+enum IntegrationStatus {
+  DRAFT
+  ACTIVE
+  DISABLED
+}
+
+/// Rolling health of the connection, recomputed by connection tests and by dispatch outcomes.
+/// UNKNOWN means "never tested" — deliberately distinct from HEALTHY so a freshly created
+/// integration is not reported as working.
+enum IntegrationHealthStatus {
+  UNKNOWN
+  HEALTHY
+  DEGRADED
+  UNHEALTHY
+}
+
+/// One outbound call's lifecycle. Retries are BullMQ job attempts against the same operation row,
+/// so `attempt` climbs while the row's id stays stable and every attempt is auditable together.
+enum IntegrationOperationStatus {
+  PENDING
+  IN_PROGRESS
+  SUCCEEDED
+  FAILED
+}
+
+/// Inbound webhook event lifecycle. RECEIVED = signature verified and persisted (the durable
+/// record of what the provider actually sent); PROCESSING/IGNORED/PROCESSED/FAILED describe what
+/// the ERP did with it afterwards.
+enum IntegrationWebhookEventStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+/// A synchronization run's outcome. PARTIAL is distinct from FAILED on purpose: a run that synced
+/// 900 of 1000 records must not read as "nothing worked" — the per-record rows in
+/// IntegrationSyncRecord carry the detail.
+enum IntegrationSyncRunStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+  CANCELED
+}
+
+/// What started a sync run, so an operator can tell a deliberate run from an automatic repair.
+enum IntegrationSyncTrigger {
+  MANUAL
+  SCHEDULED
+  WEBHOOK
+  RETRY
+}
+
+/// Per-entity synchronization state — the idempotency ledger. One row per (integration, entityType,
+/// externalId) triple, carrying the checksum last synced and the opaque cursor that produced it,
+/// so a re-run can resume and a changed checksum is detectable without re-reading the remote.
+enum IntegrationSyncRecordStatus {
+  IN_SYNC
+  PENDING
+  FAILED
+  SKIPPED
+}
+
+/// Normalized reason an integration attempt failed. Grouping by category (rather than storing only
+/// a free-text message) is what makes "why is accounting broken for this tenant?" answerable with
+/// a single GROUP BY instead of reading log bodies.
+enum IntegrationFailureCategory {
+  AUTHENTICATION
+  CONFIGURATION
+  NETWORK
+  TIMEOUT
+  RATE_LIMIT
+  PROVIDER_REJECTED
+  SIGNATURE
+  SCHEMA
+  UNKNOWN
+}
+
+/// A tenant's configured connection to one external system. This is the tenant-specific
+/// configuration root: everything else in this framework hangs off it.
+///
+/// `config` holds non-secret settings and `credentialsEncrypted` holds the secret bag (AES-256-GCM
+/// via @college-erp/integrations' IntegrationSecretCipher), so a database dump never exposes a
+/// gateway API key. Credentials are never returned by the API — only the credential KEYS a tenant
+/// has already supplied, so a settings form can show "•••• configured" without ever echoing them.
+///
+/// `provider` is an adapter key resolved by IntegrationAdapterRegistry, not a foreign key to a
+/// vendor table: registering a runtime adapter makes a new provider usable with no migration.
+/// `retryPolicy` is a JSON override of the framework default (maxAttempts/backoff/jitter/timeout),
+/// so a flaky vendor can be given a gentler policy per integration rather than by code change.
+model Integration {
+  id                   String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId             String                  @map("tenant_id") @db.Uuid
+  tenant               Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  /// Tenant-unique stable handle used in URLs and job payloads (never the display name).
+  key                  String
+  name                 String
+  category             IntegrationCategory
+  /// Adapter key: `http_json`, `webhook`, `mock`, or any runtime-registered adapter.
+  provider             String
+  direction            IntegrationDirection    @default(OUTBOUND)
+  description          String?
+  /// Non-secret settings (baseUrl, headers template, timeout, auth style…).
+  config               Json?
+  /// Encrypted JSON credential bag. Nullable so a DRAFT integration can exist before secrets exist.
+  credentialsEncrypted String?                 @map("credentials_encrypted")
+  /// JSON override of the framework's default retry policy.
+  retryPolicy          Json?                   @map("retry_policy")
+  status               IntegrationStatus       @default(DRAFT)
+  /// Marks the integration the framework picks when a caller asks for a category's default.
+  isDefault            Boolean                 @default(false) @map("is_default")
+  healthStatus         IntegrationHealthStatus @default(UNKNOWN) @map("health_status")
+  lastTestedAt         DateTime?               @map("last_tested_at")
+  lastTestSucceededAt  DateTime?               @map("last_test_succeeded_at")
+  lastSuccessAt        DateTime?               @map("last_success_at")
+  lastFailureAt        DateTime?               @map("last_failure_at")
+  /// Drives DEGRADED vs UNHEALTHY and lets an operator see a flapping connection before it dies.
+  consecutiveFailures  Int                     @default(0) @map("consecutive_failures")
+  lastErrorMessage     String?                 @map("last_error_message")
+  lastLatencyMs        Int?                    @map("last_latency_ms")
+  /// Opaque provider cursor (timestamp, page token, offset) for the next sync to resume from.
+  syncCursor           String?                 @map("sync_cursor")
+  createdBy            String?                 @map("created_by")
+  updatedBy            String?                 @map("updated_by")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
+  webhookEndpoints IntegrationWebhookEndpoint[]
+  webhookEvents    IntegrationWebhookEvent[]
+  operations       IntegrationOperation[]
+  syncRuns         IntegrationSyncRun[]
+  syncRecords      IntegrationSyncRecord[]
+  failures         IntegrationFailure[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId, category, status])
+  @@index([tenantId, status, isDefault])
+  @@index([tenantId, healthStatus])
+  @@map("integrations")
+}
+
+/// A tenant's inbound webhook endpoint: the public URL an external system POSTs to. Carries its own
+/// signing secret (encrypted) and signature verification settings, because signature schemes differ
+/// per provider (HMAC over raw body, HMAC over `timestamp.body`, a plain bearer token, …) and the
+/// framework verifies all of them behind one interface.
+///
+/// `pathToken` is a random 32-byte hex segment in the URL. It is the only thing identifying the
+/// endpoint publicly, so it is unique platform-wide and rotatable — rotating it is how a leaked
+/// webhook URL is revoked without touching the integration.
+model IntegrationWebhookEndpoint {
+  id                      String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId                String               @map("tenant_id") @db.Uuid
+  tenant                  Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  integrationId           String               @map("integration_id") @db.Uuid
+  integration             Integration          @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  name                    String
+  pathToken               String               @unique @map("path_token")
+  /// Provider event names this endpoint accepts. Empty array = accept every event type (the
+  /// endpoint's own filter list is then the only gate).
+  eventTypes              String[]
+  /// Encrypted HMAC shared secret, generated on create and never returned afterwards.
+  secretEncrypted         String               @map("secret_encrypted")
+  /// Header carrying the signature. Configurable because providers disagree on the name.
+  signatureHeader         String               @default("x-integration-signature")
+  signatureAlgorithm      WebhookSignatureAlgorithm @default(HMAC_SHA256) @map("signature_algorithm")
+  /// Clock-skew allowance for HMAC_SHA256_TS signatures; a timestamp outside the window is a
+  /// SIGNATURE failure (replay protection). Ignored by algorithms without a timestamp.
+  signatureToleranceSecs  Int                  @default(300) @map("signature_tolerance_secs")
+  isActive                Boolean              @default(true) @map("is_active")
+  lastEventAt             DateTime?            @map("last_event_at")
+  eventCount              Int                  @default(0) @map("event_count")
+  failureCount            Int                  @default(0) @map("failure_count")
+  createdBy               String?              @map("created_by")
+  updatedBy               String?              @map("updated_by")
+  createdAt               DateTime             @default(now()) @map("created_at")
+  updatedAt               DateTime             @updatedAt @map("updated_at")
+
+  events IntegrationWebhookEvent[]
+
+  @@unique([integrationId, name])
+  @@index([tenantId, isActive])
+  @@map("integration_webhook_endpoints")
+}
+
+/// How an inbound signature is computed and verified.
+enum WebhookSignatureAlgorithm {
+  /// hex HMAC-SHA256 over the raw request body (Stripe-style, no timestamp).
+  HMAC_SHA256
+  /// hex HMAC-SHA256 over `${timestamp}.${rawBody}` with the timestamp also verified against
+  /// `signatureToleranceSecs` — the replay-resistant variant most gateways offer.
+  HMAC_SHA256_TS
+  /// `sha256=<hex>` / base64 HMAC variants for providers that use a digest prefix.
+  HMAC_SHA256_PREFIXED
+  /// No cryptographic signature: a shared bearer token in the Authorization header, compared in
+  /// constant time. For providers that offer no signing at all.
+  BEARER_TOKEN
+}
+
+/// The durable record of one inbound webhook delivery — the event log.
+///
+/// Persisted BEFORE any business logic runs (signature verified first, then write, then process) so
+/// a crash mid-processing leaves a recoverable RECEIVED row rather than a silently lost payment
+/// notification. `payload` holds the request body; `headers` only the non-sensitive, allow-listed
+/// ones (a full header dump would risk persisting an Authorization value).
+model IntegrationWebhookEvent {
+  id                String                           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String                           @map("tenant_id") @db.Uuid
+  tenant            Tenant                           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  integrationId     String?                          @map("integration_id") @db.Uuid
+  integration       Integration?                     @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  webhookEndpointId String                           @map("webhook_endpoint_id") @db.Uuid
+  webhookEndpoint   IntegrationWebhookEndpoint       @relation(fields: [webhookEndpointId], references: [id], onDelete: Cascade)
+  /// Provider's own event id, when it sends one. Uniqueness is per endpoint so a replay can be
+  /// rejected as a duplicate instead of double-processing a payment.
+  externalEventId   String?                          @map("external_event_id")
+  eventType         String
+  status            IntegrationWebhookEventStatus    @default(RECEIVED)
+  signatureVerified Boolean                          @default(false) @map("signature_verified")
+  /// Raw request body as received.
+  payload           Json?
+  /// Allow-listed non-secret request headers only.
+  headers           Json?
+  responseStatus    Int?                             @map("response_status")
+  errorMessage      String?                          @map("error_message")
+  attempts          Int                              @default(0)
+  receivedAt        DateTime                         @default(now()) @map("received_at")
+  processedAt       DateTime?                        @map("processed_at")
+
+  failures IntegrationFailure[]
+
+  @@unique([webhookEndpointId, externalEventId])
+  @@index([tenantId, status, receivedAt])
+  @@index([tenantId, eventType, receivedAt])
+  @@index([tenantId, integrationId])
+  @@map("integration_webhook_events")
+}
+
+/// One outbound call to an external system — the operation/event log, and the unit of retry.
+///
+/// A row is created PENDING before dispatch so an operation is visible even if the process dies
+/// mid-call, then flipped to IN_PROGRESS/SUCCEEDED/FAILED. Retries reuse the same row and bump
+/// `attempt`, so "this operation failed 3 times then succeeded" is one row with a history rather
+/// than N rows.
+///
+/// `idempotencyKey` is sent to the provider (and used to dedupe) so a retry after an ambiguous
+/// timeout cannot double-charge a card or double-create a vendor invoice.
+model IntegrationOperation {
+  id             String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String                        @map("tenant_id") @db.Uuid
+  tenant         Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  integrationId  String                        @map("integration_id") @db.Uuid
+  integration    Integration                   @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  /// Logical operation name, e.g. `payment.create`, `student.push`, `invoice.export`.
+  operation      String
+  status         IntegrationOperationStatus    @default(PENDING)
+  attempt        Int                           @default(0)
+  maxAttempts    Int                           @default(3) @map("max_attempts")
+  /// Stable across retries; also the provider-facing idempotency key.
+  idempotencyKey String?                       @map("idempotency_key")
+  /// Sanitized request snapshot — never credentials, and `secretKeys` are redacted before write.
+  request        Json?
+  /// Sanitized provider response.
+  response       Json?
+  errorMessage   String?                       @map("error_message")
+  failureCategory IntegrationFailureCategory?  @map("failure_category")
+  /// Whether the framework considers this failure transient. Terminal failures stop retrying even
+  /// if attempts remain.
+  retryable      Boolean                       @default(false)
+  nextRetryAt    DateTime?                     @map("next_retry_at")
+  latencyMs      Int?                          @map("latency_ms")
+  completedAt    DateTime?                     @map("completed_at")
+  createdAt      DateTime                      @default(now()) @map("created_at")
+  updatedAt      DateTime                      @updatedAt @map("updated_at")
+
+  failures IntegrationFailure[]
+
+  @@unique([integrationId, idempotencyKey])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, integrationId, operation])
+  @@index([status, nextRetryAt])
+  @@map("integration_operations")
+}
+
+/// One synchronization run against an external system — the synchronization-status record.
+///
+/// Counters are denormalized onto the run so an operator sees "940 succeeded / 58 failed" without
+/// aggregating thousands of IntegrationSyncRecord rows. `cursorBefore`/`cursorAfter` are what make a
+/// sync resumable: a failed run leaves the cursor where it stopped, so the next run continues
+/// instead of re-reading the provider from the beginning.
+model IntegrationSyncRun {
+  id              String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String                    @map("tenant_id") @db.Uuid
+  tenant          Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  integrationId   String                    @map("integration_id") @db.Uuid
+  integration     Integration               @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  direction       IntegrationDirection
+  status          IntegrationSyncRunStatus  @default(PENDING)
+  trigger         IntegrationSyncTrigger    @default(MANUAL)
+  /// JSON filter/scope the run covers (e.g. which entity types and date range).
+  scope           Json?
+  cursorBefore    String?                   @map("cursor_before")
+  cursorAfter     String?                   @map("cursor_after")
+  attempted       Int                       @default(0)
+  succeeded       Int                       @default(0)
+  failed          Int                       @default(0)
+  skipped         Int                       @default(0)
+  errorMessage    String?                   @map("error_message")
+  /// True when the provider reported it had more data past cursorAfter (more runs to come).
+  hasMore         Boolean                   @default(false) @map("has_more")
+  requestedBy     String?                   @map("requested_by")
+  startedAt       DateTime?                 @map("started_at")
+  finishedAt      DateTime?                 @map("finished_at")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+
+  records  IntegrationSyncRecord[]
+  failures IntegrationFailure[]
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, integrationId, createdAt])
+  @@map("integration_sync_runs")
+}
+
+/// Per-entity row of a sync — the idempotency ledger and the per-record failure detail that makes
+/// a PARTIAL run diagnosable. `contentHash` is what a later run compares against to detect a changed
+/// remote record without a full diff, and `externalId` is the provider's key for that entity.
+model IntegrationSyncRecord {
+  id            String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String                    @map("tenant_id") @db.Uuid
+  tenant        Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  integrationId String                    @map("integration_id") @db.Uuid
+  integration   Integration               @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  syncRunId     String?                   @map("sync_run_id") @db.Uuid
+  syncRun       IntegrationSyncRun?       @relation(fields: [syncRunId], references: [id], onDelete: SetNull)
+  /// Logical entity type synced, e.g. `student`, `fee_invoice`, `attendance`.
+  entityType    String                    @map("entity_type")
+  externalId    String                    @map("external_id")
+  /// ERP-side id when the record maps to one, so an operator can jump straight to the row.
+  internalId    String?                   @map("internal_id")
+  contentHash   String?                   @map("content_hash")
+  /// Last-known provider payload for this entity, stored REDACTED (see packages/integrations redact.ts).
+  /// Needed for two things: an operator reconciling by hand, and a PUSH_SYNC re-sending a record the
+  /// provider previously served us. Deliberately not a general-purpose cache - only a changed record
+  /// rewrites it, so an unchanged record's payload is never re-stored.
+  payload       Json?
+  status        IntegrationSyncRecordStatus @default(PENDING)
+  attempts      Int                       @default(0)
+  errorMessage  String?                   @map("error_message")
+  syncedAt      DateTime?                 @map("synced_at")
+  createdAt     DateTime                  @default(now()) @map("created_at")
+  updatedAt     DateTime                  @updatedAt @map("updated_at")
+
+  @@unique([integrationId, entityType, externalId])
+  @@index([tenantId, status])
+  @@index([tenantId, integrationId, entityType])
+  @@index([syncRunId])
+  @@map("integration_sync_records")
+}
+
+/// The failure log — one row per failed integration attempt, whatever its kind.
+///
+/// Deliberately separate from IntegrationOperation/IntegrationWebhookEvent/IntegrationSyncRun,
+/// which are the *work* records: an operation row is reused across retries and can be overwritten
+/// with its final state, whereas a failure is an immutable fact an operator has to triage. One
+/// failure row may point at whichever work record produced it (exactly one is non-null), which
+/// keeps a single triage queue instead of three.
+model IntegrationFailure {
+  id             String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String                     @map("tenant_id") @db.Uuid
+  tenant         Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  integrationId  String?                    @map("integration_id") @db.Uuid
+  integration    Integration?               @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  operationId    String?                    @map("operation_id") @db.Uuid
+  operation      IntegrationOperation?      @relation(fields: [operationId], references: [id], onDelete: SetNull)
+  webhookEventId String?                    @map("webhook_event_id") @db.Uuid
+  webhookEvent   IntegrationWebhookEvent?   @relation(fields: [webhookEventId], references: [id], onDelete: SetNull)
+  syncRunId      String?                    @map("sync_run_id") @db.Uuid
+  syncRun        IntegrationSyncRun?        @relation(fields: [syncRunId], references: [id], onDelete: SetNull)
+  category       IntegrationFailureCategory
+  /// Transient failures are eligible for automatic retry; permanent ones need a config/credential fix.
+  retryable      Boolean                    @default(false)
+  /// HTTP status or provider error code, when there was one.
+  providerCode   String?                    @map("provider_code")
+  message        String
+  /// Sanitized detail (response excerpt, stack-free context). Never credentials.
+  details        Json?
+  /// How many identical failures have been collapsed into this row, so a flapping integration
+  /// produces one triage item rather than thousands.
+  occurrences    Int                        @default(1)
+  resolvedAt     DateTime?                  @map("resolved_at")
+  resolvedBy     String?                    @map("resolved_by")
+  resolutionNote String?                    @map("resolution_note")
+  createdAt      DateTime                   @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, category, resolvedAt])
+  @@index([tenantId, integrationId, createdAt])
+  @@index([resolvedAt])
+  @@map("integration_failures")
 }
