@@ -68,6 +68,19 @@ export class WorkerStorageService {
     }
   }
 
+  /** Reads the whole object into memory (uploaded import files are size-bounded). */
+  async downloadBuffer(tenantId: string, key: string): Promise<Buffer> {
+    this.assertKeyBelongsToTenant(tenantId, key);
+    const result = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    const chunks: Uint8Array[] = [];
+    if (result.Body) {
+      for await (const chunk of result.Body as unknown as AsyncIterable<Uint8Array>) {
+        chunks.push(chunk);
+      }
+    }
+    return Buffer.concat(chunks);
+  }
+
   /** Streams the object's bytes — used by scanners that must inspect the payload (mock, clamav,
    *  http). Throws when the object does not exist. */
   async streamObject(tenantId: string, key: string): Promise<AsyncIterable<Uint8Array>> {

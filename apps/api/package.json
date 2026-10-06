@@ -20,6 +20,7 @@
     "@college-erp/config": "workspace:*",
     "@college-erp/database": "workspace:*",
     "@college-erp/gps": "workspace:*",
+    "@college-erp/imports": "workspace:*",
     "@college-erp/integrations": "workspace:*",
     "@college-erp/notifications": "workspace:*",
     "@college-erp/reporting": "workspace:*",

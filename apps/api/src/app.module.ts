@@ -49,6 +49,7 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { StudentPortalModule } from './modules/student-portal/student-portal.module';
 import { ParentPortalModule } from './modules/parent-portal/parent-portal.module';
 import { FacultyPortalModule } from './modules/faculty-portal/faculty-portal.module';
+import { ImportExportModule } from './modules/import-export/import-export.module';
 
 @Module({
   imports: [
@@ -99,6 +100,7 @@ import { FacultyPortalModule } from './modules/faculty-portal/faculty-portal.mod
     StudentPortalModule,
     ParentPortalModule,
     FacultyPortalModule,
+    ImportExportModule,
     BillingModule,
     SupportModule,
     PlatformOpsModule,

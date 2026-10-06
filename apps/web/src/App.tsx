@@ -45,6 +45,7 @@ import { NotificationsPage } from './routes/notifications';
 import { DocumentsPage } from './routes/documents';
 import { IntegrationsPage } from './routes/integrations';
 import { ReportsPage } from './routes/reports';
+import { ImportExportPage } from './routes/import-export';
 import { PortalGate } from './routes/portal/portal-gate';
 import { StudentPortalLayout } from './routes/portal/portal-layout';
 import { PortalDashboardPage } from './routes/portal/portal-dashboard';
@@ -177,6 +178,14 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <ReportsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/imports"
+          element={
+            <ProtectedRoute>
+              <ImportExportPage />
             </ProtectedRoute>
           }
         />

@@ -120,6 +120,20 @@ export class StorageService {
     };
   }
 
+  /** Reads the whole object into memory. Used for uploaded import files (bounded by the
+   *  controller's size limit) so the parser can operate on a Buffer. */
+  async downloadBuffer(tenantId: string, key: string): Promise<Buffer> {
+    this.assertKeyBelongsToTenant(tenantId, key);
+    const result = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    const chunks: Uint8Array[] = [];
+    if (result.Body) {
+      for await (const chunk of result.Body as unknown as AsyncIterable<Uint8Array>) {
+        chunks.push(chunk);
+      }
+    }
+    return Buffer.concat(chunks);
+  }
+
   /** Streams the object's bytes through SHA-256 — the content fingerprint stored on the
    *  DocumentVersion and used to detect upload/replacement corruption and tampering. */
   async computeObjectSha256(tenantId: string, key: string): Promise<string> {

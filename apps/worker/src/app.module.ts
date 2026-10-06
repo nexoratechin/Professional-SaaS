@@ -5,6 +5,7 @@ import { ConfigModule } from './config/config.module';
 import { EntitlementModule } from './entitlement/entitlement.module';
 import { AiDocumentProcessingProcessorModule } from './queues/ai/ai-document-processing-processor.module';
 import { AnalyticsRefreshProcessorModule } from './queues/analytics-refresh/analytics-refresh-processor.module';
+import { DataImportProcessorModule } from './queues/data-imports/data-import-processor.module';
 import { DocumentRetentionProcessorModule } from './queues/document-retention/document-retention-processor.module';
 import { DocumentVirusScanProcessorModule } from './queues/document-virus-scan/document-virus-scan-processor.module';
 import { HelpdeskSlaProcessorModule } from './queues/helpdesk-sla/helpdesk-sla-processor.module';
@@ -45,6 +46,7 @@ import { WorkflowEscalationProcessorModule } from './queues/workflow-escalation/
     AnalyticsRefreshProcessorModule,
     AiDocumentProcessingProcessorModule,
     IntegrationsProcessorModule,
+    DataImportProcessorModule,
   ],
 })
 export class AppModule {}

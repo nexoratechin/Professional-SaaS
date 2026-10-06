@@ -656,6 +656,9 @@ model Tenant {
   integrationSyncRuns                IntegrationSyncRun[]
   integrationSyncRecords             IntegrationSyncRecord[]
   integrationFailures                IntegrationFailure[]
+  importJobs                         ImportJob[]
+  importJobRows                      ImportJobRow[]
+  importTemplates                    ImportTemplate[]
 
   @@index([status])
   @@index([createdAt])
@@ -10499,4 +10502,139 @@ model IntegrationFailure {
   @@index([tenantId, integrationId, createdAt])
   @@index([resolvedAt])
   @@map("integration_failures")
+}
+
+// ---------------------------------------------------------------------------
+// Bulk import / export
+// ---------------------------------------------------------------------------
+//
+// A single, reusable system for Excel/CSV bulk operations across modules. The per-entity
+// column definitions, validation rules and (de)serialization live in @college-erp/imports;
+// these tables are the durable record the UI reads back: import history, per-row error
+// reports, and reusable column mappings.
+//
+//   import_jobs       — one import run (uploaded file + options + counters + lifecycle).
+//   import_job_rows   — the durable error/report rows (invalid/duplicate/failed), used for the
+//                       downloadable error report and partial retry.
+//   import_templates  — tenant-saved reusable column mappings.
+//
+// Every table carries a REQUIRED tenant_id so the DMMF-derived tenant-guard extension
+// auto-scopes it with no further registration.
+
+enum ImportFileFormat {
+  CSV
+  XLSX
+}
+
+/// Lifecycle: PENDING (created, not yet queued) → VALIDATING → VALIDATED (dry run finished) /
+/// QUEUED → RUNNING → COMPLETED | PARTIAL (some rows failed) | FAILED | CANCELLED.
+enum ImportJobStatus {
+  PENDING
+  VALIDATING
+  VALIDATED
+  QUEUED
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+  CANCELLED
+}
+
+enum ImportRowStatus {
+  VALID
+  INVALID
+  DUPLICATE
+  SKIPPED
+  INSERTED
+  UPDATED
+  FAILED
+}
+
+model ImportJob {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String          @map("tenant_id") @db.Uuid
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  /// Registry key, e.g. 'students' | 'faculty' | ... (free-form so new entities need no migration).
+  entityType     String          @map("entity_type")
+  format         ImportFileFormat
+  status         ImportJobStatus @default(PENDING)
+  /// COMMIT applies rows; VALIDATE performs a dry run only.
+  mode           String          @default("COMMIT")
+  fileName       String          @map("file_name")
+  storageKey     String          @map("storage_key")
+  sizeBytes      Int             @default(0) @map("size_bytes")
+  totalRows      Int             @default(0) @map("total_rows")
+  processedRows  Int             @default(0) @map("processed_rows")
+  validRows      Int             @default(0) @map("valid_rows")
+  invalidRows    Int             @default(0) @map("invalid_rows")
+  duplicateRows  Int             @default(0) @map("duplicate_rows")
+  skippedRows    Int             @default(0) @map("skipped_rows")
+  insertedRows   Int             @default(0) @map("inserted_rows")
+  updatedRows    Int             @default(0) @map("updated_rows")
+  failedRows     Int             @default(0) @map("failed_rows")
+  /// Committed header -> field mapping.
+  mapping        Json?
+  /// Import options (duplicate strategy, update-existing, etc.).
+  options        Json?
+  /// Denormalized error breakdown for the history list without loading every row.
+  errorSummary   Json?           @map("error_summary")
+  message        String?
+  requestedById  String?         @map("requested_by_id") @db.Uuid
+  /// Set when this job re-runs the failed/invalid rows of another job (partial retry).
+  retryOfId      String?         @map("retry_of_id") @db.Uuid
+  revision       Int             @default(1)
+  startedAt      DateTime?       @map("started_at")
+  completedAt    DateTime?       @map("completed_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  rows ImportJobRow[]
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entityType, createdAt])
+  @@index([tenantId, status])
+  @@map("import_jobs")
+}
+
+model ImportJobRow {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String          @map("tenant_id") @db.Uuid
+  tenant     Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  jobId      String          @map("job_id") @db.Uuid
+  job        ImportJob       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  rowNumber  Int             @map("row_number")
+  status     ImportRowStatus
+  /// Normalized duplicate key, so a partial retry can pair the file row back to its verdict.
+  sourceKey  String?         @map("source_key")
+  rawData    Json?           @map("raw_data")
+  mappedData Json?           @map("mapped_data")
+  /// Array of { field?, code, message }.
+  errors     Json?
+  message    String?
+  targetId   String?         @map("target_id") @db.Uuid
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  @@unique([jobId, rowNumber])
+  @@index([tenantId, jobId, status])
+  @@map("import_job_rows")
+}
+
+model ImportTemplate {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  entityType  String   @map("entity_type")
+  name        String
+  description String?
+  /// Saved header -> field mapping.
+  mapping     Json?
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, entityType, name])
+  @@index([tenantId, entityType])
+  @@map("import_templates")
 }

@@ -15,6 +15,8 @@ export const QUEUE_NAMES = {
   INTEGRATION_OPERATIONS: 'integration-operations',
   /** Inbound-data pulls/periodic sync fan-out (apps/worker's integration queues). */
   INTEGRATION_SYNC: 'integration-sync',
+  /** Bulk CSV/XLSX import processing (apps/worker's data-import queue). */
+  DATA_IMPORTS: 'data-imports',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -198,4 +200,18 @@ export interface IntegrationSyncRunJobData extends TenantJobData {
   entityType?: string;
   /** Defaults to PULL_SYNC in the processor when absent. */
   mode?: 'PULL_SYNC' | 'PUSH_SYNC';
+}
+
+/**
+ * One bulk CSV/XLSX import run. Enqueued by the API when a job row is created (and again by the
+ * retry endpoint). The processor downloads the stored file through the tenant-scoped storage
+ * client, re-parses and validates it with @college-erp/imports, then applies the valid rows
+ * through the tenant-scoped Prisma client. The payload carries ids only.
+ *
+ * `rowNumbers` is set for a partial retry: the processor reprocesses just those source rows
+ * (typically the previously failed ones) instead of the whole file.
+ */
+export interface DataImportJobData extends TenantJobData {
+  jobId: string;
+  rowNumbers?: number[];
 }

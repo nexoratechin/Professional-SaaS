@@ -53,6 +53,8 @@ export const AUDIT_MODULES = {
   INTEGRATIONS: 'integrations',
   /** AI assistant (apps/api/src/modules/ai-assistant) — see the reserved-modules note above. */
   AI: 'ai',
+  /** Bulk import/export (apps/api/src/modules/import-export). */
+  IMPORTS: 'imports',
 } as const;
 
 export type AuditModule = (typeof AUDIT_MODULES)[keyof typeof AUDIT_MODULES];
@@ -821,6 +823,20 @@ export const AUDIT_ACTIONS = {
   INTEGRATION_SYNC_CANCELED: 'INTEGRATION_SYNC_CANCELED',
   /** A failure row was marked resolved, i.e. a human triaged it. */
   INTEGRATION_FAILURE_RESOLVED: 'INTEGRATION_FAILURE_RESOLVED',
+
+  // --- Bulk import/export (module IMPORTS) ---
+  IMPORT_JOB_CREATED: 'IMPORT_JOB_CREATED',
+  IMPORT_JOB_QUEUED: 'IMPORT_JOB_QUEUED',
+  IMPORT_JOB_STARTED: 'IMPORT_JOB_STARTED',
+  IMPORT_JOB_COMPLETED: 'IMPORT_JOB_COMPLETED',
+  IMPORT_JOB_FAILED: 'IMPORT_JOB_FAILED',
+  IMPORT_JOB_CANCELLED: 'IMPORT_JOB_CANCELLED',
+  IMPORT_JOB_RETRIED: 'IMPORT_JOB_RETRIED',
+  IMPORT_JOB_DOWNLOADED: 'IMPORT_JOB_DOWNLOADED',
+  IMPORT_TEMPLATE_DOWNLOADED: 'IMPORT_TEMPLATE_DOWNLOADED',
+  EXPORT_COMPLETED: 'EXPORT_COMPLETED',
+  IMPORT_TEMPLATE_SAVED: 'IMPORT_TEMPLATE_SAVED',
+  IMPORT_TEMPLATE_DELETED: 'IMPORT_TEMPLATE_DELETED',
 
   // --- Cross-cutting (module PLATFORM) ---
   CROSS_TENANT_ACCESS_ATTEMPT: 'CROSS_TENANT_ACCESS_ATTEMPT',

@@ -27,6 +27,7 @@ const INTEGRATIONS_VIEW_PERMISSION = 'integrations.view';
 const ANALYTICS_VIEW_PERMISSION = 'analytics.view';
 const AI_VIEW_PERMISSION = 'ai.view';
 const ORG_VIEW_PERMISSIONS = ['campuses.read', 'departments.read', 'programs.read', 'academicYears.read', 'terms.read', 'rooms.read', 'buildings.read', 'sections.read', 'batches.read'];
+const IMPORT_VIEW_PERMISSIONS = ['students.view', 'hr.view', 'academics.view', 'departments.read', 'fees.view', 'attendance.view', 'exams.view', 'library.view', 'inventory.view'];
 
 /** Entitlement-gated navigation section — rendered links are only as trustworthy as the
  * backend's EntitlementFlagsGuard (a disabled plan entitlement hides the link here, but could
@@ -104,6 +105,7 @@ export function DashboardPage() {
           {permissions.includes(DOCUMENTS_VIEW_PERMISSION) && <Link to="/documents">Documents</Link>}
           {permissions.includes(INTEGRATIONS_VIEW_PERMISSION) && <Link to="/integrations">Integrations</Link>}
           {permissions.includes(REPORTS_VIEW_PERMISSION) && <Link to="/reports">Reports</Link>}
+          {permissions.some((p) => IMPORT_VIEW_PERMISSIONS.includes(p)) && <Link to="/imports">Import / Export</Link>}
           {permissions.includes(ANALYTICS_VIEW_PERMISSION) && <Link to="/analytics">Analytics</Link>}
           {entitledAi && permissions.includes(AI_VIEW_PERMISSION) && <Link to="/ai-assistant">AI Assistant</Link>}
           {permissions.some((p) => ORG_VIEW_PERMISSIONS.includes(p)) && <Link to="/organization">Organization</Link>}
