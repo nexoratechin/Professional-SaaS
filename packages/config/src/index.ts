@@ -110,6 +110,16 @@ export const apiEnvSchema = z.object({
 
   COOKIE_DOMAIN: z.string().optional(),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+
+  /** REST platform defaults — the global @nestjs/throttler window used by every tenant route.
+   *  Per-endpoint limits (e.g. the brute-force guard on /auth/login) override these via
+   *  @Throttle(). Milliseconds for ttl, requests per window for limit. */
+  THROTTLE_TTL: z.coerce.number().int().positive().default(60_000),
+  THROTTLE_LIMIT: z.coerce.number().int().positive().default(100),
+
+  /** How long an Idempotency-Key stays cached (seconds). Default 24h. Successful responses are
+   *  replayed verbatim on a retry with the same key; failures release the key immediately. */
+  IDEMPOTENCY_TTL_SECONDS: z.coerce.number().int().positive().default(86_400),
   /** Base URL embedded in certificate QR codes so an offline printed document can be verified
    *  by anyone scanning it (resolves to the public /verify/certificate page). */
   PUBLIC_BASE_URL: z.string().url().default('http://localhost:5173'),

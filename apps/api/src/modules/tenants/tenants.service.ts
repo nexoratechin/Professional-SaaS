@@ -75,9 +75,10 @@ export class TenantsService {
   }
 
   /** Tenant search/listing for the platform admin area — filters by slug/name substring and/or
-   * status, paginated. Returns { data, total } so the caller can render real pagination; the
-   * controller puts `total` on an X-Total-Count header rather than the body, keeping the body a
-   * plain array for consistency with every other list endpoint in this codebase. */
+   * status, sorts by createdAt (default desc), or an explicit sortBy column, paginated.
+   * Returns { data, total } so the caller can render real pagination; the controller puts
+   * `total` on an X-Total-Count header rather than the body, keeping the body a plain array for
+   * consistency with every other list endpoint in this codebase. */
   async listTenants(query: ListTenantsDto = {}) {
     const where: Prisma.TenantWhereInput = {
       status: query.status,
@@ -86,10 +87,15 @@ export class TenantsService {
         : {}),
     };
 
+    // sortBy is validated against TENANT_SORT_KEYS by the DTO — orderBy is always a safe column.
+    const orderBy: Prisma.TenantOrderByWithRelationInput = {
+      [query.sortBy ?? 'createdAt']: query.sortOrder ?? 'desc',
+    };
+
     const [data, total] = await Promise.all([
       this.platformPrisma.client.tenant.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip: query.skip ?? 0,
         take: query.take ?? 50,
       }),

@@ -13,10 +13,13 @@ import {
   Patch,
   Post,
   Query,
+  Req,
+  Res,
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import type { Request, Response } from 'express';
 import { FEATURE_KEYS, PERMISSION_KEYS as K, type AuthenticatedUser } from '@college-erp/auth';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequireFeature } from '../../common/decorators/require-feature.decorator';
@@ -25,6 +28,7 @@ import { FeatureFlagsGuard } from '../../common/guards/feature-flag.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { TenantMatchGuard } from '../../common/guards/tenant-match.guard';
+import { applyPaginationMetadata } from '../../common/pagination/pagination.util';
 import { TenantContextService } from '../../common/prisma/tenant-context.service';
 import { StudentsService } from './students.service';
 import {
@@ -81,8 +85,15 @@ export class StudentsController {
 
   @Get()
   @RequirePermission(K.STUDENTS_VIEW)
-  list(@Query() query: ListStudentQueryDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.studentsService.list(this.tid(), user.id, query);
+  async list(
+    @Query() query: ListStudentQueryDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.studentsService.list(this.tid(), user.id, query);
+    applyPaginationMetadata(res, result.total, query, req.originalUrl);
+    return result;
   }
 
   @Post()

@@ -1,5 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { TenantResolutionMiddleware } from './common/middleware/tenant-resolution.middleware';
@@ -7,7 +7,11 @@ import { PrismaModule } from './common/prisma/prisma.module';
 import { QueueModule } from './common/queue/queue.module';
 import { RedisModule } from './common/redis/redis.module';
 import { StorageModule } from './common/storage/storage.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { ApiLoggingInterceptor } from './common/interceptors/api-logging.interceptor';
+import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { ConfigModule } from './config/config.module';
+import { AppConfigService } from './config/app-config.service';
 import { AcademicsModule } from './modules/academics/academics.module';
 import { AdmissionsModule } from './modules/admissions/admissions.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -53,7 +57,15 @@ import { FacultyPortalModule } from './modules/faculty-portal/faculty-portal.mod
     PrismaModule,
     QueueModule,
     StorageModule,
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    // Global rate limiting: per-IP window for every route, configured via env
+    // (THROTTLE_TTL / THROTTLE_LIMIT). Per-endpoint overrides use @Throttle() — see the strict
+    // 5/min window on /auth/login. @nestjs/throttler keys by client IP/route at the guard level.
+    ThrottlerModule.forRootAsync({
+      inject: [AppConfigService],
+      useFactory: (config: AppConfigService) => [
+        { ttl: config.get('THROTTLE_TTL'), limit: config.get('THROTTLE_LIMIT') },
+      ],
+    }),
     AuditModule,
     HealthModule,
     AuthModule,
@@ -92,7 +104,14 @@ import { FacultyPortalModule } from './modules/faculty-portal/faculty-portal.mod
     PlatformOpsModule,
     TenantConfigurationModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    // Platform-wide cross-cutting concerns, registered here (not main.ts) so e2e tests boot the
+    // same behavior the production bootstrap has:
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_INTERCEPTOR, useClass: ApiLoggingInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

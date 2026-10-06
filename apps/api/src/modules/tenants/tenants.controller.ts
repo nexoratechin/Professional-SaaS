@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { PERMISSION_KEYS, FEATURE_KEYS, ENTITLEMENT_KEYS } from '@college-erp/auth';
 import type { AuthenticatedPlatformUser, AuthenticatedUser } from '@college-erp/auth';
 import type { EffectiveEntitlementsResponseDto, FeatureFlagsResponseDto } from '@college-erp/types';
@@ -17,6 +17,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { PlatformAuthGuard } from '../../common/guards/platform-auth.guard';
 import { PlatformRoleGuard } from '../../common/guards/platform-role.guard';
 import { TenantMatchGuard } from '../../common/guards/tenant-match.guard';
+import { applyPaginationMetadata } from '../../common/pagination/pagination.util';
 import { TenantContextService } from '../../common/prisma/tenant-context.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { ListTenantsDto } from './dto/list-tenants.dto';
@@ -49,9 +50,9 @@ export class TenantsController {
   // lifecycle status or feature overrides (below).
   @Get('tenants')
   @UseGuards(PlatformAuthGuard)
-  async list(@Query() query: ListTenantsDto, @Res({ passthrough: true }) res: Response) {
+  async list(@Query() query: ListTenantsDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const { data, total } = await this.tenantsService.listTenants(query);
-    res.setHeader('X-Total-Count', String(total));
+    applyPaginationMetadata(res, total, query, req.originalUrl);
     return data;
   }
 

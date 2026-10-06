@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { PERMISSION_KEYS } from '@college-erp/auth';
 import type { AuthenticatedPlatformUser } from '@college-erp/auth';
 import { CurrentPlatformUser } from '../../common/decorators/current-platform-user.decorator';
@@ -11,6 +11,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { PlatformAuthGuard } from '../../common/guards/platform-auth.guard';
 import { PlatformRoleGuard } from '../../common/guards/platform-role.guard';
 import { TenantMatchGuard } from '../../common/guards/tenant-match.guard';
+import { applyPaginationMetadata } from '../../common/pagination/pagination.util';
 import { TenantContextService } from '../../common/prisma/tenant-context.service';
 import { ListPaymentsDto, RecordPaymentDto } from './dto/list-payments.dto';
 import { PaymentsService } from './payments.service';
@@ -40,9 +41,9 @@ export class PaymentsController {
 
   @Get('payments')
   @UseGuards(PlatformAuthGuard)
-  async list(@Query() query: ListPaymentsDto, @Res({ passthrough: true }) res: Response) {
+  async list(@Query() query: ListPaymentsDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const { data, total } = await this.paymentsService.listPayments(query);
-    res.setHeader('X-Total-Count', String(total));
+    applyPaginationMetadata(res, total, query, req.originalUrl);
     return data;
   }
 
@@ -55,9 +56,9 @@ export class PaymentsController {
   @Get('tenant/payments')
   @UseGuards(JwtAuthGuard, TenantMatchGuard, PermissionsGuard)
   @RequirePermission(PERMISSION_KEYS.TENANT_BILLING_VIEW)
-  async listOwnPayments(@Query() query: ListPaymentsDto, @Res({ passthrough: true }) res: Response) {
+  async listOwnPayments(@Query() query: ListPaymentsDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const { data, total } = await this.paymentsService.listTenantPayments(this.tenantContext.tenantId as string, query);
-    res.setHeader('X-Total-Count', String(total));
+    applyPaginationMetadata(res, total, query, req.originalUrl);
     return data;
   }
 

@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { PERMISSION_KEYS } from '@college-erp/auth';
 import type { AuthenticatedPlatformUser } from '@college-erp/auth';
 import { CurrentPlatformUser } from '../../common/decorators/current-platform-user.decorator';
@@ -11,6 +11,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { PlatformAuthGuard } from '../../common/guards/platform-auth.guard';
 import { PlatformRoleGuard } from '../../common/guards/platform-role.guard';
 import { TenantMatchGuard } from '../../common/guards/tenant-match.guard';
+import { applyPaginationMetadata } from '../../common/pagination/pagination.util';
 import { TenantContextService } from '../../common/prisma/tenant-context.service';
 import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
 import { ListInvoicesDto } from './dto/list-invoices.dto';
@@ -43,18 +44,19 @@ export class InvoicesController {
   async listForTenantPlatformSide(
     @Param('tenantId') tenantId: string,
     @Query() query: ListInvoicesDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
     const { data, total } = await this.invoicesService.listForTenant(tenantId, query);
-    res.setHeader('X-Total-Count', String(total));
+    applyPaginationMetadata(res, total, query, req.originalUrl);
     return data;
   }
 
   @Get('invoices')
   @UseGuards(PlatformAuthGuard)
-  async listAll(@Query() query: ListInvoicesDto, @Res({ passthrough: true }) res: Response) {
+  async listAll(@Query() query: ListInvoicesDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const { data, total } = await this.invoicesService.listAll(query);
-    res.setHeader('X-Total-Count', String(total));
+    applyPaginationMetadata(res, total, query, req.originalUrl);
     return data;
   }
 
@@ -89,9 +91,9 @@ export class InvoicesController {
   @Get('tenant/invoices')
   @UseGuards(JwtAuthGuard, TenantMatchGuard, PermissionsGuard)
   @RequirePermission(PERMISSION_KEYS.TENANT_BILLING_VIEW)
-  async listOwnInvoices(@Query() query: ListInvoicesDto, @Res({ passthrough: true }) res: Response) {
+  async listOwnInvoices(@Query() query: ListInvoicesDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const { data, total } = await this.invoicesService.listForTenant(this.tenantContext.tenantId as string, query);
-    res.setHeader('X-Total-Count', String(total));
+    applyPaginationMetadata(res, total, query, req.originalUrl);
     return data;
   }
 
