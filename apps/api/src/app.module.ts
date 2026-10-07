@@ -50,6 +50,7 @@ import { StudentPortalModule } from './modules/student-portal/student-portal.mod
 import { ParentPortalModule } from './modules/parent-portal/parent-portal.module';
 import { FacultyPortalModule } from './modules/faculty-portal/faculty-portal.module';
 import { ImportExportModule } from './modules/import-export/import-export.module';
+import { GlobalSearchModule } from './modules/global-search/global-search.module';
 
 @Module({
   imports: [
@@ -101,6 +102,7 @@ import { ImportExportModule } from './modules/import-export/import-export.module
     ParentPortalModule,
     FacultyPortalModule,
     ImportExportModule,
+    GlobalSearchModule,
     BillingModule,
     SupportModule,
     PlatformOpsModule,

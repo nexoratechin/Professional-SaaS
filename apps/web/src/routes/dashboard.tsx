@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button, Card } from '@college-erp/ui';
 import { useAuth, useEntitlement } from '../features/auth/auth-context';
+import { openGlobalSearch } from '../features/search/search-palette';
 
 const AUDIT_VIEW_PERMISSION = 'audit.read';
 const BILLING_VIEW_PERMISSION = 'tenant.billing.view';
@@ -26,6 +27,7 @@ const REPORTS_VIEW_PERMISSION = 'reports.view';
 const INTEGRATIONS_VIEW_PERMISSION = 'integrations.view';
 const ANALYTICS_VIEW_PERMISSION = 'analytics.view';
 const AI_VIEW_PERMISSION = 'ai.view';
+const SEARCH_VIEW_PERMISSION = 'search.view';
 const ORG_VIEW_PERMISSIONS = ['campuses.read', 'departments.read', 'programs.read', 'academicYears.read', 'terms.read', 'rooms.read', 'buildings.read', 'sections.read', 'batches.read'];
 const IMPORT_VIEW_PERMISSIONS = ['students.view', 'hr.view', 'academics.view', 'departments.read', 'fees.view', 'attendance.view', 'exams.view', 'library.view', 'inventory.view'];
 
@@ -112,6 +114,11 @@ export function DashboardPage() {
           {permissions.includes(AUDIT_VIEW_PERMISSION) && <Link to="/audit">Audit log</Link>}
           {permissions.includes(BILLING_VIEW_PERMISSION) && <Link to="/billing">Billing</Link>}
           {permissions.includes(CONFIG_VIEW_PERMISSION) && <Link to="/settings">Configuration</Link>}
+          {permissions.includes(SEARCH_VIEW_PERMISSION) && (
+            <Button variant="secondary" onClick={openGlobalSearch}>
+              Search (Ctrl K)
+            </Button>
+          )}
           <Button variant="secondary" onClick={handleLogout}>
             Log out
           </Button>

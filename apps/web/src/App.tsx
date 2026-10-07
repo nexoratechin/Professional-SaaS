@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { AuthProvider } from './features/auth/auth-context';
+import { GlobalSearchPalette } from './features/search/search-palette';
 import { PlatformAuthProvider } from './features/platform-auth/platform-auth-context';
 import { AdvancedAnalyticsPage } from './routes/analytics';
 import { AiAssistantPage } from './routes/ai-assistant';
@@ -144,6 +145,7 @@ function PlatformArea() {
 function TenantArea() {
   return (
     <AuthProvider>
+      <GlobalSearchPalette />
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<LoginPage />} />

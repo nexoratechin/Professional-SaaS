@@ -659,6 +659,7 @@ model Tenant {
   importJobs                         ImportJob[]
   importJobRows                      ImportJobRow[]
   importTemplates                    ImportTemplate[]
+  searchHistories                    SearchHistory[]
 
   @@index([status])
   @@index([createdAt])
@@ -1170,6 +1171,7 @@ model User {
   aiQueryLogs               AiQueryLog[]                  @relation("AiQueryLogUser")
   aiFeedback                AiFeedback[]                  @relation("AiFeedbackUser")
   reviewedAiClassifications AiDocumentClassification[]    @relation("AiDocumentClassificationReviewer")
+  searchHistories           SearchHistory[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -10637,4 +10639,29 @@ model ImportTemplate {
   @@unique([tenantId, entityType, name])
   @@index([tenantId, entityType])
   @@map("import_templates")
+}
+
+/// One row per (tenant, user, query) the caller has run in the global search palette. This is
+/// free-text history only — never a snapshot of results — because every result is re-derived
+/// under the caller's *current* permission and scope grants at read time. That guarantees a
+/// recent-search entry can never resurrect a record the user has since lost access to.
+/// Rows are upserted (re-running a query bumps lastSearchedAt/resultCount) and the row count per
+/// user is capped in GlobalSearchService, so the table stays small without a background sweep.
+model SearchHistory {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId       String   @map("user_id") @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  query        String
+  /// Entity-type filter the search ran with; empty means "all permitted types".
+  types        String[] @default([])
+  resultCount  Int      @default(0) @map("result_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+  lastSearchedAt DateTime @default(now()) @map("last_searched_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userId, query])
+  @@index([tenantId, userId, lastSearchedAt])
+  @@map("search_histories")
 }

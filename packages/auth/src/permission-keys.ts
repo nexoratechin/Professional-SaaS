@@ -254,6 +254,13 @@ export const PERMISSION_KEYS = {
   WORKFLOWS_VIEW: 'workflows.view',
   WORKFLOWS_APPROVE: 'workflows.approve',
   WORKFLOWS_MANAGE: 'workflows.manage',
+
+  // --- Global search (cross-module read-only fan-out) ---
+  // This gates only the ENTRY POINT. Every result row is additionally checked against the
+  // permission (and its campus/department/program/OWN scope grants) of the module the row
+  // belongs to — see apps/api/src/modules/global-search/search-registry.ts — so holding
+  // search.view can never surface a record the caller could not already open directly.
+  SEARCH_VIEW: 'search.view',
 } as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[keyof typeof PERMISSION_KEYS];
@@ -539,6 +546,13 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
       'Define and configure workflow definitions (states, transitions, approvers) for the tenant.',
     ],
   ]),
+  ...modulePermissions('search', [
+    [
+      PERMISSION_KEYS.SEARCH_VIEW,
+      VIEW,
+      'Search across modules from one box (results are still filtered by each module\'s own permission and scope), plus manage your own search suggestions/recent-search history.',
+    ],
+  ]),
 ];
 
 /** System roles seeded for every tenant at provisioning time (RolesService/RolesController
@@ -592,6 +606,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     name: 'Principal',
     description: 'Institution-wide oversight: broad visibility plus approval authority on key workflows.',
     grants: [
+      { key: K.SEARCH_VIEW },
       { key: K.USERS_VIEW },
       { key: K.ROLES_VIEW },
       { key: K.AUDIT_VIEW },
@@ -640,6 +655,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     name: 'Registrar',
     description: 'Owns admissions, student records, and academic administration.',
     grants: [
+      { key: K.SEARCH_VIEW },
       { key: K.STUDENTS_MANAGE },
       { key: K.ACADEMICS_MANAGE },
       { key: K.TIMETABLE_CREATE },
@@ -680,6 +696,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     name: 'Head of Department',
     description: "Manages their department's academics, timetable, and exam approvals.",
     grants: [
+      { key: K.SEARCH_VIEW, scopeType: S.DEPARTMENT },
       { key: K.STUDENTS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.ACADEMICS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.ACADEMICS_UPDATE, scopeType: S.DEPARTMENT },
@@ -707,6 +724,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     name: 'Faculty',
     description: 'Takes attendance and enters marks for their own classes; views their department.',
     grants: [
+      { key: K.SEARCH_VIEW, scopeType: S.DEPARTMENT },
       { key: K.STUDENTS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.ACADEMICS_VIEW, scopeType: S.DEPARTMENT },
       { key: K.TIMETABLE_VIEW, scopeType: S.OWN },
@@ -725,6 +743,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     name: 'Accountant',
     description: 'Owns fee structures, demands, refunds, and payment reconciliation.',
     grants: [
+      { key: K.SEARCH_VIEW },
       { key: K.FEES_MANAGE },
       { key: K.PAYMENTS_MANAGE },
       { key: K.TENANT_BILLING_VIEW },
@@ -748,6 +767,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     name: 'Exam Controller',
     description: 'Owns exam scheduling, seating, moderation, and result/certificate publication.',
     grants: [
+      { key: K.SEARCH_VIEW },
       { key: K.EXAMS_MANAGE },
       { key: K.RESULTS_MANAGE },
       { key: K.CERTIFICATES_VIEW },
@@ -762,25 +782,26 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     code: SYSTEM_ROLE_CODES.LIBRARIAN,
     name: 'Librarian',
     description: "Manages their campus's library catalog, loans, and fines.",
-    grants: [{ key: K.LIBRARY_MANAGE, scopeType: S.CAMPUS }],
+    grants: [{ key: K.SEARCH_VIEW, scopeType: S.CAMPUS }, { key: K.LIBRARY_MANAGE, scopeType: S.CAMPUS }],
   },
   {
     code: SYSTEM_ROLE_CODES.HOSTEL_WARDEN,
     name: 'Hostel Warden',
     description: "Manages their campus's hostel allocations.",
-    grants: [{ key: K.HOSTEL_MANAGE, scopeType: S.CAMPUS }],
+    grants: [{ key: K.SEARCH_VIEW, scopeType: S.CAMPUS }, { key: K.HOSTEL_MANAGE, scopeType: S.CAMPUS }],
   },
   {
     code: SYSTEM_ROLE_CODES.TRANSPORT_MANAGER,
     name: 'Transport Manager',
     description: "Manages their campus's transport routes, vehicles, and passes.",
-    grants: [{ key: K.TRANSPORT_MANAGE, scopeType: S.CAMPUS }],
+    grants: [{ key: K.SEARCH_VIEW, scopeType: S.CAMPUS }, { key: K.TRANSPORT_MANAGE, scopeType: S.CAMPUS }],
   },
   {
     code: SYSTEM_ROLE_CODES.HR,
     name: 'HR',
     description: 'Owns employee records, leave, and workload; manages tenant user accounts for staff.',
     grants: [
+      { key: K.SEARCH_VIEW },
       { key: K.HR_MANAGE },
       { key: K.USERS_VIEW },
       { key: K.USERS_MANAGE },
@@ -796,6 +817,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     name: 'Placement Officer',
     description: 'Owns placement drives, company relationships, and eligibility approvals.',
     grants: [
+      { key: K.SEARCH_VIEW },
       { key: K.PLACEMENTS_MANAGE },
       { key: K.STUDENTS_VIEW },
       { key: K.AI_VIEW },
@@ -809,6 +831,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
     name: 'Student',
     description: 'Self-service access to their own academic, attendance, exam, and fee records.',
     grants: [
+      { key: K.SEARCH_VIEW, scopeType: S.OWN },
       { key: K.STUDENTS_VIEW, scopeType: S.OWN },
       { key: K.ACADEMICS_VIEW, scopeType: S.OWN },
       { key: K.ACADEMICS_CREATE, scopeType: S.OWN },
@@ -831,6 +854,7 @@ export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
       '(the actual student scope is anchored on the Guardian.userId link used by the Parent Portal; ' +
       'OWN here is a conservative ceiling, never a grant).',
     grants: [
+      { key: K.SEARCH_VIEW, scopeType: S.OWN },
       { key: K.STUDENTS_VIEW, scopeType: S.OWN },
       { key: K.ATTENDANCE_VIEW, scopeType: S.OWN },
       { key: K.EXAMS_VIEW, scopeType: S.OWN },

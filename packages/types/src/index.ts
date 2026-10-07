@@ -8,6 +8,7 @@ export * from './ai';
 export * from './analytics';
 export * from './hr';
 export * from './placements';
+export * from './search';
 
 export interface TenantDto {
   id: string;
