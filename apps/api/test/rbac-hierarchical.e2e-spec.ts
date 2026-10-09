@@ -26,7 +26,7 @@ describe('Hierarchical RBAC (e2e)', () => {
     await app.close();
   });
 
-  it('provisions all 14 system roles (College Admin + 13 defaults) for a new tenant', async () => {
+  it('provisions all system roles (College Admin + every default role) for a new tenant', async () => {
     const tenant = await provisionTenant(app, platformToken);
     const adminToken = await loginAsTenantUser(app, tenant.slug, tenant.adminEmail, tenant.adminPassword);
 

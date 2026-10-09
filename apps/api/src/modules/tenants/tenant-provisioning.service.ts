@@ -23,7 +23,7 @@ export interface ProvisionDefaultAdminInput {
 /**
  * Runs once per tenant, right after creation: seeds the protected "College Admin"
  * (TENANT_ADMIN) system role with every currently-defined permission, the first active admin
- * user, and the other 13 default system roles (Principal, Registrar, HOD, Faculty, Accountant,
+ * user, and the other default system roles (Campus Admin, Principal, Registrar, HOD, Faculty, Accountant,
  * Exam Controller, Librarian, Hostel Warden, Transport Manager, HR, Placement Officer, Student,
  * Parent — see DEFAULT_ROLE_DEFINITIONS) ready for the admin to assign to real people, plus the
  * example DEFAULT_WORKFLOW_DEFINITIONS (fee refund + leave request approval chains) proving the

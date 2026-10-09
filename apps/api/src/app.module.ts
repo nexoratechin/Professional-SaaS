@@ -35,6 +35,7 @@ import { FeesModule } from './modules/fees/fees.module';
 import { CertificatesModule } from './modules/certificates/certificates.module';
 import { TenantConfigurationModule } from './modules/tenant-configuration/tenant-configuration.module';
 import { OrganizationModule } from './modules/organization/organization.module';
+import { CampusModule } from './modules/campus/campus.module';
 import { ResultsModule } from './modules/results/results.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
@@ -107,6 +108,7 @@ import { GlobalSearchModule } from './modules/global-search/global-search.module
     SupportModule,
     PlatformOpsModule,
     TenantConfigurationModule,
+    CampusModule,
   ],
   providers: [
     // Platform-wide cross-cutting concerns, registered here (not main.ts) so e2e tests boot the

@@ -15,7 +15,7 @@
  * batches — full CRUD API in apps/api's organization module), notifications, documents.
  * Every other module below
  * (students…integrations, matching the blueprint's full product map) has no controller yet —
- * their permissions exist now so the 13 default tenant roles (see DEFAULT_ROLE_DEFINITIONS)
+ * their permissions exist now so the default tenant roles (see DEFAULT_ROLE_DEFINITIONS)
  * have real, differentiated grants to seed, and so each module's future CRUD controller has a
  * stable permission catalog to enforce against from day one instead of inventing one later.
  */
@@ -261,6 +261,22 @@ export const PERMISSION_KEYS = {
   // belongs to — see apps/api/src/modules/global-search/search-registry.ts — so holding
   // search.view can never surface a record the caller could not already open directly.
   SEARCH_VIEW: 'search.view',
+
+  // --- Multi-campus operations (apps/api's campus module) ---
+  // The campus module layers an operations surface over the multi-campus architecture: per-campus
+  // settings/config (a CampusConfiguration row per campus mirroring the tenant configuration
+  // engine), campus-level analytics (overview + comparison), and global cross-campus policies.
+  // These three permission families are intentionally NOT part of the classic/module permission
+  // sets above: they govern the campus administration subsystem itself. `campus.settings.manage`
+  // is a MANAGE on the "campus" module, which the resolution logic expands to campus.settings.view
+  // (and only that — the other "campus" module VIEWs) automatically.
+  CAMPUS_SETTINGS_VIEW: 'campus.settings.view',
+  CAMPUS_SETTINGS_MANAGE: 'campus.settings.manage',
+  CAMPUS_ANALYTICS_VIEW: 'campus.analytics.view',
+  /** Global cross-campus policies (tenant-level, e.g. "campuses may not edit their own settings").
+   * Only GLOBAL-scope grants are honored for the policies endpoints — a campus-scoped grant
+   * cannot ever mutate institution-wide policy. */
+  CAMPUS_POLICIES_MANAGE: 'campus.policies.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[keyof typeof PERMISSION_KEYS];
@@ -553,6 +569,28 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
       'Search across modules from one box (results are still filtered by each module\'s own permission and scope), plus manage your own search suggestions/recent-search history.',
     ],
   ]),
+  ...modulePermissions('campus', [
+    [
+      PERMISSION_KEYS.CAMPUS_SETTINGS_VIEW,
+      VIEW,
+      "View a campus's configuration document (timezone, branding, academic calendar, attendance/fee overrides, numbering, templates).",
+    ],
+    [
+      PERMISSION_KEYS.CAMPUS_SETTINGS_MANAGE,
+      MANAGE,
+      "Edit a campus's configuration document. CAMPUS-scoped grants only apply to the campus the holder is bound to via their UserRole; GLOBAL grants apply to every campus.",
+    ],
+    [
+      PERMISSION_KEYS.CAMPUS_ANALYTICS_VIEW,
+      VIEW,
+      'View campus-level analytics: the multi-campus overview with per-campus counts and the side-by-side campus comparison.',
+    ],
+    [
+      PERMISSION_KEYS.CAMPUS_POLICIES_MANAGE,
+      MANAGE,
+      "Configure global cross-campus policies (master switches for campus settings/analytics, defaults new campuses inherit). Enforced only from GLOBAL-scope grants — a campus-scoped grant can never touch institution-wide policy.",
+    ],
+  ]),
 ];
 
 /** System roles seeded for every tenant at provisioning time (RolesService/RolesController
@@ -565,6 +603,7 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
  * creating a duplicate tenant-scoped role for it would misrepresent that separation. */
 export const SYSTEM_ROLE_CODES = {
   TENANT_ADMIN: 'TENANT_ADMIN',
+  CAMPUS_ADMIN: 'CAMPUS_ADMIN',
   PRINCIPAL: 'PRINCIPAL',
   REGISTRAR: 'REGISTRAR',
   HOD: 'HOD',
@@ -596,11 +635,36 @@ export interface DefaultRoleDefinition {
 const K = PERMISSION_KEYS;
 const S = PERMISSION_SCOPE_TYPES;
 
-/** The 13 non-admin default roles seeded for every new tenant (TENANT_ADMIN/"College Admin" is
+/** The default non-admin roles seeded for every new tenant (TENANT_ADMIN/"College Admin" is
  * seeded separately — see SYSTEM_ROLE_CODES doc comment). Scope types here describe what the
  * ROLE grants; the concrete campus/department/program a given holder is bound to is set on
- * their UserRole at assignment time (see UsersService.assignRole). */
+ * their UserRole at assignment time (see UsersService.assignRole). CAMPUS_ADMIN joins the
+ * campus-scoped roles (Librarian, Hostel Warden, Transport Manager): every grant is CAMPUS-
+ * scoped, so the role is inert until assigned to a user with a concrete scopeCampusId — the
+ * holder then administers exactly that campus and nothing else. */
 export const DEFAULT_ROLE_DEFINITIONS: DefaultRoleDefinition[] = [
+  {
+    code: SYSTEM_ROLE_CODES.CAMPUS_ADMIN,
+    name: 'Campus Admin',
+    description:
+      "Operational admin for a single campus: configures the campus's settings, views campus analytics, and gets read visibility across the operational modules (students, fees, attendance, timetable, exams, results, reports) within that campus. Institutional/global policies stay with the university-level roles.",
+    grants: [
+      { key: K.SEARCH_VIEW, scopeType: S.CAMPUS },
+      { key: K.CAMPUSES_VIEW, scopeType: S.CAMPUS },
+      { key: K.STUDENTS_VIEW, scopeType: S.CAMPUS },
+      { key: K.FEES_VIEW, scopeType: S.CAMPUS },
+      { key: K.ATTENDANCE_VIEW, scopeType: S.CAMPUS },
+      { key: K.TIMETABLE_VIEW, scopeType: S.CAMPUS },
+      { key: K.EXAMS_VIEW, scopeType: S.CAMPUS },
+      { key: K.RESULTS_VIEW, scopeType: S.CAMPUS },
+      { key: K.REPORTS_VIEW, scopeType: S.CAMPUS },
+      { key: K.NOTIFICATIONS_VIEW, scopeType: S.CAMPUS },
+      { key: K.DOCUMENTS_VIEW, scopeType: S.CAMPUS },
+      { key: K.CAMPUS_SETTINGS_VIEW, scopeType: S.CAMPUS },
+      { key: K.CAMPUS_SETTINGS_MANAGE, scopeType: S.CAMPUS },
+      { key: K.CAMPUS_ANALYTICS_VIEW, scopeType: S.CAMPUS },
+    ],
+  },
   {
     code: SYSTEM_ROLE_CODES.PRINCIPAL,
     name: 'Principal',

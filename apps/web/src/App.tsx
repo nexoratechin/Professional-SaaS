@@ -8,6 +8,7 @@ import { AiAssistantPage } from './routes/ai-assistant';
 import { AuditLogPage } from './routes/audit-log';
 import { BillingPage } from './routes/billing';
 import { DashboardPage } from './routes/dashboard';
+import { CampusesPage } from './routes/campuses';
 import { EntitlementRoute } from './routes/entitlement-route';
 import { LoginPage } from './routes/login';
 import { PlatformAnalyticsPage } from './routes/platform/platform-analytics';
@@ -214,6 +215,14 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <TenantConfigurationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/campuses"
+          element={
+            <ProtectedRoute>
+              <CampusesPage />
             </ProtectedRoute>
           }
         />

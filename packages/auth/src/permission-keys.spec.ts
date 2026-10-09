@@ -40,8 +40,8 @@ describe('default role definitions', () => {
   const catalogKeys = new Set(PERMISSION_CATALOG.map((entry) => entry.key));
   const validScopeTypes = new Set(Object.values(PERMISSION_SCOPE_TYPES));
 
-  it('covers exactly the 13 non-admin default roles (TENANT_ADMIN is provisioned separately)', () => {
-    expect(DEFAULT_ROLE_DEFINITIONS).toHaveLength(13);
+  it('covers exactly the 14 non-admin default roles (TENANT_ADMIN is provisioned separately)', () => {
+    expect(DEFAULT_ROLE_DEFINITIONS).toHaveLength(14);
     expect(DEFAULT_ROLE_DEFINITIONS.some((role) => role.code === SYSTEM_ROLE_CODES.TENANT_ADMIN)).toBe(false);
   });
 

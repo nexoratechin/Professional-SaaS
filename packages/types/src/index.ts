@@ -9,6 +9,8 @@ export * from './analytics';
 export * from './hr';
 export * from './placements';
 export * from './search';
+export * from './campus';
+import type { GlobalCampusPoliciesDto } from './campus';
 
 export interface TenantDto {
   id: string;
@@ -364,7 +366,8 @@ export interface TenantConfigTemplates {
 }
 
 /** The full tenant configuration document — a typed view over the JSONB `data` column. Every
- * section is optional/nullable so a freshly-provisioned tenant with only defaults still renders. */
+ * section is optional/nullable so a freshly-provisioned tenant with only defaults still renders.
+ * The `policies` section carries the global cross-campus policy document (see campus.ts). */
 export interface TenantConfigurationDto {
   branding: Partial<TenantConfigBranding> | null;
   academicCalendar: Partial<TenantConfigAcademicCalendar> | null;
@@ -374,6 +377,7 @@ export interface TenantConfigurationDto {
   admissions: Partial<TenantConfigAdmissions> | null;
   numbering: Partial<TenantConfigNumbering> | null;
   templates: Partial<TenantConfigTemplates> | null;
+  policies: Partial<GlobalCampusPoliciesDto> | null;
 }
 
 export interface TenantConfigurationResponseDto {

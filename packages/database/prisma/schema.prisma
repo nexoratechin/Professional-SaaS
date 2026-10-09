@@ -450,6 +450,7 @@ model Tenant {
   securityEvents                    SecurityEvent[]
   securitySettings                  TenantSecuritySettings?
   configuration                     TenantConfiguration?
+  campusConfigurations              CampusConfiguration[]
   workflowDefinitions               WorkflowDefinition[]
   workflowStates                    WorkflowState[]
   workflowTransitions               WorkflowTransition[]
@@ -1495,6 +1496,29 @@ model TenantConfiguration {
   @@map("tenant_configurations")
 }
 
+/// Per-campus configuration engine — the campus-level counterpart of TenantConfiguration. A
+/// single JSONB document per campus carrying everything that can differ between campuses
+/// (timezone, branding, academic calendar, attendance thresholds, fee rules, numbering,
+/// templates), versioned for optimistic concurrency. Created lazily on first read with the
+/// tenant's global campus defaults; `data` JSONB carries all values so adding configuration
+/// sections never requires a schema migration.
+model CampusConfiguration {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  campusId  String   @unique @map("campus_id") @db.Uuid
+  campus    Campus   @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  data      Json     @default("{}")
+  version   Int      @default(1)
+  createdBy String?  @map("created_by")
+  updatedBy String?  @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("campus_configurations")
+}
+
 /// Control-plane singleton (one row; SecuritySettingsService finds-or-creates it) â€” global
 /// defaults applied wherever a tenant hasn't overridden, plus platform-realm-only toggles
 /// (mfaRequiredForPlatformAdmins) and kill switches a platform admin can flip without a deploy.
@@ -1541,6 +1565,7 @@ model Campus {
   departments               Department[]
   buildings                 Building[]
   rooms                     Room[]
+  configuration             CampusConfiguration?
   roleScopeUsers            UserRole[]
   students                  Student[]
   admissionApplications     AdmissionApplication[]

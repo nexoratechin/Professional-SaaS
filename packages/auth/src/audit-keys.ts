@@ -23,6 +23,7 @@ export const AUDIT_MODULES = {
   SAAS: 'saas',
   SECURITY: 'security',
   ORGANIZATION: 'organization',
+  CAMPUS: 'campus',
   NOTIFICATIONS: 'notifications',
   DOCUMENTS: 'documents',
   WORKFLOWS: 'workflows',
@@ -93,6 +94,10 @@ export const AUDIT_ACTIONS = {
   TENANT_SETTINGS_UPDATED: 'TENANT_SETTINGS_UPDATED',
   TENANT_FEATURE_OVERRIDE_SET: 'TENANT_FEATURE_OVERRIDE_SET',
   TENANT_CONFIGURATION_UPDATED: 'TENANT_CONFIGURATION_UPDATED',
+
+  // --- Multi-campus operations (module CAMPUS, see apps/api's campus module) ---
+  CAMPUS_CONFIGURATION_UPDATED: 'CAMPUS_CONFIGURATION_UPDATED',
+  CAMPUS_POLICIES_UPDATED: 'CAMPUS_POLICIES_UPDATED',
 
   // --- Organization: campus/department/program/academic-year/term/room/building/section/batch
   // changes (module ORGANIZATION, see apps/api's organization module) ---

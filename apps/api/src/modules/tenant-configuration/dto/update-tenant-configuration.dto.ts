@@ -12,7 +12,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class BrandingSectionDto {
+export class BrandingSectionDto {
   @IsOptional()
   @IsString()
   collegeName?: string;
@@ -42,7 +42,7 @@ class BrandingSectionDto {
   accentColor?: string;
 }
 
-class AcademicCalendarSectionDto {
+export class AcademicCalendarSectionDto {
   @IsOptional()
   @IsString()
   startDate?: string;
@@ -105,7 +105,7 @@ class GradingSectionDto {
   gradeScale?: GradeBandDto[] | null;
 }
 
-class AttendanceSectionDto {
+export class AttendanceSectionDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
@@ -166,7 +166,7 @@ class FeeHeadDto {
   isOptional: boolean;
 }
 
-class FeesSectionDto {
+export class FeesSectionDto {
   @IsOptional()
   @ValidateNested({ each: true })
   @Type(() => FeeHeadDto)
@@ -203,7 +203,7 @@ class AdmissionsSectionDto {
   documentChecklist?: string[] | null;
 }
 
-class NumberingSectionDto {
+export class NumberingSectionDto {
   @IsOptional()
   @IsString()
   studentPrefix?: string;
@@ -236,7 +236,7 @@ class TemplateEntryDto {
   body: string;
 }
 
-class TemplatesSectionDto {
+export class TemplatesSectionDto {
   @IsOptional()
   @ValidateNested({ each: true })
   @Type(() => TemplateEntryDto)
@@ -246,6 +246,24 @@ class TemplatesSectionDto {
   @ValidateNested({ each: true })
   @Type(() => TemplateEntryDto)
   notification?: TemplateEntryDto[] | null;
+}
+
+export class CampusPoliciesSectionDto {
+  @IsOptional()
+  @IsBoolean()
+  campusSettingsEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  campusAnalyticsEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  allowCampusAdminRole?: boolean;
+
+  @IsOptional()
+  @IsString()
+  defaultTimezone?: string | null;
 }
 
 /** PATCH body for the tenant configuration document. Only the section(s) provided are merged
@@ -290,4 +308,9 @@ export class UpdateTenantConfigurationDto {
   @ValidateNested()
   @Type(() => TemplatesSectionDto)
   templates?: TemplatesSectionDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CampusPoliciesSectionDto)
+  policies?: CampusPoliciesSectionDto;
 }
