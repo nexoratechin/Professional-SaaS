@@ -142,7 +142,50 @@ export interface PlatformTenantDto {
   status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELED';
   billingEmail: string;
   timezone: string;
+  dataIsolationMode?: TenantDataIsolationMode;
   createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Enterprise database isolation (platform control plane)
+// ---------------------------------------------------------------------------
+
+/** Mirrors the Prisma TenantDataIsolationMode enum over the wire. */
+export type TenantDataIsolationMode = 'SHARED' | 'DEDICATED_SCHEMA' | 'DEDICATED_DATABASE';
+
+/** Mirrors the Prisma TenantDatabaseProvisionStatus enum over the wire. */
+export type TenantDatabaseProvisionStatus =
+  | 'NOT_APPLICABLE'
+  | 'PENDING'
+  | 'PROVISIONING'
+  | 'MIGRATING'
+  | 'READY'
+  | 'FAILED';
+
+/** GET /tenants/:id/database — enterprise store status. The connection URL is never returned. */
+export interface TenantDatabaseStatusDto {
+  tenantId: string;
+  mode: TenantDataIsolationMode;
+  status: TenantDatabaseProvisionStatus;
+  schemaName: string | null;
+  databaseName: string | null;
+  appliedMigrationCount: number;
+  lastAppliedMigration: string | null;
+  lastMigratedAt: string | null;
+  provisionedAt: string | null;
+  failureReason: string | null;
+  /** Whether this API process currently routes the tenant to its dedicated store. */
+  routable: boolean;
+}
+
+/** GET /tenants/:id/data-isolation/plan — read-only cutover plan for an existing tenant. */
+export interface TenantDataIsolationPlanDto {
+  tenantId: string;
+  currentMode: TenantDataIsolationMode;
+  targetMode: TenantDataIsolationMode;
+  requiresManualCutover: boolean;
+  steps: string[];
+  businessDataCounts: Record<string, number>;
 }
 
 export interface TenantUsageDto {

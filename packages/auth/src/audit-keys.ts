@@ -96,6 +96,14 @@ export const AUDIT_ACTIONS = {
   TENANT_SETTINGS_UPDATED: 'TENANT_SETTINGS_UPDATED',
   TENANT_FEATURE_OVERRIDE_SET: 'TENANT_FEATURE_OVERRIDE_SET',
   TENANT_CONFIGURATION_UPDATED: 'TENANT_CONFIGURATION_UPDATED',
+  /** Enterprise database isolation: a tenant's physical store was provisioned (schema/database). */
+  TENANT_DATABASE_PROVISIONED: 'TENANT_DATABASE_PROVISIONED',
+  /** A schema migration was applied to an enterprise tenant's dedicated store. */
+  TENANT_DATABASE_MIGRATED: 'TENANT_DATABASE_MIGRATED',
+  /** A tenant's data-isolation mode was changed (e.g. SHARED -> DEDICATED_SCHEMA). */
+  TENANT_DATA_ISOLATION_CHANGED: 'TENANT_DATA_ISOLATION_CHANGED',
+  /** Provisioning or migration of an enterprise store failed (recorded for operator triage). */
+  TENANT_DATABASE_FAILED: 'TENANT_DATABASE_FAILED',
 
   // --- Multi-campus operations (module CAMPUS, see apps/api's campus module) ---
   CAMPUS_CONFIGURATION_UPDATED: 'CAMPUS_CONFIGURATION_UPDATED',

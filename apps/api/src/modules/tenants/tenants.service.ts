@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import type { Prisma, TenantStatus } from '@college-erp/database';
+import { AppConfigService } from '../../config/app-config.service';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { TenantLookupService } from '../../common/tenant/tenant-lookup.service';
 import { AuditService } from '../audit/audit.service';
@@ -10,10 +11,12 @@ import { TenantFeaturesService } from '../rbac/tenant-features.service';
 import type { CreateTenantDto } from './dto/create-tenant.dto';
 import type { ListTenantsDto } from './dto/list-tenants.dto';
 import type { SetEntitlementOverrideDto } from './dto/set-entitlement-override.dto';
+import type { SetTenantDataIsolationDto } from './dto/set-tenant-data-isolation.dto';
 import type { SetTenantFeatureOverrideDto } from './dto/set-tenant-feature-override.dto';
 import type { TransitionTenantStatusDto } from './dto/transition-tenant-status.dto';
 import type { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import type { UpdateTenantStatusDto } from './dto/update-tenant-status.dto';
+import { TenantDatabaseService } from './tenant-database.service';
 import { TenantProvisioningService } from './tenant-provisioning.service';
 
 /** Which CURRENT statuses a tenant may legally move FROM to reach a given target status via the
@@ -33,23 +36,40 @@ export class TenantsService {
   constructor(
     private readonly platformPrisma: PlatformPrismaService,
     private readonly provisioning: TenantProvisioningService,
+    private readonly tenantDatabase: TenantDatabaseService,
     private readonly tenantLookup: TenantLookupService,
     private readonly tenantFeatures: TenantFeaturesService,
     private readonly entitlements: EntitlementsService,
     private readonly entitlementGateway: EntitlementsGatewayService,
     private readonly auditService: AuditService,
+    private readonly config: AppConfigService,
   ) {}
 
   async createTenant(dto: CreateTenantDto, actorPlatformUserId: string) {
+    const dataIsolationMode = dto.dataIsolationMode ?? 'SHARED';
+    if (dataIsolationMode !== 'SHARED' && !this.config.get('TENANT_DB_ISOLATION_ENABLED')) {
+      throw new BadRequestException(
+        'Enterprise database isolation is disabled (set TENANT_DB_ISOLATION_ENABLED=true).',
+      );
+    }
+
     const tenant = await this.platformPrisma.client.tenant.create({
       data: {
         slug: dto.slug,
         name: dto.name,
         billingEmail: dto.billingEmail,
         timezone: dto.timezone ?? 'Asia/Kolkata',
+        dataIsolationMode,
         createdBy: actorPlatformUserId,
       },
     });
+
+    // Enterprise tenants get their physical store (schema/database) created, migrated and seeded
+    // with the global catalog BEFORE the default admin is provisioned, so the seeded roles/users
+    // land in the tenant's own store. Existing tenants are never affected — the default is SHARED.
+    if (dataIsolationMode !== 'SHARED') {
+      await this.tenantDatabase.provisionForTenant(tenant.id, actorPlatformUserId);
+    }
 
     await this.provisioning.provisionDefaultAdmin({
       tenantId: tenant.id,
@@ -107,6 +127,40 @@ export class TenantsService {
 
   async getTenant(id: string) {
     return this.platformPrisma.client.tenant.findUniqueOrThrow({ where: { id } });
+  }
+
+  // --- Enterprise database isolation (platform control plane) -----------------------------
+
+  /** Status of a tenant's dedicated store (never returns the connection URL). */
+  async getDatabase(tenantId: string) {
+    return this.tenantDatabase.getStatus(tenantId);
+  }
+
+  /** Provisions (or re-provisions) an enterprise tenant's physical store. */
+  async provisionDatabase(tenantId: string, actorPlatformUserId: string) {
+    return this.tenantDatabase.provisionForTenant(tenantId, actorPlatformUserId);
+  }
+
+  /** Reconciles an enterprise tenant's store to the current Prisma schema. */
+  async migrateDatabase(tenantId: string, actorPlatformUserId: string) {
+    return this.tenantDatabase.migrate(tenantId, actorPlatformUserId);
+  }
+
+  /** Read-only cutover plan for moving an existing tenant to an enterprise store. */
+  async getDataIsolationPlan(
+    tenantId: string,
+    targetMode?: 'SHARED' | 'DEDICATED_SCHEMA' | 'DEDICATED_DATABASE',
+  ) {
+    return this.tenantDatabase.planIsolationChange(tenantId, targetMode ?? 'DEDICATED_SCHEMA');
+  }
+
+  /** Explicitly changes a tenant's isolation mode (refuses to auto-move a tenant with data). */
+  async setDataIsolation(
+    tenantId: string,
+    dto: SetTenantDataIsolationDto,
+    actorPlatformUserId: string,
+  ) {
+    return this.tenantDatabase.setDataIsolation(tenantId, dto, actorPlatformUserId);
   }
 
   /** Tenant usage — active/total users, a proxy student count (no Student entity exists yet; see

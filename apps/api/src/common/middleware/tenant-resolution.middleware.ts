@@ -1,7 +1,14 @@
-import { ForbiddenException, Injectable, NestMiddleware, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NestMiddleware,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import type { NextFunction, Response } from 'express';
 import { AppConfigService } from '../../config/app-config.service';
 import { TenantContextService } from '../prisma/tenant-context.service';
+import { TenantConnectionService } from '../tenant/tenant-connection.service';
 import { TenantLookupService } from '../tenant/tenant-lookup.service';
 import type { RequestWithTenant } from '../types/tenant-request';
 
@@ -18,6 +25,7 @@ export class TenantResolutionMiddleware implements NestMiddleware {
     private readonly tenantLookup: TenantLookupService,
     private readonly config: AppConfigService,
     private readonly tenantContext: TenantContextService,
+    private readonly tenantConnection: TenantConnectionService,
   ) {}
 
   async use(req: RequestWithTenant, _res: Response, next: NextFunction): Promise<void> {
@@ -33,6 +41,17 @@ export class TenantResolutionMiddleware implements NestMiddleware {
       }
       if (tenant.status === 'SUSPENDED' || tenant.status === 'CANCELED') {
         throw new ForbiddenException(`Tenant is ${tenant.status.toLowerCase()}.`);
+      }
+
+      // An enterprise tenant routes to its own schema/database. Make sure this process knows how
+      // to reach it, and fail closed (503) rather than silently serving the shared database when
+      // its store is not READY. (A cached entry written before this field existed reads as
+      // undefined; treat that as SHARED so a rolling deploy cannot 503 an existing tenant.)
+      if (tenant.dataIsolationMode && tenant.dataIsolationMode !== 'SHARED') {
+        const ready = await this.tenantConnection.ensureRegistered(tenant.id);
+        if (!ready) {
+          throw new ServiceUnavailableException('This tenant\u2019s database is not available.');
+        }
       }
 
       req.resolvedTenant = tenant;

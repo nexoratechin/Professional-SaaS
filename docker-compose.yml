@@ -83,6 +83,14 @@ services:
       # Comma-separated origins; set CORS_ORIGIN=http://localhost:8080 when using the web-prod
       # profile below.
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      # Enterprise database isolation (off by default; see docs/enterprise-database-isolation.md).
+      TENANT_DB_ISOLATION_ENABLED: ${TENANT_DB_ISOLATION_ENABLED:-false}
+      TENANT_DB_SECRET_KEY: ${TENANT_DB_SECRET_KEY:-}
+      TENANT_DB_ADMIN_URL: ${TENANT_DB_ADMIN_URL:-}
+      TENANT_DB_SCHEMA_PREFIX: ${TENANT_DB_SCHEMA_PREFIX:-tenant_}
+      TENANT_DB_DATABASE_PREFIX: ${TENANT_DB_DATABASE_PREFIX:-college_erp_tenant_}
+      TENANT_DB_MIGRATION_MODE: ${TENANT_DB_MIGRATION_MODE:-auto}
+      TENANT_DB_MAX_CLIENTS: ${TENANT_DB_MAX_CLIENTS:-10}
     ports:
       - '3000:3000'
     depends_on:
@@ -127,6 +135,10 @@ services:
       # MUST match the API's PUBLIC_BASE_URL (certificate QR codes) and payment gateway adapter.
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:5173}
       PAYMENTS_GATEWAY: ${PAYMENTS_GATEWAY:-mock}
+      # MUST match the API's enterprise isolation settings so jobs route to the same store.
+      TENANT_DB_ISOLATION_ENABLED: ${TENANT_DB_ISOLATION_ENABLED:-false}
+      TENANT_DB_SECRET_KEY: ${TENANT_DB_SECRET_KEY:-}
+      TENANT_DB_MAX_CLIENTS: ${TENANT_DB_MAX_CLIENTS:-10}
     depends_on:
       postgres:
         condition: service_healthy

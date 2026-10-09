@@ -1,5 +1,7 @@
-import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { IsStrongPassword } from '../../../common/decorators/is-strong-password.decorator';
+import { TENANT_DATA_ISOLATION_MODES } from './set-tenant-data-isolation.dto';
+import type { TenantDataIsolationModeDto } from './set-tenant-data-isolation.dto';
 
 export class CreateTenantDto {
   @IsString()
@@ -18,6 +20,11 @@ export class CreateTenantDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  /** Optional enterprise isolation. Defaults to SHARED. Requires TENANT_DB_ISOLATION_ENABLED. */
+  @IsOptional()
+  @IsIn(TENANT_DATA_ISOLATION_MODES)
+  dataIsolationMode?: TenantDataIsolationModeDto;
 
   @IsEmail()
   adminEmail!: string;

@@ -29,6 +29,9 @@ describe('tenant-guard model classification (from Prisma DMMF)', () => {
     'PasswordHistory',
     'TenantSecuritySettings',
     'TenantConfiguration',
+    // Enterprise tenant physical-store metadata — carries a required tenantId, so the guard scopes
+    // it too (defence in depth on top of the control-plane access via PlatformPrismaService).
+    'TenantDatabase',
     'WorkflowDefinition',
     'WorkflowState',
     'WorkflowTransition',

@@ -128,6 +128,37 @@ export const apiEnvSchema = z.object({
   PAYMENTS_GATEWAY: z.enum(['mock', 'razorpay']).default('mock'),
   /** In prod, tenant is resolved from subdomain; dev/CI fall back to the X-Tenant-Slug header. */
   TENANT_HEADER_FALLBACK: boolFromString,
+
+  // --- Enterprise database isolation (optional; off by default) ------------------------------
+  // The default architecture remains shared PostgreSQL + tenant_id. These knobs enable the opt-in
+  // dedicated-schema / dedicated-database modes. See docs/enterprise-database-isolation.md.
+
+  /** Master switch. When false, creating/upgrading a tenant to a DEDICATED_* mode is refused. */
+  TENANT_DB_ISOLATION_ENABLED: boolFromString,
+  /** AES-256-GCM key (64 hex chars) encrypting enterprise tenant connection URLs at rest.
+   *  Generate with `openssl rand -hex 32`. Required only when isolation is enabled. */
+  TENANT_DB_SECRET_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'TENANT_DB_SECRET_KEY must be 64 hex characters (32 bytes)')
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  /** Privileged URL used to CREATE DATABASE / CREATE SCHEMA. Defaults to DATABASE_URL. */
+  TENANT_DB_ADMIN_URL: z
+    .union([z.string().url(), z.literal('')])
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  TENANT_DB_SCHEMA_PREFIX: z.string().default('tenant_'),
+  TENANT_DB_DATABASE_PREFIX: z.string().default('college_erp_tenant_'),
+  /** `auto` applies schema migrations inline during provisioning; `manual` creates the store and
+   *  leaves migrations to an operator/DBA. */
+  TENANT_DB_MIGRATION_MODE: z.enum(['auto', 'manual']).default('auto'),
+  /** Absolute path to schema.prisma for the migration executor; auto-resolved when unset. */
+  TENANT_DB_PRISMA_SCHEMA_PATH: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  /** Max dedicated Prisma clients kept open per process. */
+  TENANT_DB_MAX_CLIENTS: z.coerce.number().int().positive().default(10),
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
@@ -212,6 +243,19 @@ export const workerEnvSchema = z.object({
   PUBLIC_BASE_URL: z.string().url().default('http://localhost:5173'),
   /** Payment gateway adapter the reconciliation queue calls: `mock` or `razorpay`. */
   PAYMENTS_GATEWAY: z.enum(['mock', 'razorpay']).default('mock'),
+
+  // --- Enterprise database isolation (optional; off by default) ------------------------------
+  // The worker routes a DEDICATED_* tenant's jobs to its schema/database using the same registry
+  // the API populates. These must match the API's settings. See
+  // docs/enterprise-database-isolation.md.
+  TENANT_DB_ISOLATION_ENABLED: boolFromString,
+  /** Same 64-hex AES-256-GCM key as the API — the worker decrypts connection URLs to route jobs. */
+  TENANT_DB_SECRET_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'TENANT_DB_SECRET_KEY must be 64 hex characters (32 bytes)')
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
+  TENANT_DB_MAX_CLIENTS: z.coerce.number().int().positive().default(10),
 });
 
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;

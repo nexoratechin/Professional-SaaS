@@ -9,7 +9,6 @@ import {
   type PermissionScopeType,
   type WorkflowDefinitionDefault,
 } from '@college-erp/auth';
-import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 
 export interface ProvisionDefaultAdminInput {
   tenantId: string;
@@ -36,11 +35,14 @@ export interface ProvisionDefaultAdminInput {
  */
 @Injectable()
 export class TenantProvisioningService {
-  constructor(private readonly platformPrisma: PlatformPrismaService) {}
-
   async provisionDefaultAdmin(input: ProvisionDefaultAdminInput): Promise<void> {
+    // The tenant client routes to the tenant's physical store (shared, dedicated schema or
+    // dedicated database — see packages/database's connection registry). Reading permissions
+    // through it (rather than the unscoped platform client) is what makes enterprise stores work:
+    // a dedicated store is seeded with its own copy of the global catalog, so the permission ids
+    // referenced by the seeded roles are the ones that exist in that store.
     const tenantClient = createTenantScopedClient(input.tenantId);
-    const allPermissions = await this.platformPrisma.client.permission.findMany();
+    const allPermissions = await tenantClient.permission.findMany();
     const permissionIdByKey = new Map(allPermissions.map((permission) => [permission.key, permission.id]));
 
     const adminRole = await tenantClient.role.create({

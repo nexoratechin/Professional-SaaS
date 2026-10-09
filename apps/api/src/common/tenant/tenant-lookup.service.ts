@@ -28,7 +28,7 @@ export class TenantLookupService {
 
     const tenant = await this.platformPrisma.client.tenant.findUnique({
       where: { slug },
-      select: { id: true, slug: true, status: true },
+      select: { id: true, slug: true, status: true, dataIsolationMode: true },
     });
     if (!tenant) {
       return null;

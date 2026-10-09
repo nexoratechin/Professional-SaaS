@@ -21,7 +21,9 @@ import { applyPaginationMetadata } from '../../common/pagination/pagination.util
 import { TenantContextService } from '../../common/prisma/tenant-context.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { ListTenantsDto } from './dto/list-tenants.dto';
+import { PlanDataIsolationDto } from './dto/plan-data-isolation.dto';
 import { SetEntitlementOverrideDto } from './dto/set-entitlement-override.dto';
+import { SetTenantDataIsolationDto } from './dto/set-tenant-data-isolation.dto';
 import { SetTenantFeatureOverrideDto } from './dto/set-tenant-feature-override.dto';
 import { TransitionTenantStatusDto } from './dto/transition-tenant-status.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
@@ -149,6 +151,51 @@ export class TenantsController {
     @CurrentPlatformUser() platformUser: AuthenticatedPlatformUser,
   ) {
     return this.tenantsService.removeEntitlementOverride(id, key, platformUser.id);
+  }
+
+  // --- Enterprise database isolation (platform control plane) ----------------------------
+
+  @Get('tenants/:id/database')
+  @UseGuards(PlatformAuthGuard)
+  getDatabase(@Param('id') id: string) {
+    return this.tenantsService.getDatabase(id);
+  }
+
+  @Post('tenants/:id/database/provision')
+  @UseGuards(PlatformAuthGuard, PlatformRoleGuard)
+  @RequirePlatformRole('PLATFORM_ADMIN')
+  provisionDatabase(
+    @Param('id') id: string,
+    @CurrentPlatformUser() platformUser: AuthenticatedPlatformUser,
+  ) {
+    return this.tenantsService.provisionDatabase(id, platformUser.id);
+  }
+
+  @Post('tenants/:id/database/migrate')
+  @UseGuards(PlatformAuthGuard, PlatformRoleGuard)
+  @RequirePlatformRole('PLATFORM_ADMIN')
+  migrateDatabase(
+    @Param('id') id: string,
+    @CurrentPlatformUser() platformUser: AuthenticatedPlatformUser,
+  ) {
+    return this.tenantsService.migrateDatabase(id, platformUser.id);
+  }
+
+  @Get('tenants/:id/data-isolation/plan')
+  @UseGuards(PlatformAuthGuard)
+  getDataIsolationPlan(@Param('id') id: string, @Query() query: PlanDataIsolationDto) {
+    return this.tenantsService.getDataIsolationPlan(id, query.targetMode);
+  }
+
+  @Patch('tenants/:id/data-isolation')
+  @UseGuards(PlatformAuthGuard, PlatformRoleGuard)
+  @RequirePlatformRole('PLATFORM_ADMIN')
+  setDataIsolation(
+    @Param('id') id: string,
+    @Body() dto: SetTenantDataIsolationDto,
+    @CurrentPlatformUser() platformUser: AuthenticatedPlatformUser,
+  ) {
+    return this.tenantsService.setDataIsolation(id, dto, platformUser.id);
   }
 
   // --- Tenant self-service ---------------------------------------------------------------

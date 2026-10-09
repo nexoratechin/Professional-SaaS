@@ -52,6 +52,29 @@ enum TenantStatus {
   CANCELED
 }
 
+/// How a tenant's business data is physically isolated. SHARED (the default, and the only mode
+/// existing tenants ever have) keeps every row in the shared database, filtered by tenant_id.
+/// DEDICATED_SCHEMA gives the tenant its own Postgres schema in the shared database;
+/// DEDICATED_DATABASE gives it its own database. The two dedicated modes are opt-in enterprise
+/// options — a tenant is never moved to one automatically. See docs/enterprise-database-isolation.md.
+enum TenantDataIsolationMode {
+  SHARED
+  DEDICATED_SCHEMA
+  DEDICATED_DATABASE
+}
+
+/// Lifecycle of an enterprise tenant's physical store (schema or database). SHARED tenants have
+/// no TenantDatabase row at all; the enum value NOT_APPLICABLE exists so a row can be retained
+/// as a record after a tenant is reverted to SHARED.
+enum TenantDatabaseProvisionStatus {
+  NOT_APPLICABLE
+  PENDING
+  PROVISIONING
+  MIGRATING
+  READY
+  FAILED
+}
+
 enum BillingCycle {
   MONTHLY
   ANNUAL
@@ -429,11 +452,17 @@ model Tenant {
   status       TenantStatus @default(TRIAL)
   billingEmail String       @map("billing_email")
   timezone     String       @default("Asia/Kolkata")
+  /// Physical data-isolation mode. Defaults to SHARED; only an explicit enterprise action
+  /// changes it. Kept on Tenant (not only on TenantDatabase) so request routing can read it in
+  /// the same lookup that resolves the tenant slug. See TenantDatabase.
+  dataIsolationMode TenantDataIsolationMode @default(SHARED) @map("data_isolation_mode")
   createdBy    String?      @map("created_by")
   updatedBy    String?      @map("updated_by")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
+  /// Physical store for DEDICATED_* tenants; absent for SHARED tenants.
+  database                          TenantDatabase?
   subscriptions                     Subscription[]
   subscriptionItems                 SubscriptionItem[]
   featureOverrides                  TenantFeatureFlag[]
@@ -695,7 +724,45 @@ model Tenant {
 
   @@index([status])
   @@index([createdAt])
+  @@index([dataIsolationMode])
   @@map("tenants")
+}
+
+/// Connection + provisioning metadata for an enterprise tenant's dedicated physical store
+/// (DEDICATED_SCHEMA or DEDICATED_DATABASE). Exactly one row per enterprise tenant; SHARED
+/// tenants have none. The connection URL is AES-256-GCM encrypted at rest (it carries database
+/// credentials) — see packages/database's TenantDatabaseSecretCipher.
+///
+/// This is control-plane data: it is read/written through PlatformPrismaService with an explicit
+/// tenantId, and drives the tenant-guard client factory's routing. It carries a required tenantId
+/// like every tenant-owned model, so the DMMF-derived guard scopes it too (defence in depth).
+model TenantDatabase {
+  id        String                     @id @default(cuid())
+  tenantId  String                     @unique @map("tenant_id") @db.Uuid
+  tenant    Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  mode      TenantDataIsolationMode    @map("mode")
+  status    TenantDatabaseProvisionStatus @default(PENDING)
+  /// Postgres schema name for DEDICATED_SCHEMA; null otherwise.
+  schemaName   String?                 @map("schema_name")
+  /// Postgres database name for DEDICATED_DATABASE; null otherwise.
+  databaseName String?                 @map("database_name")
+  /// AES-256-GCM encrypted connection URL the tenant's Prisma client must use (includes
+  /// ?schema=<name> for DEDICATED_SCHEMA). Null until provisioning resolves it.
+  connectionUrlEncrypted String?       @map("connection_url_encrypted")
+  /// How many times a schema reconciliation has been applied, and the marker for the last one —
+  /// informational, used by the operator migration script and the status endpoint.
+  appliedMigrationCount Int            @default(0) @map("applied_migration_count")
+  lastAppliedMigration  String?        @map("last_applied_migration")
+  lastMigratedAt        DateTime?      @map("last_migrated_at")
+  provisionedAt         DateTime?      @map("provisioned_at")
+  failureReason         String?        @map("failure_reason")
+  createdBy             String?        @map("created_by")
+  updatedBy             String?        @map("updated_by")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("tenant_databases")
 }
 
 model Plan {

@@ -4,6 +4,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { TenantResolutionMiddleware } from './common/middleware/tenant-resolution.middleware';
 import { PrismaModule } from './common/prisma/prisma.module';
+import { TenantConnectionModule } from './common/tenant/tenant-connection.module';
 import { QueueModule } from './common/queue/queue.module';
 import { RedisModule } from './common/redis/redis.module';
 import { StorageModule } from './common/storage/storage.module';
@@ -61,6 +62,7 @@ import { GlobalSearchModule } from './modules/global-search/global-search.module
     PrismaModule,
     QueueModule,
     StorageModule,
+    TenantConnectionModule,
     // Global rate limiting: per-IP window for every route, configured via env
     // (THROTTLE_TTL / THROTTLE_LIMIT). Per-endpoint overrides use @Throttle() — see the strict
     // 5/min window on /auth/login. @nestjs/throttler keys by client IP/route at the guard level.

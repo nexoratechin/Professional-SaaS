@@ -4,6 +4,8 @@ export interface ResolvedTenant {
   id: string;
   slug: string;
   status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELED';
+  /** Physical isolation mode — drives routing to a dedicated store; defaults to SHARED. */
+  dataIsolationMode: 'SHARED' | 'DEDICATED_SCHEMA' | 'DEDICATED_DATABASE';
 }
 
 export interface AuditContext {

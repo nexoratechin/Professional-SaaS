@@ -1,4 +1,6 @@
 import { Prisma, PrismaClient } from '@prisma/client';
+import { tenantConnectionRegistry } from './tenant-database/connection-registry';
+import { TenantPrismaClientPool } from './tenant-database/client-pool';
 
 export class TenantIsolationViolationError extends Error {
   constructor(public readonly model: string) {
@@ -113,8 +115,27 @@ export function tenantGuardExtension(tenantId: string) {
  */
 export const platformPrismaClient = new PrismaClient();
 
+/**
+ * Client pool for enterprise tenants on dedicated stores (schema/database). Shared tenants keep
+ * using `platformPrismaClient`; a dedicated tenant gets a cached client bound to its store. The
+ * pool is process-local and bounded — see TenantPrismaClientPool.
+ */
+export const tenantPrismaClientPool = new TenantPrismaClientPool({
+  sharedClient: platformPrismaClient,
+  sharedUrl: process.env.DATABASE_URL ?? '',
+  maxClients: Number(process.env.TENANT_DB_MAX_CLIENTS ?? '') || 10,
+});
+
+/**
+ * Builds a tenant-scoped client for the tenant's physical store. The store is resolved from the
+ * process-local TenantConnectionRegistry: an empty registry (the default) means every tenant is
+ * SHARED and this behaves exactly as before. A DEDICATED_* entry routes to the tenant's schema or
+ * database while still applying the same tenant-guard extension (defence in depth).
+ */
 export function createTenantScopedClient(tenantId: string) {
-  return platformPrismaClient.$extends(tenantGuardExtension(tenantId));
+  const target = tenantConnectionRegistry.get(tenantId);
+  const base = target ? tenantPrismaClientPool.getClient(target.connectionUrl) : platformPrismaClient;
+  return base.$extends(tenantGuardExtension(tenantId));
 }
 
 export type TenantScopedPrismaClient = ReturnType<typeof createTenantScopedClient>;
