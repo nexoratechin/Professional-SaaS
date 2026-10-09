@@ -60,6 +60,6 @@ import { TrustedDevicesService } from './trusted-devices.service';
     MfaService,
     PlatformMfaService,
   ],
-  exports: [EmailVerificationService],
+  exports: [EmailVerificationService, AuthService, MfaChallengeService],
 })
 export class AuthModule {}

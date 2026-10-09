@@ -250,6 +250,13 @@ export const PERMISSION_KEYS = {
   INTEGRATIONS_VIEW: 'integrations.view',
   INTEGRATIONS_MANAGE: 'integrations.manage',
 
+  // --- Enterprise identity / SSO (apps/api's identity module) ---
+  // Configure external identity providers (OIDC IdPs), their client secrets, allowed email
+  // domains, JIT-provisioning behaviour, and the IdP-group -> local-role mappings. Kept separate
+  // from integrations.* because SSO is a login/security surface, not an outbound data connection.
+  IDENTITY_VIEW: 'identity.view',
+  IDENTITY_MANAGE: 'identity.manage',
+
   // --- Workflow engine (has a controller — see apps/api's workflow module) ---
   WORKFLOWS_VIEW: 'workflows.view',
   WORKFLOWS_APPROVE: 'workflows.approve',
@@ -548,6 +555,18 @@ export const PERMISSION_CATALOG: PermissionCatalogEntry[] = [
   ...modulePermissions('integrations', [
     [PERMISSION_KEYS.INTEGRATIONS_VIEW, VIEW, 'View configured external integrations.'],
     [PERMISSION_KEYS.INTEGRATIONS_MANAGE, MANAGE, 'Configure external integrations.'],
+  ]),
+  ...modulePermissions('identity', [
+    [
+      PERMISSION_KEYS.IDENTITY_VIEW,
+      VIEW,
+      'View configured external identity providers (SSO), their status, and IdP-group -> role mappings.',
+    ],
+    [
+      PERMISSION_KEYS.IDENTITY_MANAGE,
+      MANAGE,
+      'Configure external identity providers (OIDC client settings/secrets, allowed email domains, JIT provisioning) and their IdP-group -> role mappings.',
+    ],
   ]),
   ...modulePermissions('workflows', [
     [PERMISSION_KEYS.WORKFLOWS_VIEW, VIEW, 'View workflow definitions, instances, and their history.'],

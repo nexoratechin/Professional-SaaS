@@ -14,6 +14,9 @@ export interface EffectiveSecuritySettings {
   trustedDeviceDays: number;
   notifyOnNewDeviceLogin: boolean;
   blockSuspiciousLogins: boolean;
+  /** Whether email/password login is accepted for this tenant. False = SSO-only. SSO callbacks
+   *  are never gated by this. */
+  localAuthEnabled: boolean;
   mfaGloballyEnabled: boolean;
   suspiciousLoginDetectionEnabled: boolean;
 }
@@ -120,6 +123,7 @@ export class SecuritySettingsService {
       trustedDeviceDays: tenant.trustedDeviceDays ?? platform.defaultTrustedDeviceDays,
       notifyOnNewDeviceLogin: tenant.notifyOnNewDeviceLogin,
       blockSuspiciousLogins: tenant.blockSuspiciousLogins && platform.suspiciousLoginDetectionEnabled,
+      localAuthEnabled: tenant.localAuthEnabled,
       mfaGloballyEnabled: platform.mfaGloballyEnabled,
       suspiciousLoginDetectionEnabled: platform.suspiciousLoginDetectionEnabled,
     };

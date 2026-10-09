@@ -56,6 +56,8 @@ export const AUDIT_MODULES = {
   AI: 'ai',
   /** Bulk import/export (apps/api/src/modules/import-export). */
   IMPORTS: 'imports',
+  /** Enterprise identity / SSO (apps/api/src/modules/identity). */
+  IDENTITY: 'identity',
 } as const;
 
 export type AuditModule = (typeof AUDIT_MODULES)[keyof typeof AUDIT_MODULES];
@@ -828,6 +830,24 @@ export const AUDIT_ACTIONS = {
   INTEGRATION_SYNC_CANCELED: 'INTEGRATION_SYNC_CANCELED',
   /** A failure row was marked resolved, i.e. a human triaged it. */
   INTEGRATION_FAILURE_RESOLVED: 'INTEGRATION_FAILURE_RESOLVED',
+
+  // --- Enterprise identity / SSO (module IDENTITY) ---
+  // Configuring an IdP means handling an OAuth client secret, so every mutation is audited; the
+  // secret value itself is encrypted at rest and never appears in the audit payload.
+  IDENTITY_PROVIDER_CREATED: 'IDENTITY_PROVIDER_CREATED',
+  IDENTITY_PROVIDER_UPDATED: 'IDENTITY_PROVIDER_UPDATED',
+  /** Client secret changed. The value is encrypted and never logged. */
+  IDENTITY_PROVIDER_CREDENTIALS_UPDATED: 'IDENTITY_PROVIDER_CREDENTIALS_UPDATED',
+  IDENTITY_PROVIDER_STATUS_CHANGED: 'IDENTITY_PROVIDER_STATUS_CHANGED',
+  IDENTITY_PROVIDER_DELETED: 'IDENTITY_PROVIDER_DELETED',
+  IDENTITY_ROLE_MAPPING_CREATED: 'IDENTITY_ROLE_MAPPING_CREATED',
+  IDENTITY_ROLE_MAPPING_DELETED: 'IDENTITY_ROLE_MAPPING_DELETED',
+  /** A JIT login created a new local user from IdP claims. */
+  SSO_USER_PROVISIONED: 'SSO_USER_PROVISIONED',
+  /** An IdP account was linked to an existing local user (first SSO login for that account). */
+  SSO_IDENTITY_LINKED: 'SSO_IDENTITY_LINKED',
+  /** An administrator removed an external-identity link. */
+  SSO_IDENTITY_UNLINKED: 'SSO_IDENTITY_UNLINKED',
 
   // --- Bulk import/export (module IMPORTS) ---
   IMPORT_JOB_CREATED: 'IMPORT_JOB_CREATED',

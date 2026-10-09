@@ -11,6 +11,10 @@ export interface MfaChallengePayload {
   tenantId?: string;
   userId: string;
   isNewDevice: boolean;
+  /** How the PRIMARY factor was satisfied, carried through so the post-MFA login event records the
+   *  real method (an SSO login that also needs MFA must not be logged as a password login). */
+  authMethod?: 'PASSWORD' | 'SSO';
+  identityProviderId?: string;
   ipAddress?: string;
   userAgent?: string;
   attempts: number;
@@ -40,7 +44,7 @@ export class MfaChallengeService {
     realm: MfaRealm,
     userId: string,
     meta: RequestMeta,
-    options: { tenantId?: string; isNewDevice: boolean },
+    options: { tenantId?: string; isNewDevice: boolean; authMethod?: 'PASSWORD' | 'SSO'; identityProviderId?: string },
   ): Promise<string> {
     const challengeId = generateOpaqueToken();
     const payload: MfaChallengePayload = {
@@ -48,6 +52,8 @@ export class MfaChallengeService {
       tenantId: options.tenantId,
       userId,
       isNewDevice: options.isNewDevice,
+      authMethod: options.authMethod,
+      identityProviderId: options.identityProviderId,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       attempts: 0,

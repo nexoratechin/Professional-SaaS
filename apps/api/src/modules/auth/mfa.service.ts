@@ -236,7 +236,10 @@ export class MfaService {
       userAgent: meta.userAgent,
     });
 
-    const loginResult = await this.authService.completeLogin(tenantId, user, meta);
+    const loginResult = await this.authService.completeLogin(tenantId, user, meta, {
+      authMethod: payload.authMethod,
+      identityProviderId: payload.identityProviderId,
+    });
 
     let rememberDeviceToken: string | undefined;
     let trustedDeviceDays: number | undefined;

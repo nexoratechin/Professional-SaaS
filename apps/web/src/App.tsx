@@ -46,6 +46,8 @@ import { HelpdeskPage } from './routes/helpdesk';
 import { NotificationsPage } from './routes/notifications';
 import { DocumentsPage } from './routes/documents';
 import { IntegrationsPage } from './routes/integrations';
+import { IdentityPage } from './routes/identity';
+import { SsoCallbackPage } from './routes/sso-callback';
 import { ReportsPage } from './routes/reports';
 import { ImportExportPage } from './routes/import-export';
 import { PortalGate } from './routes/portal/portal-gate';
@@ -150,6 +152,7 @@ function TenantArea() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/sso/callback" element={<SsoCallbackPage />} />
         <Route
           path="/dashboard"
           element={
@@ -367,6 +370,14 @@ function TenantArea() {
           element={
             <ProtectedRoute>
               <IntegrationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/identity"
+          element={
+            <ProtectedRoute>
+              <IdentityPage />
             </ProtectedRoute>
           }
         />

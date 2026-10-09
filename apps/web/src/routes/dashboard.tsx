@@ -25,6 +25,7 @@ const NOTIFICATIONS_VIEW_PERMISSION = 'notifications.read';
 const DOCUMENTS_VIEW_PERMISSION = 'documents.read';
 const REPORTS_VIEW_PERMISSION = 'reports.view';
 const INTEGRATIONS_VIEW_PERMISSION = 'integrations.view';
+const IDENTITY_VIEW_PERMISSION = 'identity.view';
 const ANALYTICS_VIEW_PERMISSION = 'analytics.view';
 const AI_VIEW_PERMISSION = 'ai.view';
 const SEARCH_VIEW_PERMISSION = 'search.view';
@@ -107,6 +108,7 @@ export function DashboardPage() {
           {permissions.includes(NOTIFICATIONS_VIEW_PERMISSION) && <Link to="/notifications">Notifications</Link>}
           {permissions.includes(DOCUMENTS_VIEW_PERMISSION) && <Link to="/documents">Documents</Link>}
           {permissions.includes(INTEGRATIONS_VIEW_PERMISSION) && <Link to="/integrations">Integrations</Link>}
+          {permissions.includes(IDENTITY_VIEW_PERMISSION) && <Link to="/identity">Single sign-on</Link>}
           {permissions.includes(REPORTS_VIEW_PERMISSION) && <Link to="/reports">Reports</Link>}
           {permissions.some((p) => IMPORT_VIEW_PERMISSIONS.includes(p)) && <Link to="/imports">Import / Export</Link>}
           {permissions.includes(ANALYTICS_VIEW_PERMISSION) && <Link to="/analytics">Analytics</Link>}

@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { CurrentUserDto, EffectiveEntitlementsResponseDto, FeatureFlagsResponseDto, LoginResponseDto, PermissionsResponseDto } from '@college-erp/types';
+import type { CurrentUserDto, EffectiveEntitlementsResponseDto, FeatureFlagsResponseDto, LoginResponseDto, PermissionsResponseDto, SsoStartResponseDto } from '@college-erp/types';
 import { apiFetch, setAccessToken, tryRefresh } from '../../lib/http';
 import { clearOfflineData } from '../pwa/pwa';
 
@@ -20,6 +20,13 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   login: (tenantSlug: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** SSO: obtain the provider authorization URL to send the browser to. */
+  startSso: (tenantSlug: string, providerKey: string, returnTo?: string) => Promise<string>;
+  /** SSO callback, no-MFA path: exchange the refresh cookie (set by the callback redirect) for a
+   *  session and load the profile. */
+  establishSession: (tenantSlug: string) => Promise<void>;
+  /** SSO callback, MFA path: redeem the challenge token minted by the callback. */
+  verifyMfaChallenge: (tenantSlug: string, challengeToken: string, code: string, rememberDevice?: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -99,6 +106,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [loadProfile],
   );
 
+  const startSso = useCallback(
+    async (tenantSlug: string, providerKey: string, returnTo?: string): Promise<string> => {
+      const response = await apiFetch<SsoStartResponseDto>(
+        `/auth/sso/${encodeURIComponent(providerKey)}/start`,
+        {
+          method: 'POST',
+          tenantSlug,
+          skipAuth: true,
+          body: JSON.stringify({ returnTo }),
+        },
+      );
+      return response.authorizationUrl;
+    },
+    [],
+  );
+
+  const establishSession = useCallback(
+    async (tenantSlug: string): Promise<void> => {
+      const refreshed = await tryRefresh(tenantSlug);
+      if (!refreshed) {
+        throw new Error('Could not establish a session.');
+      }
+      localStorage.setItem(TENANT_SLUG_STORAGE_KEY, tenantSlug);
+      await loadProfile(tenantSlug);
+    },
+    [loadProfile],
+  );
+
+  const verifyMfaChallenge = useCallback(
+    async (tenantSlug: string, challengeToken: string, code: string, rememberDevice = false): Promise<void> => {
+      const response = await apiFetch<LoginResponseDto>('/auth/mfa/verify', {
+        method: 'POST',
+        tenantSlug,
+        skipAuth: true,
+        body: JSON.stringify({ challengeToken, code, rememberDevice }),
+      });
+      setAccessToken(response.accessToken);
+      localStorage.setItem(TENANT_SLUG_STORAGE_KEY, tenantSlug);
+      await loadProfile(tenantSlug);
+    },
+    [loadProfile],
+  );
+
   const logout = useCallback(async () => {
     if (state.tenantSlug) {
       await apiFetch('/auth/logout', { method: 'POST', tenantSlug: state.tenantSlug }).catch(() => undefined);
@@ -119,7 +169,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, [state.tenantSlug]);
 
-  const value = useMemo<AuthContextValue>(() => ({ ...state, login, logout }), [state, login, logout]);
+  const value = useMemo<AuthContextValue>(
+    () => ({ ...state, login, logout, startSso, establishSession, verifyMfaChallenge }),
+    [state, login, logout, startSso, establishSession, verifyMfaChallenge],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

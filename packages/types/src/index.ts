@@ -10,6 +10,7 @@ export * from './hr';
 export * from './placements';
 export * from './search';
 export * from './campus';
+export * from './identity';
 import type { GlobalCampusPoliciesDto } from './campus';
 
 export interface TenantDto {

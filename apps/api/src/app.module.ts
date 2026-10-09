@@ -29,6 +29,7 @@ import { SaasModule } from './modules/saas/saas.module';
 import { SupportModule } from './modules/support/support.module';
 import { StudentsModule } from './modules/students/students.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { IdentityModule } from './modules/identity/identity.module';
 import { TimetableModule } from './modules/timetable/timetable.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { FeesModule } from './modules/fees/fees.module';
@@ -79,6 +80,7 @@ import { GlobalSearchModule } from './modules/global-search/global-search.module
     DocumentsModule,
     NotificationsModule,
     IntegrationsModule,
+    IdentityModule,
     WorkflowModule,
     StudentsModule,
     AcademicsModule,
@@ -141,6 +143,10 @@ export class AppModule implements NestModule {
         // Inbound provider callbacks carry no tenant header/subdomain — the endpoint's random
         // path token identifies the tenant. Same reasoning as the attendance device gateway above.
         { path: 'integrations/webhooks/(.*)', method: RequestMethod.ALL },
+        // The IdP redirects the browser here with no tenant header/subdomain — the tenant is
+        // carried inside the Redis state minted by POST /auth/sso/:key/start. Same reasoning as the
+        // webhook callback above.
+        { path: 'auth/sso/callback', method: RequestMethod.ALL },
         { path: 'subscriptions', method: RequestMethod.ALL },
         { path: 'subscriptions/(.*)', method: RequestMethod.ALL },
         { path: 'subscription-items/(.*)', method: RequestMethod.ALL },

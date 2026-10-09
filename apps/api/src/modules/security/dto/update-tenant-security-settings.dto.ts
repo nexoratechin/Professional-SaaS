@@ -38,4 +38,9 @@ export class UpdateTenantSecuritySettingsDto {
   @IsOptional()
   @IsBoolean()
   blockSuspiciousLogins?: boolean;
+
+  /** Turn email/password login off (SSO-only) or back on. SSO callbacks are unaffected. */
+  @IsOptional()
+  @IsBoolean()
+  localAuthEnabled?: boolean;
 }

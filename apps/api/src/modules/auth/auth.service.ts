@@ -62,6 +62,14 @@ export class AuthService {
   ) {}
 
   async login(tenantId: string, email: string, password: string, meta: RequestMeta): Promise<LoginServiceResult> {
+    const settings = await this.securitySettings.getEffective(tenantId);
+    if (!settings.localAuthEnabled) {
+      await this.recordLoginEvent(tenantId, email, 'FAILED_LOCAL_AUTH_DISABLED', meta);
+      throw new ForbiddenException(
+        'Password sign-in is disabled for this organization. Please sign in with single sign-on.',
+      );
+    }
+
     const user = await this.platformPrisma.client.user.findUnique({
       where: { tenantId_email: { tenantId, email } },
       include: USER_WITH_ROLES_INCLUDE,
@@ -87,13 +95,11 @@ export class AuthService {
 
     const passwordMatches = await bcrypt.compare(password, user.passwordHash);
     if (!passwordMatches) {
-      const settings = await this.securitySettings.getEffective(tenantId);
       await this.registerFailedAttempt(tenantId, user.id, user.failedLoginAttempts, settings);
       await this.recordLoginEvent(tenantId, email, 'FAILED_PASSWORD', meta);
       throw new UnauthorizedException('Invalid credentials.');
     }
 
-    const settings = await this.securitySettings.getEffective(tenantId);
     const risk = await this.loginRisk.assess(tenantId, user, meta, meta.trustedDeviceToken);
 
     if (risk.isNewDevice && settings.blockSuspiciousLogins && !user.mfaEnabled) {
@@ -150,9 +156,16 @@ export class AuthService {
   }
 
   /** The tail of a successful login — issuing tokens/session — factored out so both the direct
-   * (no-MFA) path here and MfaService.verifyChallenge's post-second-factor path share exactly
-   * one implementation. */
-  async completeLogin(tenantId: string, user: UserWithRoles, meta: RequestMeta): Promise<LoginSuccessResult> {
+   * (no-MFA) path here, MfaService.verifyChallenge's post-second-factor path, and the SSO
+   * callback all share exactly one implementation. `authMethod`/`identityProviderId` record HOW
+   * the primary factor was satisfied (password vs SSO) on the LoginEvent, so login history stays
+   * accurate regardless of which path got here. */
+  async completeLogin(
+    tenantId: string,
+    user: UserWithRoles,
+    meta: RequestMeta,
+    options?: { authMethod?: 'PASSWORD' | 'SSO'; identityProviderId?: string },
+  ): Promise<LoginSuccessResult> {
     const rawRefreshToken = generateOpaqueToken();
     const session = await this.platformPrisma.client.session.create({
       data: {
@@ -170,7 +183,7 @@ export class AuthService {
       where: { id: user.id },
       data: { lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null },
     });
-    await this.recordLoginEvent(tenantId, user.email, 'SUCCESS', meta);
+    await this.recordLoginEvent(tenantId, user.email, 'SUCCESS', meta, options);
     await this.auditService.record({
       scope: 'TENANT',
       tenantId,
@@ -182,6 +195,7 @@ export class AuthService {
       entityId: session.id,
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
+      after: options?.authMethod === 'SSO' ? { authMethod: 'SSO', identityProviderId: options.identityProviderId } : undefined,
     });
 
     return { mfaRequired: false, accessToken, rawRefreshToken, user };
@@ -378,7 +392,9 @@ export class AuthService {
     return new Date(Date.now() + this.config.get('REFRESH_TOKEN_TTL_DAYS') * 24 * 60 * 60 * 1000);
   }
 
-  private async recordLoginEvent(
+  /** Public so the SSO service can record SSO attempts (successes via completeLogin, failures
+   * directly) into the same login_events trail with the right authMethod/provider. */
+  async recordLoginEvent(
     tenantId: string,
     email: string,
     result:
@@ -387,14 +403,24 @@ export class AuthService {
       | 'FAILED_USER_INACTIVE'
       | 'FAILED_UNKNOWN_EMAIL'
       | 'FAILED_ACCOUNT_LOCKED'
-      | 'FAILED_SUSPICIOUS_LOGIN_BLOCKED',
+      | 'FAILED_SUSPICIOUS_LOGIN_BLOCKED'
+      | 'FAILED_LOCAL_AUTH_DISABLED'
+      | 'FAILED_SSO'
+      | 'FAILED_SSO_UNKNOWN_PROVIDER'
+      | 'FAILED_SSO_PROVIDER_DISABLED'
+      | 'FAILED_SSO_DOMAIN_NOT_ALLOWED'
+      | 'FAILED_SSO_USER_NOT_PROVISIONED'
+      | 'FAILED_SSO_EMAIL_UNVERIFIED',
     meta: RequestMeta,
+    options?: { authMethod?: 'PASSWORD' | 'SSO'; identityProviderId?: string },
   ): Promise<void> {
     await this.platformPrisma.client.loginEvent.create({
       data: {
         tenantId,
         emailAttempted: email,
         result,
+        authMethod: options?.authMethod ?? 'PASSWORD',
+        identityProviderId: options?.identityProviderId,
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
       },

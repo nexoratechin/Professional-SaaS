@@ -103,6 +103,24 @@ enum LoginEventResult {
   FAILED_UNKNOWN_EMAIL
   FAILED_ACCOUNT_LOCKED
   FAILED_SUSPICIOUS_LOGIN_BLOCKED
+  /// SSO-specific failures. Granular on purpose so an operator can separate a misconfigured
+  /// provider (UNKNOWN_PROVIDER/DISABLED) from a rejected end user (DOMAIN_NOT_ALLOWED) from a
+  /// token/state validation failure (generic FAILED_SSO) without reading log bodies.
+  FAILED_SSO
+  FAILED_SSO_UNKNOWN_PROVIDER
+  FAILED_SSO_PROVIDER_DISABLED
+  FAILED_SSO_DOMAIN_NOT_ALLOWED
+  FAILED_SSO_USER_NOT_PROVISIONED
+  FAILED_SSO_EMAIL_UNVERIFIED
+  /// Password login was attempted for a tenant that has turned local auth off (SSO-only).
+  FAILED_LOCAL_AUTH_DISABLED
+}
+
+/// How the caller authenticated — the primary factor. MFA, when enforced, is an additional step
+/// layered on top of either method, not a value of its own.
+enum AuthMethod {
+  PASSWORD
+  SSO
 }
 
 enum AuditScope {
@@ -249,6 +267,13 @@ enum SecurityEventType {
   ACCOUNT_UNLOCKED
   SESSION_REVOKED
   ALL_SESSIONS_REVOKED
+  /// Enterprise SSO / external-identity events (see the IdentityProvider models). Kept in the same
+  /// security feed as password/MFA events so "who signed in, and how" is one timeline.
+  SSO_LOGIN_SUCCEEDED
+  SSO_LOGIN_FAILED
+  SSO_USER_PROVISIONED
+  SSO_IDENTITY_LINKED
+  SSO_IDENTITY_UNLINKED
 }
 
 enum SecurityEventSeverity {
@@ -451,6 +476,9 @@ model Tenant {
   securitySettings                  TenantSecuritySettings?
   configuration                     TenantConfiguration?
   campusConfigurations              CampusConfiguration[]
+  identityProviders                 IdentityProvider[]
+  identityProviderRoleMappings      IdentityProviderRoleMapping[]
+  externalIdentities                ExternalIdentity[]
   workflowDefinitions               WorkflowDefinition[]
   workflowStates                    WorkflowState[]
   workflowTransitions               WorkflowTransition[]
@@ -1146,6 +1174,7 @@ model User {
   trustedDevices             TrustedDevice[]
   passwordHistory            PasswordHistory[]
   securityEvents             SecurityEvent[]
+  externalIdentities         ExternalIdentity[]
   facultyAssignments         CourseOfferingFaculty[]       @relation("FacultyAssignedCourseOfferings")
   advisingRecords            AcademicAdvisingRecord[]      @relation("AdvisorAdvisingRecords")
   timetableEntries           TimetableEntry[]              @relation("FacultyTimetableEntries")
@@ -1199,6 +1228,9 @@ model Role {
 
   rolePermissions RolePermission[]
   userRoles       UserRole[]
+
+  identityProviderRoleMappings IdentityProviderRoleMapping[]
+  identityProviderDefaults     IdentityProvider[]              @relation("IdentityProviderDefaultRole")
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1295,12 +1327,20 @@ model LoginEvent {
   tenant         Tenant?          @relation(fields: [tenantId], references: [id])
   emailAttempted String           @map("email_attempted")
   result         LoginEventResult
+  /// Which primary factor the attempt used. Defaulted to PASSWORD so existing rows/writers are
+  /// unaffected; SSO logins set it explicitly. MFA, when enforced, is layered on top of either.
+  authMethod     AuthMethod       @default(PASSWORD) @map("auth_method")
+  /// Set only for SSO attempts, so login history can be grouped by the provider that was used
+  /// (or attempted) without parsing log text.
+  identityProviderId String?      @map("identity_provider_id") @db.Uuid
+  identityProvider   IdentityProvider? @relation(fields: [identityProviderId], references: [id], onDelete: SetNull)
   ipAddress      String?          @map("ip_address")
   userAgent      String?          @map("user_agent")
   occurredAt     DateTime         @default(now()) @map("occurred_at")
 
   @@index([tenantId, occurredAt])
   @@index([emailAttempted, occurredAt])
+  @@index([identityProviderId, occurredAt])
   @@map("login_events")
 }
 
@@ -1469,6 +1509,10 @@ model TenantSecuritySettings {
   trustedDeviceDays      Int?     @map("trusted_device_days")
   notifyOnNewDeviceLogin Boolean  @default(true) @map("notify_on_new_device_login")
   blockSuspiciousLogins  Boolean  @default(false) @map("block_suspicious_logins")
+  /// Whether email/password login is accepted for this tenant. Defaults true so nothing changes for
+  /// existing tenants; an institution that standardizes on SSO can turn it off once its IdP is
+  /// ACTIVE. SSO callbacks are never gated by this — it only disables the local password path.
+  localAuthEnabled       Boolean  @default(true) @map("local_auth_enabled")
   createdBy              String?  @map("created_by")
   updatedBy              String?  @map("updated_by")
   createdAt              DateTime @default(now()) @map("created_at")
@@ -10770,4 +10814,130 @@ model GeneratedDocument {
   @@index([tenantId, status])
   @@index([tenantId, kind])
   @@map("generated_documents")
+}
+
+// ---------------------------------------------------------------------------
+// Enterprise identity (SSO / external identity providers)
+// ---------------------------------------------------------------------------
+// Tenant-configured external identity providers (OIDC today, SAML reservable via the protocol enum),
+// external-account links, and IdP-group -> local-role mappings. Every model requires tenantId, so the
+// DMMF-derived tenant-guard extension auto-scopes request-scoped access. The pre-authentication SSO
+// flow (before a session/JWT exists) has no request-scoped tenant, so it deliberately goes through
+// PlatformPrismaService with an explicit tenantId carried in the Redis-stored OAuth state — the same
+// convention AuthService/PasswordResetService use.
+
+/// Wire protocol an IdentityProvider speaks. Only OIDC is implemented today; keeping this an enum
+/// (rather than a bare string) means adding SAML later cannot silently accept an unknown value.
+enum IdentityProviderProtocol {
+  OIDC
+}
+
+/// Lifecycle. DRAFT = configured but not offered/accepted; ACTIVE = shown on the login page and
+/// accepted at callback; DISABLED = kept for audit but deliberately out of service.
+enum IdentityProviderStatus {
+  DRAFT
+  ACTIVE
+  DISABLED
+}
+
+/// A tenant's connection to one external identity provider. The configuration root for SSO: role
+/// mappings and external-identity links hang off it. `clientSecretEncrypted` holds the OIDC client
+/// secret (AES-256-GCM via @college-erp/integrations' IntegrationSecretCipher) so a database dump
+/// never exposes it; it is never returned by the API. Endpoints are discovered from `issuer` (or the
+/// explicit `discoveryUrl` override) and cached in Redis rather than stored, so a provider that
+/// rotates its keys/endpoints needs no migration.
+model IdentityProvider {
+  id                    String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId              String                   @map("tenant_id") @db.Uuid
+  tenant                Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  /// Tenant-unique stable handle used in public URLs (`/auth/sso/:key/...`) and never the display name.
+  key                   String
+  name                  String
+  protocol              IdentityProviderProtocol   @default(OIDC)
+  status                IdentityProviderStatus     @default(DRAFT)
+  /// Issuer URL; OIDC discovery is fetched from `<issuer>/.well-known/openid-configuration`.
+  issuer                String
+  /// Optional explicit discovery document URL when it does not follow the issuer convention.
+  discoveryUrl          String?                  @map("discovery_url")
+  clientId              String                   @map("client_id")
+  /// Encrypted client secret. Nullable so a DRAFT provider can be created before the secret is supplied.
+  clientSecretEncrypted String?                  @map("client_secret_encrypted")
+  scopes                String[]                 @default(["openid", "email", "profile"])
+  /// If non-empty, only email addresses in these domains may sign in through this provider (the
+  /// check is case-insensitive). Empty = no domain restriction.
+  allowedEmailDomains   String[]                 @default([]) @map("allowed_email_domains")
+  /// JIT provisioning: create a local user on first successful SSO login when no link exists.
+  autoProvisionUsers    Boolean                  @default(true) @map("auto_provision_users")
+  /// Role granted to JIT-provisioned users when no role mapping matches. Nullable = no role beyond
+  /// whatever the tenant defaults to.
+  defaultRoleId         String?                  @map("default_role_id") @db.Uuid
+  defaultRole           Role?                    @relation("IdentityProviderDefaultRole", fields: [defaultRoleId], references: [id], onDelete: SetNull)
+  /// Reject logins whose id_token does not assert `email_verified`. On by default because linking an
+  /// unverified email to an existing password account would be an account-takeover vector.
+  enforceEmailVerified  Boolean                  @default(true) @map("enforce_email_verified")
+  /// Non-secret extras (e.g. authorizationParams). Secrets never live here.
+  config                Json?
+  createdBy             String?                  @map("created_by")
+  updatedBy             String?                  @map("updated_by")
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
+
+  roleMappings       IdentityProviderRoleMapping[]
+  externalIdentities ExternalIdentity[]
+  loginEvents        LoginEvent[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId, status])
+  @@map("identity_providers")
+}
+
+/// One link between a local User and their account at an external IdP. The subject ("sub") is the
+/// IdP's stable identifier for that account; uniqueness is per provider so one external account maps
+/// to exactly one local user, and one user has at most one identity per provider.
+model ExternalIdentity {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String           @map("tenant_id") @db.Uuid
+  tenant             Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  userId             String           @map("user_id") @db.Uuid
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  identityProviderId String           @map("identity_provider_id") @db.Uuid
+  identityProvider   IdentityProvider @relation(fields: [identityProviderId], references: [id], onDelete: Cascade)
+  /// The IdP's stable subject ("sub") from the id_token.
+  subject            String
+  /// Email as asserted by the provider at last login (may differ from the local account email).
+  email              String?
+  /// Last-seen non-secret claims snapshot, so an operator can debug a role-mapping decision.
+  claims             Json?
+  lastLoginAt        DateTime?        @map("last_login_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  @@unique([identityProviderId, subject])
+  @@unique([userId, identityProviderId])
+  @@index([tenantId, userId])
+  @@map("external_identities")
+}
+
+/// Maps one value inside an IdP claim (usually a group/role name in `groups`) to a local Role, so
+/// authorization continues to come from the ERP's own RBAC rather than trusting IdP claims directly.
+/// Matching is case-insensitive on claimValue; multiple matches grant the union of roles.
+model IdentityProviderRoleMapping {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId           String           @map("tenant_id") @db.Uuid
+  tenant             Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  identityProviderId String           @map("identity_provider_id") @db.Uuid
+  identityProvider   IdentityProvider @relation(fields: [identityProviderId], references: [id], onDelete: Cascade)
+  /// Claim to read group memberships from (usually "groups"; some IdPs use "roles").
+  claimName          String           @default("groups") @map("claim_name")
+  /// Value in that claim to match.
+  claimValue         String           @map("claim_value")
+  roleId             String           @map("role_id") @db.Uuid
+  role               Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdBy          String?          @map("created_by")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  @@unique([identityProviderId, claimName, claimValue])
+  @@index([tenantId, identityProviderId])
+  @@map("identity_provider_role_mappings")
 }
