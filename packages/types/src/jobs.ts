@@ -1,5 +1,24 @@
 export const QUEUE_NAMES = {
+  /**
+   * Notification orchestration: one job per Notification row. Resolves entitlement, recipient
+   * preference and addresses, then fans EMAIL/SMS/WHATSAPP out onto their dedicated transport
+   * queues and delivers IN_APP/PUSH inline (see apps/worker's NotificationsProcessor).
+   */
   NOTIFICATIONS: 'notifications',
+  /** Dedicated email transport queue (the actual SMTP/provider send happens here). */
+  EMAILS: 'emails',
+  /** Dedicated SMS transport queue. */
+  SMS: 'sms',
+  /** Dedicated WhatsApp transport queue. */
+  WHATSAPP: 'whatsapp',
+  /** Async PDF artifact rendering (certificate re-renders, statements, ID cards, ...). */
+  PDF_GENERATION: 'pdf-generation',
+  /** Async certificate/transcript issuance (number allocation, snapshot, PDF). */
+  CERTIFICATE_GENERATION: 'certificate-generation',
+  /** Reconciles recorded gateway payments against the provider's current order status. */
+  PAYMENT_RECONCILIATION: 'payment-reconciliation',
+  /** Terminal failures are re-delivered here for inspection/replay instead of being lost. */
+  DEAD_LETTER: 'dead-letter',
   NOTIFICATIONS_CAMPAIGN: 'notifications-campaign',
   WORKFLOW_ESCALATION: 'workflow-escalation',
   SUBSCRIPTION_LIFECYCLE: 'subscription-lifecycle',
@@ -214,4 +233,70 @@ export interface IntegrationSyncRunJobData extends TenantJobData {
 export interface DataImportJobData extends TenantJobData {
   jobId: string;
   rowNumbers?: number[];
+}
+
+/**
+ * Delivery of ONE Notification row over that row's dedicated transport queue (emails/sms/whatsapp).
+ * The orchestrating `notifications` processor resolves audience/entitlement/preference and then
+ * hands the row off; the channel processor performs the provider send, delivery log and status
+ * transition. Same tenant-context contract as NotificationJobData: ids only, tenantId is the only
+ * carrier of tenancy.
+ */
+export interface ChannelDeliveryJobData extends TenantJobData {
+  notificationId: string;
+}
+
+/** Certificate types the async issuance pipeline knows how to render. */
+export type CertificateGenerationKind = 'GENERATE';
+
+/**
+ * Async certificate issuance: moves a REQUESTED certificate through number allocation and the
+ * GENERATED status while producing its PDF. Backed by the StudentCertificate row itself.
+ */
+export interface CertificateGenerationJobData extends TenantJobData {
+  certificateId: string;
+  actorUserId: string;
+  /** Optional template override for a generation run. */
+  templateId?: string;
+}
+
+/**
+ * Generic async PDF artifact. Backed by a tenant-owned GeneratedDocument row that carries the
+ * render input and the resulting status, so a client can poll `GET /generated-documents/:id`.
+ */
+export interface PdfGenerationJobData extends TenantJobData {
+  generatedDocumentId: string;
+}
+
+/**
+ * Reconcile one recorded gateway payment against the provider's current order status.
+ *
+ * SaaS billing `Payment` rows are platform control-plane data (like Invoice/Subscription), so the
+ * processor reaches them through the unscoped platform client with an explicit tenantId filter —
+ * the job payload carries tenantId for the audit trail and ownership checks, not for a
+ * tenant-guard extension.
+ */
+export interface PaymentReconciliationJobData extends TenantJobData {
+  paymentId: string;
+  /** True when a human explicitly triggered the reconciliation (affects logging only). */
+  requestedByApi?: boolean;
+}
+
+/** Cross-tenant maintenance sweep over PENDING gateway payments past their reconciliation window. */
+export type PaymentReconciliationSweepJobData = Record<string, never>;
+
+/**
+ * A job that exhausted its retries (or was discarded) on its source queue. DeadLetterProcessor
+ * persists it for operators: the payload is preserved verbatim so it can be replayed by hand.
+ */
+export interface DeadLetterJobData {
+  sourceQueue: string;
+  sourceJobId: string | null;
+  jobName: string;
+  tenantId: string | null;
+  attemptsMade: number;
+  maxAttempts: number;
+  failedReason: string;
+  failedAt: string;
+  payload: unknown;
 }

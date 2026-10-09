@@ -1,5 +1,6 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import type { BackgroundJobStatus } from '@college-erp/database';
 import { PlatformAuthGuard } from '../../common/guards/platform-auth.guard';
 import { AnalyticsQueryDto } from '../analytics/dto/analytics-query.dto';
 import { PlatformAnalyticsService } from './platform-analytics.service';
@@ -49,5 +50,39 @@ export class PlatformOpsController {
   @Get('analytics/usage')
   analyticsUsage(@Query() query: AnalyticsQueryDto) {
     return this.platformAnalytics.usage(query);
+  }
+
+  // ── Background jobs (monitoring) ──────────────────────────────────────────
+
+  /** Per-queue backlog/health, registry status totals and the dead-letter backlog. */
+  @Get('jobs/queues')
+  jobQueues() {
+    return this.platformOps.getJobQueues();
+  }
+
+  /** Recent registered background jobs, most recent first. */
+  @Get('jobs')
+  listJobs(
+    @Query('queue') queue?: string,
+    @Query('status') status?: BackgroundJobStatus,
+    @Query('tenantId') tenantId?: string,
+    @Query('take') take?: string,
+    @Query('skip') skip?: string,
+  ) {
+    return this.platformOps.listJobs({
+      ...(queue ? { queue } : {}),
+      ...(status ? { status } : {}),
+      ...(tenantId ? { tenantId } : {}),
+      take: take ? Number(take) : undefined,
+      skip: skip ? Number(skip) : undefined,
+    });
+  }
+
+  // ── Payments (reconciliation) ─────────────────────────────────────────────
+
+  /** Manually reconcile one recorded gateway payment against the provider's current status. */
+  @Post('payments/:id/reconcile')
+  reconcilePayment(@Param('id') id: string) {
+    return this.platformOps.reconcilePayment(id);
   }
 }

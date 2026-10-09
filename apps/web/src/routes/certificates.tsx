@@ -571,7 +571,7 @@ function CertificatesTab({
                   <td style={{ padding: 8, textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {c.status === 'REQUESTED' && canCreate && (
                       <Button variant="secondary" style={{ marginRight: 6 }}
-                        onClick={() => void run(() => apiFetch(`/certificates/${c.id}/generate`, { method: 'POST', body: JSON.stringify({}) }), 'Certificate generated.').then(reload)}>
+                        onClick={() => void run(() => apiFetch(`/certificates/${c.id}/generate`, { method: 'POST', body: JSON.stringify({}) }), 'Certificate generation queued.').then(reload)}>
                         Generate
                       </Button>
                     )}

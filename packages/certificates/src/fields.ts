@@ -13,7 +13,7 @@
  * printed document (and its contentJson) never drifts when master data changes later.
  */
 import { CertificateTypeDto } from '@college-erp/types';
-import type { CertificatePdfField, CertificateBranding, MarkSheetTable } from './certificate-pdf';
+import type { CertificatePdfField, CertificateBranding, MarkSheetTable } from './pdf';
 
 export interface CertificateFieldRow {
   label: string;

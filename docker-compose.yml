@@ -124,6 +124,9 @@ services:
       CLAMAV_PORT: 3310
       VIRUS_SCAN_API_URL: ${VIRUS_SCAN_API_URL:-}
       VIRUS_SCAN_API_KEY: ${VIRUS_SCAN_API_KEY:-}
+      # MUST match the API's PUBLIC_BASE_URL (certificate QR codes) and payment gateway adapter.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:5173}
+      PAYMENTS_GATEWAY: ${PAYMENTS_GATEWAY:-mock}
     depends_on:
       postgres:
         condition: service_healthy

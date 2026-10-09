@@ -661,6 +661,9 @@ model Tenant {
   importTemplates                    ImportTemplate[]
   searchHistories                    SearchHistory[]
 
+  backgroundJobs                    BackgroundJob[]
+  generatedDocuments                GeneratedDocument[]
+
   @@index([status])
   @@index([createdAt])
   @@map("tenants")
@@ -10664,4 +10667,82 @@ model SearchHistory {
   @@unique([tenantId, userId, query])
   @@index([tenantId, userId, lastSearchedAt])
   @@map("search_histories")
+}
+
+// ---------------------------------------------------------------------------
+// Background job infrastructure
+// ---------------------------------------------------------------------------
+
+/// Lifecycle status of a background job (or of a generated-document request).
+enum BackgroundJobStatus {
+  QUEUED
+  ACTIVE
+  COMPLETED
+  FAILED
+  RETRYING
+  DEAD_LETTERED
+  CANCELLED
+}
+
+/// Central registry + status ledger for BullMQ jobs.
+///
+/// Control-plane data: tenantId is NULLABLE because cross-tenant maintenance sweeps
+/// (analytics-refresh, subscription-lifecycle, ...) run once for the whole platform, so this table
+/// is always reached through the unscoped platform client with an explicit tenantId filter when a
+/// tenant context applies — never the tenant-guard extension. The unique
+/// (queue, idempotencyKey) lets the enqueue helper recognize a logical job that already exists,
+/// while bullJobId ties a row back to its concrete BullMQ job for status/monitoring lookups.
+model BackgroundJob {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  queue          String
+  name           String
+  bullJobId      String?             @map("bull_job_id")
+  tenantId       String?             @map("tenant_id") @db.Uuid
+  tenant         Tenant?             @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  status         BackgroundJobStatus @default(QUEUED)
+  attemptsMade   Int                 @default(0) @map("attempts_made")
+  maxAttempts    Int                 @default(1) @map("max_attempts")
+  /// Caller-supplied logical key; unique per queue so a re-enqueue of the same work is detectable.
+  idempotencyKey String?             @map("idempotency_key")
+  payload        Json?
+  result         Json?
+  error          String?
+  enqueuedAt     DateTime            @default(now()) @map("enqueued_at")
+  startedAt      DateTime?           @map("started_at")
+  finishedAt     DateTime?           @map("finished_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  @@unique([queue, idempotencyKey])
+  @@index([queue, status])
+  @@index([tenantId])
+  @@index([bullJobId])
+  @@index([status, createdAt])
+  @@map("background_jobs")
+}
+
+/// A backend-generated PDF artifact (certificate re-renders, statements, ID cards, letters).
+/// Tenant-owned: the required tenantId lets the tenant-guard extension scope every access, and the
+/// row carries the render input plus the resulting artifact so a client can poll its status.
+model GeneratedDocument {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String              @map("tenant_id") @db.Uuid
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  /// Renderer discriminator, e.g. CERTIFICATE, TEXT.
+  kind          String
+  title         String?
+  status        BackgroundJobStatus @default(QUEUED)
+  input         Json
+  storageKey    String?             @map("storage_key")
+  contentType   String?             @map("content_type")
+  byteSize      Int?                @map("byte_size")
+  errorMessage  String?             @map("error_message")
+  requestedById String?             @map("requested_by_id")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  completedAt   DateTime?           @map("completed_at")
+
+  @@index([tenantId, status])
+  @@index([tenantId, kind])
+  @@map("generated_documents")
 }

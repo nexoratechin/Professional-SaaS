@@ -14,7 +14,10 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import {
   Prisma,
   type PrismaClient,
@@ -26,6 +29,22 @@ import {
   type Batch,
 } from '@college-erp/database';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
+import {
+  certificateTitle,
+  resolveCertificateSections,
+  buildCertificatePdf,
+  formatCertificateNumber,
+  highestSequence,
+  resolveCertificatePrefix,
+  resolvePadding,
+  typeTail,
+  type CertificateBranding,
+  type CertificateNumbering,
+  type FieldContext,
+  type ResultProcessRow,
+} from '@college-erp/certificates';
+import { QUEUE_NAMES } from '@college-erp/types';
+import { defaultJobOptions, deterministicJobId } from '@college-erp/queue';
 import { randomBytes } from 'crypto';
 import { AppConfigService } from '../../config/app-config.service';
 import { StorageService } from '../../common/storage/storage.service';
@@ -35,21 +54,6 @@ import { AuditService } from '../audit/audit.service';
 import { PermissionsService } from '../rbac/permissions.service';
 import { TenantConfigurationService } from '../tenant-configuration/tenant-configuration.service';
 import { certificateScopeFilter } from './certificate-scope';
-import {
-  certificateTitle,
-  resolveCertificateSections,
-  type FieldContext,
-  type ResultProcessRow,
-} from './certificate-fields';
-import {
-  formatCertificateNumber,
-  highestSequence,
-  resolveCertificatePrefix,
-  resolvePadding,
-  typeTail,
-  type CertificateNumbering,
-} from './certificate-numbering';
-import { buildCertificatePdf, type CertificateBranding } from './certificate-pdf';
 import type {
   CreateCertificateTemplateDto,
   GenerateCertificateDto,
@@ -85,6 +89,8 @@ export class CertificatesService {
     private readonly permissions: PermissionsService,
     private readonly tenantConfig: TenantConfigurationService,
     private readonly config: AppConfigService,
+    @InjectQueue(QUEUE_NAMES.CERTIFICATE_GENERATION) private readonly certificatesQueue: Queue,
+    @InjectQueue(QUEUE_NAMES.PDF_GENERATION) private readonly pdfQueue: Queue,
   ) {}
 
   private client(): Client {
@@ -388,187 +394,67 @@ export class CertificatesService {
       throw new BadRequestException(`Only a REQUESTED certificate can be generated (current status: ${certificate.status}).`);
     }
 
-    const student = await this.assertStudent(tenantId, certificate.studentId);
-    const template = await this.resolveTemplate(tenantId, certificate.certificateType, dto.templateId ?? certificate.templateId ?? undefined);
-
-    const { branding: tenantBranding, numbering: tenantNumbering } = await this.tenantBrandingAndNumbering(tenantId);
-
-    const branding = this.mergeBranding(tenantBranding, template?.brandingJson);
-    const type = certificate.certificateType;
-
-    let result: ResultProcessRow | null = null;
-    if (GENERATABLE_TYPES.has(type)) {
-      result = await this.latestResultProcess(this.client(), tenantId, certificate.studentId);
+    // Generation is asynchronous: the PDF render, number allocation and status transition run on
+    // the certificate-generation queue (apps/worker) through the shared @college-erp/certificates
+    // pipeline, so a slow render never blocks the request. A deterministic job id makes a retried
+    // click idempotent.
+    const jobId = deterministicJobId('certificate-generation', tenantId, certificateId);
+    try {
+      await this.certificatesQueue.add(
+        'generate',
+        {
+          tenantId,
+          certificateId,
+          actorUserId: userId,
+          ...(dto.templateId ? { templateId: dto.templateId } : {}),
+        },
+        defaultJobOptions(QUEUE_NAMES.CERTIFICATE_GENERATION, { jobId }),
+      );
+    } catch {
+      throw new ServiceUnavailableException('Certificate generation queue is unavailable. Please try again.');
     }
 
-    const context: FieldContext = {
-      student: {
-        fullName: student.fullName,
-        admissionNumber: student.admissionNumber,
-        rollNumber: student.rollNumber,
-        registrationNumber: student.registrationNumber,
-        firstName: student.firstName,
-        middleName: student.middleName,
-        lastName: student.lastName,
-        gender: student.gender,
-        dateOfBirth: student.dateOfBirth,
-        admittedOn: student.admittedOn,
-        nationality: student.nationality,
-        email: student.email,
-        city: student.city,
-        state: student.state,
-      },
-      program: student.program,
-      campus: student.campus,
-      batch: student.batch,
-      certificate: {
-        number: null,
-        title: certificate.title,
-        requestDate: certificate.requestDate.toISOString().slice(0, 10),
-        type: type,
-        status: certificate.status,
-      },
-      result,
-      branding,
-    };
-
-    const sections = resolveCertificateSections(
-      (template?.fieldConfigJson as Record<string, string> | null) ?? {},
-      type,
-      context,
-    );
-
-    const qrEnabled = template?.qrEnabled ?? true;
-    const qrToken = randomBytes(24).toString('base64url');
-    const publicBaseUrl = this.config.get('PUBLIC_BASE_URL').replace(/\/+$/, '');
-    const verifyUrl = `${publicBaseUrl}/verify/certificate?token=${qrToken}`;
-
-    const prefix = resolveCertificatePrefix(
-      (template?.numberingJson as CertificateNumbering | null) ?? null,
-      tenantNumbering as { certificatePrefix?: string } | null,
-    );
-    const tail = typeTail(type);
-    const numbering = template?.numberingJson as CertificateNumbering | null;
-    const padding = resolvePadding(numbering);
-    const start = typeof numbering?.start === 'number' ? numbering.start : 1;
-
-    const contentJson = {
-      template: template ? { id: template.id, code: template.code, name: template.name } : null,
-      certificate: {
-        id: certificateId,
-        number: null,
-        title: certificate.title,
-        requestDate: certificate.requestDate.toISOString(),
-        type,
-        status: 'GENERATED',
-      },
-      issuedTo: student.fullName,
-      branding,
-      fields: sections.fields,
-      table: sections.table ?? null,
-      summary: sections.summary ?? null,
-      verifyUrl: qrEnabled ? verifyUrl : null,
-      qrToken,
-    } as unknown as Prisma.InputJsonValue;
-
-    const { certificateNumber, attempted } = await this.allocateNumber(tenantId, certificateId, prefix, tail, start, padding, {
-      templateId: template?.id ?? null,
-      qrToken,
-      contentJson,
-      generatedAt: new Date(),
-      generatedByUserId: userId,
-    });
-
-    // Persist the rendered PDF after the status row is committed so a crash cannot leave a PDF
-    // for a certificate that never moved off REQUESTED.
-    const storageKey = this.storage.buildKey(tenantId, 'certificates', `${certificateNumber}.pdf`);
-    const pdf = buildCertificatePdf({
-      title: certificate.title ?? certificateTitle(type),
-      certificateNumber,
-      issuedTo: student.fullName,
-      branding,
-      fields: sections.fields,
-      table: sections.table,
-      summary: sections.summary,
-      issuedDate: null,
-      verifyUrl: qrEnabled ? verifyUrl : null,
-      qrEnabled,
-    });
-    await this.storage.uploadBuffer(storageKey, pdf, 'application/pdf');
-    await this.client().studentCertificate.update({
-      where: { id: certificateId },
-      data: { storageKey },
-    });
-
-    await this.recordHistory({
-      tenantId,
-      certificateId,
-      fromStatus: CertificateStatus.REQUESTED,
-      toStatus: CertificateStatus.GENERATED,
-      actorUserId: userId,
-      detail: { certificateNumber, attempts: attempted },
-    });
-    await this.audit(tenantId, userId, AUDIT_ACTIONS.CERTIFICATE_GENERATED, 'StudentCertificate', certificateId, {
-      after: { certificateNumber, type, template: template?.code ?? null },
-    });
-
-    return this.findCertificate(tenantId, certificateId);
+    this.logger.log(`Queued certificate generation for ${certificateId} (tenant ${tenantId}, job ${jobId}).`);
+    return { ...certificate, generationQueued: true, jobId };
   }
 
-  /** Allocate a unique `prefix-tail-seq` number in the tenant, retrying when a concurrent
-   * issuance wins the unique constraint first (P2002). The certificate row is flipped to
-   * GENERATED inside the retry loop so the resolved number is atomically owned. */
-  private async allocateNumber(
-    tenantId: string,
-    certificateId: string,
-    prefix: string,
-    tail: string,
-    start: number,
-    padding: number,
-    data: {
-      templateId: string | null;
-      qrToken: string;
-      contentJson: Prisma.InputJsonValue;
-      generatedAt: Date;
-      generatedByUserId: string;
-    },
-  ): Promise<{ certificateNumber: string; attempted: number }> {
-    for (let attempt = 0; attempt < MAX_NUMBER_ATTEMPTS; attempt += 1) {
-      const existing = await this.client().studentCertificate.findMany({
-        where: { tenantId, certificateNumber: { not: null } },
-        select: { certificateNumber: true },
-      });
-      const sequence =
-        highestSequence(
-          existing.map((e) => e.certificateNumber as string),
-          prefix,
-          tail,
-          start,
-        ) + 1;
-      const certificateNumber = formatCertificateNumber(prefix, tail, sequence, padding);
-
-      try {
-        await this.client().studentCertificate.update({
-          where: { id: certificateId },
-          data: {
-            status: CertificateStatus.GENERATED,
-            certificateNumber,
-            templateId: data.templateId,
-            qrToken: data.qrToken,
-            contentJson: data.contentJson,
-            generatedAt: data.generatedAt,
-            generatedByUserId: data.generatedByUserId,
-          },
-        });
-        return { certificateNumber, attempted: attempt + 1 };
-      } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          continue;
-        }
-        throw error;
-      }
+  /**
+   * Re-render an existing certificate's PDF from its frozen `contentJson` snapshot (storage-loss
+   * recovery). This is the generic `pdf-generation` queue's certificate use case: the API creates
+   * the GeneratedDocument row, the worker renders and uploads it, and a client can poll the row.
+   */
+  async regeneratePdf(tenantId: string, userId: string, certificateId: string) {
+    const certificate = await this.findCertificate(tenantId, certificateId);
+    if (!certificate.contentJson || !certificate.certificateNumber) {
+      throw new BadRequestException('This certificate has no generated snapshot to re-render.');
     }
-    throw new ConflictException('Could not allocate a unique certificate number; try again.');
+    const document = await this.client().generatedDocument.create({
+      data: {
+        tenantId,
+        kind: 'CERTIFICATE',
+        title: certificate.title ?? certificate.certificateNumber,
+        status: 'QUEUED',
+        input: { certificateId } as Prisma.InputJsonValue,
+        requestedById: userId,
+      },
+    });
+
+    const jobId = deterministicJobId('pdf-generation', tenantId, document.id);
+    try {
+      await this.pdfQueue.add(
+        'render',
+        { tenantId, generatedDocumentId: document.id },
+        defaultJobOptions(QUEUE_NAMES.PDF_GENERATION, { jobId }),
+      );
+    } catch {
+      await this.client().generatedDocument.updateMany({
+        where: { id: document.id },
+        data: { status: 'FAILED', errorMessage: 'Could not enqueue PDF generation.' },
+      });
+      throw new ServiceUnavailableException('PDF generation queue is unavailable. Please try again.');
+    }
+
+    return { generatedDocumentId: document.id, status: 'QUEUED' as const, jobId };
   }
 
   private mergeBranding(tenantBranding: unknown, templateBranding: unknown): CertificateBranding {

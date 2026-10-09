@@ -109,6 +109,12 @@ export class CertificatesController {
     return this.certificatesService.generate(this.tenantContext.tenantId as string, user.id, id, dto);
   }
 
+  @Post(':id/regenerate-pdf')
+  @RequirePermission(PERMISSION_KEYS.CERTIFICATES_CREATE)
+  regeneratePdf(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.certificatesService.regeneratePdf(this.tenantContext.tenantId as string, user.id, id);
+  }
+
   @Post(':id/approve')
   @RequirePermission(PERMISSION_KEYS.CERTIFICATES_APPROVE)
   approve(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {

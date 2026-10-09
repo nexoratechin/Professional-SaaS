@@ -6,9 +6,9 @@ import {
   type GatewayWebhookEnvelope,
   type PaymentGatewayProvider,
   type VerifiedWebhookEvent,
-} from './payment-gateway.interface';
+} from './gateway.interface';
 
-const MOCK_SECRET = String(process.env.PAYMENTS_MOCK_WEBHOOK_SECRET ?? 'dev-only-mock-secret');
+const DEFAULT_MOCK_SECRET = String(process.env.PAYMENTS_MOCK_WEBHOOK_SECRET ?? 'dev-only-mock-secret');
 const MOCK_CURRENCY = 'INR';
 
 /**
@@ -20,8 +20,10 @@ const MOCK_CURRENCY = 'INR';
 export class MockGatewayProvider implements PaymentGatewayProvider {
   readonly name = 'mock';
 
+  constructor(private readonly secret: string = DEFAULT_MOCK_SECRET) {}
+
   private signatureFor(body: string): string {
-    return createHmac('sha256', MOCK_SECRET).update(body).digest('hex');
+    return createHmac('sha256', this.secret).update(body).digest('hex');
   }
 
   async createOrder(request: GatewayOrderRequest): Promise<GatewayOrder> {

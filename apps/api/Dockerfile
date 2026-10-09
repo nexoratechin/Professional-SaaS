@@ -14,10 +14,7 @@ COPY apps/api ./apps/api
 RUN pnpm install --frozen-lockfile=false
 
 RUN pnpm --filter @college-erp/database prisma:generate \
- && pnpm --filter @college-erp/database build \
- && pnpm --filter @college-erp/auth build \
- && pnpm --filter @college-erp/config build \
- && pnpm --filter @college-erp/api build
+ && pnpm --filter @college-erp/api... build
 
 EXPOSE 3000
 CMD ["sh", "-c", "pnpm --filter @college-erp/database exec prisma migrate deploy && pnpm --filter @college-erp/database exec prisma db seed && node apps/api/dist/main.js"]

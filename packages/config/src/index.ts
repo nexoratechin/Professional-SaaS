@@ -123,6 +123,9 @@ export const apiEnvSchema = z.object({
   /** Base URL embedded in certificate QR codes so an offline printed document can be verified
    *  by anyone scanning it (resolves to the public /verify/certificate page). */
   PUBLIC_BASE_URL: z.string().url().default('http://localhost:5173'),
+  /** Payment gateway adapter used for order reconciliation: `mock` (deterministic, offline) or
+   *  `razorpay` (adapter not yet implemented). */
+  PAYMENTS_GATEWAY: z.enum(['mock', 'razorpay']).default('mock'),
   /** In prod, tenant is resolved from subdomain; dev/CI fall back to the X-Tenant-Slug header. */
   TENANT_HEADER_FALLBACK: boolFromString,
 });
@@ -203,6 +206,12 @@ export const workerEnvSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined)),
+
+  /** Base URL embedded in certificate QR codes — MUST match the API's, or a worker-generated
+   *  certificate and an API-generated one would QR-code to different verify pages. */
+  PUBLIC_BASE_URL: z.string().url().default('http://localhost:5173'),
+  /** Payment gateway adapter the reconciliation queue calls: `mock` or `razorpay`. */
+  PAYMENTS_GATEWAY: z.enum(['mock', 'razorpay']).default('mock'),
 });
 
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;

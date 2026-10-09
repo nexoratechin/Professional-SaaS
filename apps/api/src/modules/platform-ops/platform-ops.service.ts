@@ -1,6 +1,11 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import type Redis from 'ioredis';
+import { defaultJobOptions, deterministicJobId, type BackgroundJobFilter } from '@college-erp/queue';
+import { QUEUE_NAMES, type PaymentReconciliationJobData } from '@college-erp/types';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
+import { QueueMonitoringService } from '../../common/queue/queue-monitoring.service';
 import { REDIS_CLIENT } from '../../common/redis/redis.constants';
 
 interface DependencyHealth {
@@ -13,13 +18,17 @@ interface DependencyHealth {
  * Cross-tenant aggregation and infrastructure connectivity checks for the platform admin area —
  * genuinely computed from live data (Document.sizeBytes sums, real DB/Redis round-trips), never
  * mocked. Always reads through the unscoped PlatformPrismaService since these are, by
- * definition, platform-wide views spanning every tenant.
+ * definition, platform-wide views spanning every tenant. Also owns background-job observability
+ * and the manual payment-reconciliation trigger.
  */
 @Injectable()
 export class PlatformOpsService {
   constructor(
     private readonly platformPrisma: PlatformPrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly queueMonitoring: QueueMonitoringService,
+    @InjectQueue(QUEUE_NAMES.PAYMENT_RECONCILIATION)
+    private readonly paymentReconciliationQueue: Queue<PaymentReconciliationJobData>,
   ) {}
 
   async getSystemHealth() {
@@ -99,5 +108,37 @@ export class PlatformOpsService {
       documentCount: row._count,
       storageUsedBytes: row._sum.sizeBytes ?? 0,
     }));
+  }
+
+  // ── Background jobs ───────────────────────────────────────────────────────
+
+  /** Queue backlog/health + registry status totals + dead-letter backlog. */
+  getJobQueues() {
+    return this.queueMonitoring.overview();
+  }
+
+  /** Most recent registered jobs, optionally filtered by queue/status/tenant. */
+  listJobs(filter: BackgroundJobFilter) {
+    return this.queueMonitoring.recentJobs(filter);
+  }
+
+  /**
+   * Queue one payment's reconciliation. The Payment row is control-plane data (explicit tenantId
+   * filter), and a deterministic jobId makes repeated clicks idempotent.
+   */
+  async reconcilePayment(paymentId: string) {
+    const payment = await this.platformPrisma.client.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) {
+      throw new NotFoundException('Payment not found.');
+    }
+
+    const jobId = deterministicJobId('payment-reconciliation', payment.tenantId, payment.id);
+    await this.paymentReconciliationQueue.add(
+      'reconcile',
+      { tenantId: payment.tenantId, paymentId: payment.id, requestedByApi: true },
+      defaultJobOptions(QUEUE_NAMES.PAYMENT_RECONCILIATION, { jobId }),
+    );
+
+    return { paymentId: payment.id, queued: true, jobId };
   }
 }
