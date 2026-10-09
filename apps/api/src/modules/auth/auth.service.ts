@@ -1,10 +1,13 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { AUDIT_ACTIONS, AUDIT_MODULES, type JwtAccessTokenClaims } from '@college-erp/auth';
 import type { User } from '@college-erp/database';
+import { bumpWindow, recordAuthEvent, WINDOW_COUNTERS } from '@college-erp/observability';
+import type Redis from 'ioredis';
 import { AppConfigService } from '../../config/app-config.service';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
+import { REDIS_CLIENT } from '../../common/redis/redis.constants';
 import { compareAgainstDummyHash } from '../../common/security/dummy-password-hash';
 import { AuditService } from '../audit/audit.service';
 import { SecurityEventsService } from '../security/security-events.service';
@@ -59,6 +62,7 @@ export class AuthService {
     private readonly mfaChallenge: MfaChallengeService,
     private readonly trustedDevices: TrustedDevicesService,
     private readonly passwordHistory: PasswordHistoryService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   async login(tenantId: string, email: string, password: string, meta: RequestMeta): Promise<LoginServiceResult> {
@@ -393,7 +397,12 @@ export class AuthService {
   }
 
   /** Public so the SSO service can record SSO attempts (successes via completeLogin, failures
-   * directly) into the same login_events trail with the right authMethod/provider. */
+   * directly) into the same login_events trail with the right authMethod/provider.
+   *
+   * Also the single instrumentation point for authentication metrics: every tenant login result
+   * feeds the auth_events counter, failed attempts bump the auth_failures alert window, and
+   * suspicious-login blocks bump a dedicated window the alert engine watches. Window bumps are
+   * fire-and-forget so the auth path never waits on Redis. */
   async recordLoginEvent(
     tenantId: string,
     email: string,
@@ -425,5 +434,14 @@ export class AuthService {
         userAgent: meta.userAgent,
       },
     });
+
+    const success = result === 'SUCCESS';
+    recordAuthEvent('tenant_login', success ? 'success' : 'failure', success ? undefined : result);
+    if (!success) {
+      void bumpWindow(this.redis, WINDOW_COUNTERS.authFailures).catch(() => undefined);
+    }
+    if (result === 'FAILED_SUSPICIOUS_LOGIN_BLOCKED') {
+      void bumpWindow(this.redis, WINDOW_COUNTERS.suspiciousLogins).catch(() => undefined);
+    }
   }
 }

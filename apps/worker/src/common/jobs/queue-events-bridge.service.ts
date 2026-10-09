@@ -1,22 +1,26 @@
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { Queue, QueueEvents, type ConnectionOptions } from 'bullmq';
 import { backgroundJobService, MONITORED_QUEUES } from '@college-erp/queue';
+import { bumpWindow, recordQueueJobCompleted, recordQueueJobFailed, WINDOW_COUNTERS } from '@college-erp/observability';
 import { QUEUE_NAMES } from '@college-erp/types';
+import type Redis from 'ioredis';
 import { AppConfigService } from '../../config/app-config.service';
+import { WORKER_REDIS_CLIENT } from '../observability/redis.constants';
+import { WorkerErrorTrackerService } from '../observability/worker-error-tracker.service';
 import { DeadLetterService } from './dead-letter.service';
 
 /**
- * Bridges every BullMQ queue's lifecycle events into the job-status registry and the dead-letter
- * queue — WITHOUT each processor having to know about either. It subscribes to `QueueEvents` for
- * each monitored queue and:
+ * Bridges every BullMQ queue's lifecycle events into the job-status registry, the dead-letter
+ * queue and the observability pipeline — WITHOUT each processor having to know about any of them.
+ * It subscribes to `QueueEvents` for each monitored queue and:
  *   - on `active`     → mark the registry row ACTIVE (+ first-seen startedAt);
- *   - on `completed`  → mark it COMPLETED;
- *   - on `failed`     → either mark RETRYING (more attempts left) or, when the job is terminal,
- *                       move it to the dead-letter queue and mark it DEAD_LETTERED.
+ *   - on `completed`  → mark it COMPLETED + record duration/throughput metrics;
+ *   - on `failed`     → record failure metrics + the queue_failures alert window, then either mark
+ *                       RETRYING (more attempts left) or, when the job is terminal, move it to the
+ *                       dead-letter queue, mark it DEAD_LETTERED and capture a tracked error.
  *
- * Terminality is read back off the concrete job (`attemptsMade >= opts.attempts`) or the error is
- * an `UnrecoverableError`. The dead-letter queue itself is excluded (a failed DLQ job must never
- * re-enter the DLQ).
+ * Terminality is read back off the concrete job (`attemptsMade >= opts.attempts`). The dead-letter
+ * queue itself is excluded (a failed DLQ job must never re-enter the DLQ).
  */
 @Injectable()
 export class QueueEventsBridgeService implements OnModuleInit, OnModuleDestroy {
@@ -28,9 +32,11 @@ export class QueueEventsBridgeService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly config: AppConfigService,
     private readonly deadLetters: DeadLetterService,
+    private readonly errorTracker: WorkerErrorTrackerService,
+    @Inject(WORKER_REDIS_CLIENT) private readonly redis: Redis,
   ) {
     const redisUrl = new URL(this.config.get('REDIS_URL'));
-    this.connection = { host: redisUrl.hostname, port: Number(redisUrl.port || 6379), maxRetriesPerRequest: null };
+    this.connection = { host: redisUrl.hostname, port: Number(redisUrl.port ?? 6379), maxRetriesPerRequest: null };
   }
 
   onModuleInit(): void {
@@ -86,6 +92,10 @@ export class QueueEventsBridgeService implements OnModuleInit, OnModuleDestroy {
   private async onCompleted(queueName: string, jobId: string, returnValue: unknown): Promise<void> {
     try {
       await backgroundJobService.markCompleted(queueName, jobId, returnValue);
+      const job = await this.queue(queueName).getJob(jobId);
+      const durationMs =
+        job?.finishedOn && job.processedOn ? Math.max(0, job.finishedOn - job.processedOn) : undefined;
+      recordQueueJobCompleted({ queue: queueName, ...(durationMs !== undefined ? { durationMs } : {}) });
     } catch (error) {
       this.logger.warn(`Failed to mark ${queueName}#${jobId} completed: ${messageOf(error)}`);
     }
@@ -97,11 +107,22 @@ export class QueueEventsBridgeService implements OnModuleInit, OnModuleDestroy {
       if (!job) return;
       const maxAttempts = job.opts.attempts ?? 1;
       // BullMQ has already incremented attemptsMade for this failure, so it is terminal when the
-      // job has used up its budget. (UnrecoverableError short-circuits retries; those processors
-      // move their own job to the DLQ, see the docs on DeadLetterService.)
+      // job has used up its budget.
       const terminal = job.attemptsMade >= maxAttempts;
+      recordQueueJobFailed({ queue: queueName, terminal });
+      void bumpWindow(this.redis, WINDOW_COUNTERS.queueFailures).catch(() => undefined);
+
       if (terminal) {
         await this.deadLetters.move(job, new Error(failedReason), failedReason);
+        this.errorTracker.capture(new Error(failedReason), {
+          source: 'worker',
+          queue: queueName,
+          ...(job.id ? { jobId: job.id } : {}),
+          ...((job.data as { tenantId?: string } | undefined)?.tenantId
+            ? { tenantId: (job.data as { tenantId?: string }).tenantId as string }
+            : {}),
+          context: { jobName: job.name, attemptsMade: job.attemptsMade, maxAttempts },
+        });
       } else {
         await backgroundJobService.markRetrying(queueName, jobId, failedReason, job.attemptsMade);
       }

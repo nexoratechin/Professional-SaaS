@@ -122,6 +122,18 @@ export class PlatformOpsService {
     return this.queueMonitoring.recentJobs(filter);
   }
 
+  /** Deduplicated error-tracking ledger; unresolved first, newest activity within a group. */
+  async listErrors(filter: { source?: string; take?: number }) {
+    return this.platformPrisma.client.systemErrorEvent.findMany({
+      where: {
+        ...(filter.source ? { source: filter.source } : {}),
+        resolvedAt: null,
+      },
+      orderBy: { lastSeenAt: 'desc' },
+      take: Math.min(Math.max(filter.take ?? 25, 1), 200),
+    });
+  }
+
   /**
    * Queue one payment's reconciliation. The Payment row is control-plane data (explicit tenantId
    * filter), and a deterministic jobId makes repeated clicks idempotent.

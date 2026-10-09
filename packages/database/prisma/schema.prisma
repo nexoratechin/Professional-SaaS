@@ -1160,6 +1160,86 @@ model PlatformAuditLog {
 }
 
 // ---------------------------------------------------------------------------
+// Observability (alerting + error tracking)
+// ---------------------------------------------------------------------------
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  FIRING
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+/// Alert lifecycle record produced by the API's AlertingService (see
+/// packages/observability/src/alerts). One open row per (ruleKey, dedupeKey); it is updated
+/// in place while the condition persists, acknowledged by an operator, and auto-resolved when
+/// the condition clears. Control-plane data (no tenant scope) — always written through the
+/// unscoped platform client.
+model SystemAlert {
+  id                           String        @id @default(cuid())
+  /// Stable rule identifier from the observability package (e.g. "dependency_redis_down").
+  ruleKey                      String        @map("rule_key")
+  /// Rule-local scope (dependency name, queue name, fleet, ...) so distinct subjects alert separately.
+  dedupeKey                    String        @map("dedupe_key")
+  severity                     AlertSeverity
+  status                       AlertStatus   @default(FIRING)
+  title                        String
+  description                  String?
+  /// Origin process of the alert evaluation: api | worker | external.
+  source                       String        @default("api")
+  /// The signal that fired the alert, retained for the incident timeline.
+  metricName                   String?       @map("metric_name")
+  metricValue                  Decimal?      @map("metric_value") @db.Decimal(18, 4)
+  threshold                    Decimal?      @db.Decimal(18, 4)
+  details                      Json?
+  firedAt                      DateTime      @default(now()) @map("fired_at")
+  lastSeenAt                   DateTime      @default(now()) @map("last_seen_at")
+  acknowledgedAt               DateTime?     @map("acknowledged_at")
+  acknowledgedByPlatformUserId String?       @map("acknowledged_by_platform_user_id")
+  resolvedAt                   DateTime?     @map("resolved_at")
+
+  @@index([status, severity, lastSeenAt])
+  @@index([ruleKey, dedupeKey, status])
+  @@index([firedAt])
+  @@map("system_alerts")
+}
+
+/// Deduplicated error-tracking ledger: one row per stable fingerprint, with an occurrence
+/// count and first/last-seen timestamps. Control-plane data — written by the API and worker
+/// error trackers through the unscoped platform client. `context` is a small JSONB snapshot
+/// of capture-time fields (request/job context), never full request bodies.
+model SystemErrorEvent {
+  id          String    @id @default(cuid())
+  /// Hash of error name + normalized message + top stack frames (see fingerprintError()).
+  fingerprint String    @unique
+  level       String    @default("error")
+  /// Origin process: api | worker.
+  source      String
+  name        String
+  message     String
+  stack       String?
+  route       String?
+  method      String?
+  requestId   String?   @map("request_id")
+  tenantId    String?   @map("tenant_id") @db.Uuid
+  userId      String?   @map("user_id")
+  context     Json?
+  count       Int       @default(1)
+  firstSeenAt DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at")
+  resolvedAt  DateTime? @map("resolved_at")
+
+  @@index([source, lastSeenAt])
+  @@index([lastSeenAt])
+  @@map("system_error_events")
+}
+
+// ---------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------
 

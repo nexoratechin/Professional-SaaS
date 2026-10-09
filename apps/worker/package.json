@@ -21,6 +21,7 @@
     "@college-erp/imports": "workspace:*",
     "@college-erp/integrations": "workspace:*",
     "@college-erp/notifications": "workspace:*",
+    "@college-erp/observability": "workspace:*",
     "@college-erp/payments": "workspace:*",
     "@college-erp/queue": "workspace:*",
     "@college-erp/reporting": "workspace:*",

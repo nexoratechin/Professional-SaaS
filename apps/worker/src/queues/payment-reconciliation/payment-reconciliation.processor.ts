@@ -1,15 +1,18 @@
 import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
 import { UnrecoverableError, type Job, type Queue } from 'bullmq';
 import { platformPrismaClient } from '@college-erp/database';
 import { resolvePaymentGateway } from '@college-erp/payments';
 import { defaultJobOptions, requireTenantId } from '@college-erp/queue';
+import { bumpWindow, recordPaymentEvent, recordPaymentFailure, WINDOW_COUNTERS } from '@college-erp/observability';
 import {
   QUEUE_NAMES,
   type PaymentReconciliationJobData,
   type PaymentReconciliationSweepJobData,
 } from '@college-erp/types';
+import type Redis from 'ioredis';
 import { AppConfigService } from '../../config/app-config.service';
+import { WORKER_REDIS_CLIENT } from '../../common/observability/redis.constants';
 
 /** A PENDING payment older than this is presumed stuck and eligible for the periodic sweep. */
 const STALE_PENDING_MS = 15 * 60_000;
@@ -34,6 +37,7 @@ export class PaymentReconciliationProcessor extends WorkerHost {
   constructor(
     private readonly config: AppConfigService,
     @InjectQueue(QUEUE_NAMES.PAYMENT_RECONCILIATION) private readonly queue: Queue,
+    @Inject(WORKER_REDIS_CLIENT) private readonly redis: Redis,
   ) {
     super();
   }
@@ -64,7 +68,14 @@ export class PaymentReconciliationProcessor extends WorkerHost {
     }
 
     const provider = resolvePaymentGateway(this.config.get('PAYMENTS_GATEWAY'));
-    const event = await provider.fetchOrder(payment.gatewayReference);
+    const gatewayName = this.config.get('PAYMENTS_GATEWAY');
+    let event: Awaited<ReturnType<typeof provider.fetchOrder>>;
+    try {
+      event = await provider.fetchOrder(payment.gatewayReference);
+    } catch (error) {
+      this.recordFailure(gatewayName, 'fetch_order');
+      throw error;
+    }
     if (!event || event.status === payment.status) {
       this.logger.debug(`Payment ${paymentId} unchanged (${payment.status}).`);
       return;
@@ -80,6 +91,10 @@ export class PaymentReconciliationProcessor extends WorkerHost {
         failureReason: event.status === 'FAILED' ? 'Gateway reported a failure during reconciliation.' : null,
       },
     });
+    recordPaymentEvent(gatewayName, event.status);
+    if (event.status === 'FAILED') {
+      this.recordFailure(gatewayName, 'gateway_status_failed');
+    }
 
     await platformPrismaClient.platformAuditLog.create({
       data: {
@@ -96,6 +111,12 @@ export class PaymentReconciliationProcessor extends WorkerHost {
     });
 
     this.logger.log(`Reconciled payment ${paymentId}: ${payment.status} -> ${updated.status}.`);
+  }
+
+  /** Records a payment failure: bounded metric + the cross-process alert window. */
+  private recordFailure(gateway: string, stage: string): void {
+    recordPaymentFailure(gateway, stage);
+    void bumpWindow(this.redis, WINDOW_COUNTERS.paymentFailures).catch(() => undefined);
   }
 
   private async sweep(): Promise<void> {

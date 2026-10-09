@@ -5,6 +5,21 @@ const boolFromString = z
   .default('false')
   .transform((v) => v === 'true');
 
+const boolFromStringDefaultTrue = z
+  .enum(['true', 'false'])
+  .default('true')
+  .transform((v) => v === 'true');
+
+const optionalString = z
+  .string()
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined));
+
+const optionalUrl = z
+  .union([z.string().url(), z.literal('')])
+  .optional()
+  .transform((v) => (v && v.length > 0 ? v : undefined));
+
 export const apiEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('debug'),
@@ -129,6 +144,38 @@ export const apiEnvSchema = z.object({
   /** In prod, tenant is resolved from subdomain; dev/CI fall back to the X-Tenant-Slug header. */
   TENANT_HEADER_FALLBACK: boolFromString,
 
+  // --- Production observability --------------------------------------------------------------
+  // Structured logging, metrics, health, error tracking and alerting. All defaults are safe for
+  // local development; see docs/observability.md for the full operator guide.
+
+  /** Log rendering: `json` (one object per line — production default) or `text` (dev default).
+   *  When unset, NODE_ENV decides: json in production, text elsewhere. */
+  LOG_FORMAT: z.enum(['json', 'text']).optional(),
+  /** Prometheus text endpoint at GET /metrics. When false the endpoint 404s. */
+  METRICS_ENABLED: boolFromStringDefaultTrue,
+  /** When set, /metrics requires `Authorization: Bearer <token>` (or X-Metrics-Token). */
+  METRICS_TOKEN: optionalString,
+  /** Adds the tenant slug label to per-tenant request counters. Off by default — high cardinality. */
+  METRICS_INCLUDE_TENANT_LABELS: boolFromString,
+  /** Queries slower than this are counted and logged as warnings (milliseconds). */
+  SLOW_QUERY_MS: z.coerce.number().int().positive().default(500),
+  /** Timeout for each dependency probe behind /health/ready (milliseconds). */
+  HEALTH_CHECK_TIMEOUT_MS: z.coerce.number().int().positive().default(3_000),
+  /** Master switch for the alert evaluation loop (dispatch is additionally gated on the webhook). */
+  ALERTING_ENABLED: boolFromStringDefaultTrue,
+  /** How often the alert engine evaluates every rule (milliseconds). */
+  ALERT_EVAL_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  /** Slack-compatible / generic JSON webhook that receives alert dispatch and resolve payloads. */
+  ALERT_WEBHOOK_URL: optionalUrl,
+  /** Suppression window per rule+scope after a dispatch (minutes). */
+  ALERT_DEDUPE_MINUTES: z.coerce.number().int().positive().default(15),
+  /** Number of worker replicas this deployment expects to heartbeat; 0 disables the worker alert. */
+  WORKER_EXPECTED_REPLICAS: z.coerce.number().int().min(0).default(1),
+  /** Error tracker: master switch, optional external webhook, and DB persistence of deduped errors. */
+  ERROR_TRACKING_ENABLED: boolFromStringDefaultTrue,
+  ERROR_TRACKING_WEBHOOK_URL: optionalUrl,
+  ERROR_TRACKING_PERSIST: boolFromStringDefaultTrue,
+
   // --- Enterprise database isolation (optional; off by default) ------------------------------
   // The default architecture remains shared PostgreSQL + tenant_id. These knobs enable the opt-in
   // dedicated-schema / dedicated-database modes. See docs/enterprise-database-isolation.md.
@@ -243,6 +290,34 @@ export const workerEnvSchema = z.object({
   PUBLIC_BASE_URL: z.string().url().default('http://localhost:5173'),
   /** Payment gateway adapter the reconciliation queue calls: `mock` or `razorpay`. */
   PAYMENTS_GATEWAY: z.enum(['mock', 'razorpay']).default('mock'),
+
+  // --- Production observability --------------------------------------------------------------
+  // The worker exposes its own health/metrics HTTP surface (default :3100), heartbeats into Redis
+  // so the API can alert when no worker is alive, and reports failures into the same window
+  // counters the API's alert engine reads. See docs/observability.md.
+
+  /** Log rendering: `json` (production default) or `text` (dev default). */
+  LOG_FORMAT: z.enum(['json', 'text']).optional(),
+  /** Prometheus text endpoint on the worker health server. When false the endpoint 404s. */
+  METRICS_ENABLED: boolFromStringDefaultTrue,
+  /** When set, worker /metrics requires `Authorization: Bearer <token>` (or X-Metrics-Token). */
+  METRICS_TOKEN: optionalString,
+  /** Queries slower than this are counted and logged as warnings (milliseconds). */
+  SLOW_QUERY_MS: z.coerce.number().int().positive().default(500),
+  /** Timeout for each dependency probe behind /health/ready (milliseconds). */
+  HEALTH_CHECK_TIMEOUT_MS: z.coerce.number().int().positive().default(3_000),
+  /** Enables the worker's health/metrics HTTP server (needed by container healthchecks). */
+  WORKER_HEALTH_ENABLED: boolFromStringDefaultTrue,
+  /** Port for the worker health/metrics server (not exposed publicly by default). */
+  WORKER_HEALTH_PORT: z.coerce.number().int().positive().default(3100),
+  /** How often the worker writes its Redis heartbeat (milliseconds). */
+  WORKER_HEARTBEAT_INTERVAL_MS: z.coerce.number().int().positive().default(15_000),
+  /** TTL of the Redis heartbeat key; must exceed the interval (seconds). */
+  WORKER_HEARTBEAT_TTL_SECONDS: z.coerce.number().int().positive().default(45),
+  /** Error tracker: master switch, optional external webhook, and DB persistence of deduped errors. */
+  ERROR_TRACKING_ENABLED: boolFromStringDefaultTrue,
+  ERROR_TRACKING_WEBHOOK_URL: optionalUrl,
+  ERROR_TRACKING_PERSIST: boolFromStringDefaultTrue,
 
   // --- Enterprise database isolation (optional; off by default) ------------------------------
   // The worker routes a DEDICATED_* tenant's jobs to its schema/database using the same registry

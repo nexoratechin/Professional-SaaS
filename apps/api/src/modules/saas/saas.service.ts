@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AUDIT_ACTIONS, AUDIT_MODULES, computeInvoiceTotals, proratedShareCents } from '@college-erp/auth';
 import type { Prisma, SubscriptionStatus } from '@college-erp/database';
+import { recordUsageEvent as recordUsageMetric } from '@college-erp/observability';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { BillingConfigService, InvoicesService, type BillingActor } from '../billing';
@@ -601,12 +602,13 @@ export class SaasService {
         metadata: { studentCount, campusCount, updatedItemIds } as Prisma.InputJsonValue,
       },
     });
+    recordUsageMetric('SUBSCRIPTION_USAGE_RECALCULATED', updatedItemIds.length);
 
     return { studentCount, campusCount, updatedItemIds };
   }
 
   async recordUsageEvent(dto: RecordUsageEventDto) {
-    return this.platformPrisma.client.usageEvent.create({
+    const event = await this.platformPrisma.client.usageEvent.create({
       data: {
         tenantId: dto.tenantId,
         eventType: dto.eventType,
@@ -614,5 +616,9 @@ export class SaasService {
         metadata: dto.metadata as Prisma.InputJsonValue | undefined,
       },
     });
+    // Tenant usage observability: bounded-cardinality metric by event type; the per-tenant view
+    // remains the UsageEvent table + platform analytics (GET /platform/analytics/usage).
+    recordUsageMetric(dto.eventType, Number(dto.quantity));
+    return event;
   }
 }

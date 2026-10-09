@@ -1,10 +1,13 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { AUDIT_ACTIONS, AUDIT_MODULES, type PlatformJwtAccessTokenClaims } from '@college-erp/auth';
 import type { PlatformUser } from '@college-erp/database';
+import { bumpWindow, recordAuthEvent, WINDOW_COUNTERS } from '@college-erp/observability';
+import type Redis from 'ioredis';
 import { AppConfigService } from '../../config/app-config.service';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
+import { REDIS_CLIENT } from '../../common/redis/redis.constants';
 import { compareAgainstDummyHash } from '../../common/security/dummy-password-hash';
 import { ACCOUNT_LOCKOUT_DURATION_MS, MAX_FAILED_LOGIN_ATTEMPTS } from '../../common/security/brute-force.constants';
 import { AuditService } from '../audit/audit.service';
@@ -40,16 +43,19 @@ export class PlatformAuthService {
     private readonly auditService: AuditService,
     private readonly securitySettings: SecuritySettingsService,
     private readonly mfaChallenge: MfaChallengeService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   async login(email: string, password: string, meta: RequestMeta): Promise<PlatformLoginServiceResult> {
     const platformUser = await this.platformPrisma.client.platformUser.findUnique({ where: { email } });
     if (!platformUser || !platformUser.isActive) {
       await compareAgainstDummyHash(password);
+      this.recordFailure('FAILED_UNKNOWN_PLATFORM_USER');
       throw new UnauthorizedException('Invalid credentials.');
     }
     if (platformUser.lockedUntil && platformUser.lockedUntil > new Date()) {
       await compareAgainstDummyHash(password);
+      this.recordFailure('FAILED_ACCOUNT_LOCKED');
       throw new UnauthorizedException(
         'This account is temporarily locked due to repeated failed login attempts. Try again later.',
       );
@@ -77,6 +83,7 @@ export class PlatformAuthService {
           after: { lockedForMs: ACCOUNT_LOCKOUT_DURATION_MS, reason: 'too many failed login attempts' },
         });
       }
+      this.recordFailure('FAILED_PASSWORD');
       throw new UnauthorizedException('Invalid credentials.');
     }
 
@@ -100,9 +107,16 @@ export class PlatformAuthService {
     return result;
   }
 
+  /** Records a failed platform login: metric + cross-process alert window. */
+  private recordFailure(reason: string): void {
+    recordAuthEvent('platform_login', 'failure', reason);
+    void bumpWindow(this.redis, WINDOW_COUNTERS.authFailures).catch(() => undefined);
+  }
+
   /** Shared by the direct (no-MFA) login path above and PlatformMfaService.verifyChallenge's
    * post-second-factor path. */
   async completeLogin(platformUser: PlatformUser, meta: RequestMeta): Promise<PlatformLoginSuccessResult> {
+    recordAuthEvent('platform_login', 'success');
     const rawRefreshToken = generateOpaqueToken();
     const session = await this.platformPrisma.client.platformSession.create({
       data: {

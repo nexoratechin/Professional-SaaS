@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { tenantConnectionRegistry } from './tenant-database/connection-registry';
 import { TenantPrismaClientPool } from './tenant-database/client-pool';
+import { dbMetricsExtension } from './observability/db-metrics';
 
 export class TenantIsolationViolationError extends Error {
   constructor(public readonly model: string) {
@@ -112,8 +113,15 @@ export function tenantGuardExtension(tenantId: string) {
  * Unscoped singleton — for platform-admin (control-plane) services ONLY
  * (apps/api PlatformPrismaService). Domain/tenant services must never import this directly;
  * use createTenantScopedClient()/TenantScopedPrismaService instead.
+ *
+ * Wrapped with the observability db-metrics extension: every query (including tenant-scoped
+ * queries on shared tenants, which build on this instance) reports latency/errors to the metrics
+ * registry. The cast keeps the public type as plain PrismaClient so existing consumers compile
+ * unchanged.
  */
-export const platformPrismaClient = new PrismaClient();
+export const platformPrismaClient = new PrismaClient().$extends(
+  dbMetricsExtension(),
+) as unknown as PrismaClient;
 
 /**
  * Client pool for enterprise tenants on dedicated stores (schema/database). Shared tenants keep

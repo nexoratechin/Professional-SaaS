@@ -2,6 +2,12 @@ import { Logger } from '@nestjs/common';
 import { AUDIT_ACTIONS, FEATURE_KEYS } from '@college-erp/auth';
 import { createTenantScopedClient, platformPrismaClient, type Notification, type Prisma } from '@college-erp/database';
 import {
+  bumpWindow,
+  recordNotificationAttempt,
+  recordNotificationFailure,
+  WINDOW_COUNTERS,
+} from '@college-erp/observability';
+import {
   NotificationSecretCipher,
   ProviderDeliveryError,
   createNotificationProvider,
@@ -9,9 +15,11 @@ import {
   type NotificationProvider,
   type ProviderSendResult,
 } from '@college-erp/notifications';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { AppConfigService } from '../../config/app-config.service';
 import { EntitlementGate } from '../../entitlement/entitlement-gate';
+import { WORKER_REDIS_CLIENT } from '../../common/observability/redis.constants';
 
 type TenantClient = ReturnType<typeof createTenantScopedClient>;
 type DeliveryLogStatus = 'SENT' | 'DELIVERED' | 'FAILED' | 'SUPPRESSED';
@@ -43,6 +51,7 @@ export class NotificationDeliveryService {
   constructor(
     private readonly entitlementGate: EntitlementGate,
     private readonly appConfig: AppConfigService,
+    @Optional() @Inject(WORKER_REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
   /** Entitlement + preference gate. Mutates the row to FAILED/SUPPRESSED when it must not deliver. */
@@ -134,6 +143,7 @@ export class NotificationDeliveryService {
         },
       });
       await this.audit(notification.tenantId, notification.id, AUDIT_ACTIONS.NOTIFICATION_DELIVERED);
+      recordNotificationAttempt(notification.channel, 'sent');
     } catch (error) {
       const attemptNumber = notification.attempts + 1;
       const retryable = error instanceof ProviderDeliveryError ? error.retryable : true;
@@ -143,6 +153,14 @@ export class NotificationDeliveryService {
         attempt: attemptNumber,
         error: message,
       });
+
+      recordNotificationAttempt(notification.channel, 'failed');
+      recordNotificationFailure(notification.channel, notification.provider ?? 'unknown', !retryable);
+      if (!retryable) {
+        // Terminal delivery failure — feed the cross-process alert window. Retryable failures are
+        // deliberately excluded: they are expected noise that BullMQ retries with backoff.
+        this.bumpFailureWindow();
+      }
 
       if (retryable) {
         await tenantClient.notification.update({
@@ -154,6 +172,11 @@ export class NotificationDeliveryService {
 
       await this.fail(tenantClient, notification, message, attemptNumber);
     }
+  }
+
+  private bumpFailureWindow(): void {
+    if (!this.redis) return;
+    void bumpWindow(this.redis, WINDOW_COUNTERS.notificationFailures).catch(() => undefined);
   }
 
   /** Picks the tenant's active provider for the notification's channel, with dev/VAPID fallbacks. */

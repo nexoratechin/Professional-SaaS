@@ -3,6 +3,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { TenantResolutionMiddleware } from './common/middleware/tenant-resolution.middleware';
+import { ObservabilityModule } from './common/observability/observability.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { TenantConnectionModule } from './common/tenant/tenant-connection.module';
 import { QueueModule } from './common/queue/queue.module';
@@ -74,6 +75,7 @@ import { GlobalSearchModule } from './modules/global-search/global-search.module
     }),
     AuditModule,
     HealthModule,
+    ObservabilityModule,
     AuthModule,
     TenantsModule,
     UsersModule,
@@ -133,6 +135,8 @@ export class AppModule implements NestModule {
       .apply(TenantResolutionMiddleware)
       .exclude(
         { path: 'health', method: RequestMethod.ALL },
+        { path: 'health/(.*)', method: RequestMethod.ALL },
+        { path: 'metrics', method: RequestMethod.ALL },
         { path: 'api/docs', method: RequestMethod.ALL },
         { path: 'api/docs/(.*)', method: RequestMethod.ALL },
         { path: 'public/(.*)', method: RequestMethod.ALL },

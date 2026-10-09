@@ -7,6 +7,7 @@
  * disconnected in the background.
  */
 import { PrismaClient } from '@prisma/client';
+import { dbMetricsExtension } from '../observability/db-metrics';
 
 export interface TenantPrismaClientPoolOptions {
   /** The already-constructed shared client (returned for the shared URL). */
@@ -43,7 +44,11 @@ export class TenantPrismaClientPool {
       return existing;
     }
 
-    const client = new PrismaClient({ datasources: { db: { url: connectionUrl } } });
+    // Dedicated-store clients are instrumented with the same db-metrics extension as the shared
+    // client; the cast preserves the pool's public PrismaClient surface.
+    const client = new PrismaClient({ datasources: { db: { url: connectionUrl } } }).$extends(
+      dbMetricsExtension(),
+    ) as unknown as PrismaClient;
     this.clients.set(connectionUrl, client);
     this.evictIfNeeded();
     return client;

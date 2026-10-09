@@ -91,8 +91,29 @@ services:
       TENANT_DB_DATABASE_PREFIX: ${TENANT_DB_DATABASE_PREFIX:-college_erp_tenant_}
       TENANT_DB_MIGRATION_MODE: ${TENANT_DB_MIGRATION_MODE:-auto}
       TENANT_DB_MAX_CLIENTS: ${TENANT_DB_MAX_CLIENTS:-10}
+      # Production observability (see docs/observability.md).
+      LOG_FORMAT: ${LOG_FORMAT:-}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      METRICS_INCLUDE_TENANT_LABELS: ${METRICS_INCLUDE_TENANT_LABELS:-false}
+      SLOW_QUERY_MS: ${SLOW_QUERY_MS:-500}
+      HEALTH_CHECK_TIMEOUT_MS: ${HEALTH_CHECK_TIMEOUT_MS:-3000}
+      ALERTING_ENABLED: ${ALERTING_ENABLED:-true}
+      ALERT_EVAL_INTERVAL_MS: ${ALERT_EVAL_INTERVAL_MS:-60000}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      ALERT_DEDUPE_MINUTES: ${ALERT_DEDUPE_MINUTES:-15}
+      WORKER_EXPECTED_REPLICAS: ${WORKER_EXPECTED_REPLICAS:-1}
+      ERROR_TRACKING_ENABLED: ${ERROR_TRACKING_ENABLED:-true}
+      ERROR_TRACKING_WEBHOOK_URL: ${ERROR_TRACKING_WEBHOOK_URL:-}
+      ERROR_TRACKING_PERSIST: ${ERROR_TRACKING_PERSIST:-true}
     ports:
       - '3000:3000'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/health/live || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -139,6 +160,28 @@ services:
       TENANT_DB_ISOLATION_ENABLED: ${TENANT_DB_ISOLATION_ENABLED:-false}
       TENANT_DB_SECRET_KEY: ${TENANT_DB_SECRET_KEY:-}
       TENANT_DB_MAX_CLIENTS: ${TENANT_DB_MAX_CLIENTS:-10}
+      # Production observability: heartbeat into Redis (the API's worker_offline alert + readiness
+      # probe count it) and expose /health + /metrics on WORKER_HEALTH_PORT.
+      LOG_FORMAT: ${LOG_FORMAT:-}
+      WORKER_HEALTH_ENABLED: ${WORKER_HEALTH_ENABLED:-true}
+      WORKER_HEALTH_PORT: ${WORKER_HEALTH_PORT:-3100}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      SLOW_QUERY_MS: ${SLOW_QUERY_MS:-500}
+      HEALTH_CHECK_TIMEOUT_MS: ${HEALTH_CHECK_TIMEOUT_MS:-3000}
+      WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-15000}
+      WORKER_HEARTBEAT_TTL_SECONDS: ${WORKER_HEARTBEAT_TTL_SECONDS:-45}
+      ERROR_TRACKING_ENABLED: ${ERROR_TRACKING_ENABLED:-true}
+      ERROR_TRACKING_WEBHOOK_URL: ${ERROR_TRACKING_WEBHOOK_URL:-}
+      ERROR_TRACKING_PERSIST: ${ERROR_TRACKING_PERSIST:-true}
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3100/health/live || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    ports:
+      - '${WORKER_HEALTH_PORT:-3100}:3100'
     depends_on:
       postgres:
         condition: service_healthy

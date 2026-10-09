@@ -4,6 +4,7 @@ import { AppConfigService } from './config/app-config.service';
 import { ConfigModule } from './config/config.module';
 import { EntitlementModule } from './entitlement/entitlement.module';
 import { JobsModule } from './common/jobs/jobs.module';
+import { WorkerObservabilityModule } from './common/observability/worker-observability.module';
 import { TenantConnectionModule } from './common/tenant/tenant-connection.module';
 import { AiDocumentProcessingProcessorModule } from './queues/ai/ai-document-processing-processor.module';
 import { AnalyticsRefreshProcessorModule } from './queues/analytics-refresh/analytics-refresh-processor.module';
@@ -28,6 +29,9 @@ import { WorkflowEscalationProcessorModule } from './queues/workflow-escalation/
     ConfigModule,
     TenantConnectionModule,
     EntitlementModule,
+    // Observability must be registered before the job infrastructure so the queue-events bridge
+    // and processors can inject the metrics/diagnostics services.
+    WorkerObservabilityModule,
     BullModule.forRootAsync({
       inject: [AppConfigService],
       useFactory: (config: AppConfigService) => {

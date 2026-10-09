@@ -3,16 +3,28 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { configureObservability, parseLogFormat, parseLogLevel } from '@college-erp/observability';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import type { Request } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { applyGlobalHeaderParameters } from './common/docs/global-parameters';
+import { ErrorTrackerService } from './common/observability/error-tracker.service';
 import { AppConfigService } from './config/app-config.service';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Structured logging is configured BEFORE NestFactory.create so Nest's own bootstrap logs
+  // (route mapping, module init) are emitted through the same JSON pipeline as application logs.
+  const logger = configureObservability({
+    service: 'api',
+    level: parseLogLevel(process.env.LOG_LEVEL, process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
+    format: parseLogFormat(process.env.LOG_FORMAT),
+    version: process.env.APP_VERSION ?? 'dev',
+    environment: process.env.NODE_ENV ?? 'development',
+  });
+
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger });
   const config = app.get(AppConfigService);
 
   // Subdomain-based tenant resolution and rate limiting both need the real client IP/Host,
@@ -111,8 +123,22 @@ async function bootstrap() {
   });
 
   const port = config.get('PORT');
+
+  // Error tracking also covers failures outside the HTTP request path. Unhandled rejections are
+  // captured and logged without killing the process; an uncaughtException leaves the process in an
+  // undefined state, so it is captured, then the process exits and the orchestrator restarts it.
+  const errorTracker = app.get(ErrorTrackerService);
+  process.on('unhandledRejection', (reason: unknown) => {
+    errorTracker.capture(reason, { source: 'api', context: { origin: 'unhandledRejection' } });
+  });
+  process.on('uncaughtException', (error: Error) => {
+    errorTracker.capture(error, { source: 'api', context: { origin: 'uncaughtException' } });
+    logger.emit('error', 'Uncaught exception — exiting', { error: { name: error.name, message: error.message, stack: error.stack } });
+    setTimeout(() => process.exit(1), 250).unref();
+  });
+
   await app.listen(port);
-  console.log(`College ERP API listening on port ${port} (docs at /api/docs)`);
+  logger.emit('info', `College ERP API listening on port ${port}`, { docs: '/api/docs', metrics: '/metrics' });
 }
 
 bootstrap();

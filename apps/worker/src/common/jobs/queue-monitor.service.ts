@@ -1,6 +1,7 @@
 import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from '@nestjs/common';
 import { QueueMonitor } from '@college-erp/queue';
 import { backgroundJobService } from '@college-erp/queue';
+import { recordDeadLetterBacklog, recordQueueSnapshot } from '@college-erp/observability';
 import { AppConfigService } from '../../config/app-config.service';
 
 const SNAPSHOT_INTERVAL_MS = 5 * 60_000;
@@ -49,6 +50,12 @@ export class QueueMonitorService implements OnApplicationBootstrap, OnModuleDest
         .filter((entry) => entry.backlog > 0)
         .map((entry) => `${entry.name}=${entry.backlog}`)
         .join(' ');
+
+      // Publish the same snapshot to the metric registry (worker /metrics + scraping pipelines).
+      for (const entry of snapshot) {
+        recordQueueSnapshot(entry.name, entry.counts);
+      }
+      recordDeadLetterBacklog(await this.monitor.deadLetterBacklog());
 
       this.logger.log(
         `Queue snapshot: ${snapshot.length} queues observed; backlog [${backlog || 'none'}]; ` +
