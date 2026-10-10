@@ -1,70 +1,86 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Button, Card } from '@college-erp/ui';
+import { Badge, Button, Card, CardBody, Grid, Inline, PageHeader, Stack, StatCard } from '@college-erp/ui';
 import { useAuth, useEntitlement } from '../features/auth/auth-context';
 import { openGlobalSearch } from '../features/search/search-palette';
+import { Icon } from '../app/icons';
+import { NAV_GROUPS, hasAnyPermission, hasAnyRole, type NavItem } from '../app/nav-config';
 
-const AUDIT_VIEW_PERMISSION = 'audit.read';
-const BILLING_VIEW_PERMISSION = 'tenant.billing.view';
-const CONFIG_VIEW_PERMISSION = 'tenant.config.view';
-const STUDENTS_VIEW_PERMISSION = 'students.view';
-const ADMISSIONS_VIEW_PERMISSION = 'admissions.view';
-const ACADEMICS_VIEW_PERMISSION = 'academics.view';
-const TIMETABLE_VIEW_PERMISSION = 'timetable.view';
-const ATTENDANCE_VIEW_PERMISSION = 'attendance.view';
-const EXAMS_VIEW_PERMISSION = 'exams.view';
-const CERTIFICATES_VIEW_PERMISSION = 'certificates.view';
-const LIBRARY_VIEW_PERMISSION = 'library.view';
-const INVENTORY_VIEW_PERMISSION = 'inventory.view';
-const HELPDESK_VIEW_PERMISSION = 'helpdesk.view';
-const HOSTEL_VIEW_PERMISSION = 'hostel.view';
-const TRANSPORT_VIEW_PERMISSION = 'transport.view';
-const HR_VIEW_PERMISSION = 'hr.view';
-const PLACEMENTS_VIEW_PERMISSION = 'placements.view';
-const NOTIFICATIONS_VIEW_PERMISSION = 'notifications.read';
-const DOCUMENTS_VIEW_PERMISSION = 'documents.read';
-const REPORTS_VIEW_PERMISSION = 'reports.view';
-const INTEGRATIONS_VIEW_PERMISSION = 'integrations.view';
-const IDENTITY_VIEW_PERMISSION = 'identity.view';
-const ANALYTICS_VIEW_PERMISSION = 'analytics.view';
-const AI_VIEW_PERMISSION = 'ai.view';
 const SEARCH_VIEW_PERMISSION = 'search.view';
-const ORG_VIEW_PERMISSIONS = ['campuses.read', 'departments.read', 'programs.read', 'academicYears.read', 'terms.read', 'rooms.read', 'buildings.read', 'sections.read', 'batches.read'];
-const IMPORT_VIEW_PERMISSIONS = ['students.view', 'hr.view', 'academics.view', 'departments.read', 'fees.view', 'attendance.view', 'exams.view', 'library.view', 'inventory.view'];
-const CAMPUS_VIEW_PERMISSIONS = ['campus.settings.view', 'campus.analytics.view'];
 
-/** Entitlement-gated navigation section — rendered links are only as trustworthy as the
- * backend's EntitlementFlagsGuard (a disabled plan entitlement hides the link here, but could
- * never be bypassed by manually calling the API). */
-function EntitlementNav() {
-  const entitleModules = useEntitlement('attendance.qr');
-  const entitleFees = useEntitlement('fees.online_payment');
-  const entitleAnalytics = useEntitlement('analytics.advanced');
-  const entitleAi = useEntitlement('ai.assistant');
+interface ModuleEntry extends NavItem {
+  group: string;
+}
 
+function ModuleCard({ item }: { item: ModuleEntry }) {
   return (
-    <Card>
-      <h2 style={{ fontSize: '1rem', marginBottom: 8 }}>Modules (entitlement-gated navigation)</h2>
-      <ul style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {entitleModules && <li>QR attendance — <Link to="/dashboard">available</Link></li>}
-        {entitleFees && <li>Online fee payments — <Link to="/dashboard">available</Link></li>}
-        {entitleAnalytics && <li>Advanced analytics — <Link to="/analytics">open</Link></li>}
-        {entitleAi && <li>AI assistant — <Link to="/ai-assistant">open</Link></li>}
-      </ul>
-      {!entitleModules && !entitleFees && !entitleAnalytics && !entitleAi && (
-        <p style={{ color: '#9ca3af' }}>No extra entitlements in this tenant's plan.</p>
-      )}
-    </Card>
+    <Link
+      to={item.to}
+      className="ui-card"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: 16,
+        textDecoration: 'none',
+        color: 'inherit',
+      }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 'var(--ui-radius-md)',
+          background: 'var(--ui-color-primary-soft)',
+          color: 'var(--ui-color-primary)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: '0 0 auto',
+        }}
+      >
+        <Icon name={item.icon} size={19} />
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', fontWeight: 600 }}>{item.label}</span>
+        <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--ui-color-text-muted)' }}>{item.group}</span>
+      </span>
+    </Link>
   );
 }
 
 export function DashboardPage() {
-  const { user, permissions, features, entitlements, tenantSlug, logout } = useAuth();
+  const { user, permissions, features, entitlements, hasFetchedEntitlements, tenantSlug, logout } = useAuth();
   const navigate = useNavigate();
-  // The AI link needs BOTH gates: the plan entitlement (so a tenant that has not bought it never
-  // sees it) and the `ai.view` RBAC grant (so a user whose role excludes it never sees it either).
-  // Neither is enforcement — the API's guard stack and resolveAiScope are.
   const entitledAi = useEntitlement('ai.assistant');
+  const entitledAnalytics = useEntitlement('analytics.advanced');
+
+  const roles = user?.roles ?? [];
+
+  // Module grid mirrors the sidebar, but the dashboard surfaces the full map so a user can see what
+  // they have access to at a glance. Every link is permission/role/entitlement filtered, exactly
+  // like the shell — and every destination is independently guarded server-side.
+  const modules = useMemo<ModuleEntry[]>(
+    () =>
+      NAV_GROUPS.flatMap((group) =>
+        group.items
+          .filter(
+            (item) =>
+              hasAnyPermission(permissions, item.permissions) &&
+              hasAnyRole(roles, item.roles) &&
+              (!item.entitlement || !hasFetchedEntitlements || entitlements[item.entitlement] === true),
+          )
+          .map((item) => ({ ...item, group: group.label })),
+      ),
+    [permissions, roles, entitlements, hasFetchedEntitlements],
+  );
+
+  const featureList = Object.entries(features);
+  const entitlementList = Object.entries(entitlements);
+  const enabledFeatures = featureList.filter(([, enabled]) => enabled).length;
+  const enabledEntitlements = entitlementList.filter(([, enabled]) => enabled).length;
+  const firstName = user?.fullName?.split(' ')[0] ?? 'there';
 
   const handleLogout = async () => {
     await logout();
@@ -72,115 +88,142 @@ export function DashboardPage() {
   };
 
   return (
-    <div style={{ maxWidth: 720, margin: '2rem auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: '1.25rem' }}>College ERP — Dashboard</h1>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          {user?.roles.some((role) => role === 'STUDENT') && (
-            <Link to="/portal/dashboard" style={{ fontWeight: 600 }}>
-              Student Portal
-            </Link>
-          )}
-          {user?.roles.some((role) => role === 'PARENT') && (
-            <Link to="/parent/dashboard" style={{ fontWeight: 600 }}>
-              Parent Portal
-            </Link>
-          )}
-          {user?.roles.some((role) => role === 'FACULTY') && (
-            <Link to="/faculty/dashboard" style={{ fontWeight: 600 }}>
-              Faculty Portal
-            </Link>
-          )}
-          {permissions.includes(STUDENTS_VIEW_PERMISSION) && <Link to="/students">Students</Link>}
-          {permissions.includes(ADMISSIONS_VIEW_PERMISSION) && <Link to="/admissions">Admissions</Link>}
-          {permissions.includes(ACADEMICS_VIEW_PERMISSION) && <Link to="/academics">Academics</Link>}
-          {permissions.includes(TIMETABLE_VIEW_PERMISSION) && <Link to="/timetable">Timetable</Link>}
-          {permissions.includes(ATTENDANCE_VIEW_PERMISSION) && <Link to="/attendance">Attendance</Link>}
-          {permissions.includes(EXAMS_VIEW_PERMISSION) && <Link to="/exams">Examinations</Link>}
-          {permissions.includes(CERTIFICATES_VIEW_PERMISSION) && <Link to="/certificates">Certificates</Link>}
-          {permissions.includes(LIBRARY_VIEW_PERMISSION) && <Link to="/library">Library</Link>}
-          {permissions.includes(INVENTORY_VIEW_PERMISSION) && <Link to="/inventory">Inventory</Link>}
-          {permissions.includes(HELPDESK_VIEW_PERMISSION) && <Link to="/helpdesk">Helpdesk</Link>}
-          {permissions.includes(HOSTEL_VIEW_PERMISSION) && <Link to="/hostel">Hostel</Link>}
-          {permissions.includes(TRANSPORT_VIEW_PERMISSION) && <Link to="/transport">Transport</Link>}
-          {permissions.includes(HR_VIEW_PERMISSION) && <Link to="/hr">HR & Faculty</Link>}
-          {permissions.includes(PLACEMENTS_VIEW_PERMISSION) && <Link to="/placements">Placements</Link>}
-          {permissions.includes(NOTIFICATIONS_VIEW_PERMISSION) && <Link to="/notifications">Notifications</Link>}
-          {permissions.includes(DOCUMENTS_VIEW_PERMISSION) && <Link to="/documents">Documents</Link>}
-          {permissions.includes(INTEGRATIONS_VIEW_PERMISSION) && <Link to="/integrations">Integrations</Link>}
-          {permissions.includes(IDENTITY_VIEW_PERMISSION) && <Link to="/identity">Single sign-on</Link>}
-          {permissions.includes(REPORTS_VIEW_PERMISSION) && <Link to="/reports">Reports</Link>}
-          {permissions.some((p) => IMPORT_VIEW_PERMISSIONS.includes(p)) && <Link to="/imports">Import / Export</Link>}
-          {permissions.includes(ANALYTICS_VIEW_PERMISSION) && <Link to="/analytics">Analytics</Link>}
-          {entitledAi && permissions.includes(AI_VIEW_PERMISSION) && <Link to="/ai-assistant">AI Assistant</Link>}
-          {permissions.some((p) => ORG_VIEW_PERMISSIONS.includes(p)) && <Link to="/organization">Organization</Link>}
-          {permissions.some((p) => CAMPUS_VIEW_PERMISSIONS.includes(p)) && <Link to="/campuses">Campuses</Link>}
-          {permissions.includes(AUDIT_VIEW_PERMISSION) && <Link to="/audit">Audit log</Link>}
-          {permissions.includes(BILLING_VIEW_PERMISSION) && <Link to="/billing">Billing</Link>}
-          {permissions.includes(CONFIG_VIEW_PERMISSION) && <Link to="/settings">Configuration</Link>}
-          {permissions.includes(SEARCH_VIEW_PERMISSION) && (
-            <Button variant="secondary" onClick={openGlobalSearch}>
-              Search (Ctrl K)
+    <Stack gap={6}>
+      <PageHeader
+        title={`Welcome back, ${firstName}`}
+        description={
+          <span>
+            {tenantSlug ? <Badge tone="primary">{tenantSlug}</Badge> : null}{' '}
+            {user?.email} · {user?.roles.join(', ') || 'no roles'}
+          </span>
+        }
+        actions={
+          <>
+            {roles.includes('STUDENT') && <Button variant="secondary" onClick={() => navigate('/portal/dashboard')}>Student Portal</Button>}
+            {roles.includes('PARENT') && <Button variant="secondary" onClick={() => navigate('/parent/dashboard')}>Parent Portal</Button>}
+            {roles.includes('FACULTY') && <Button variant="secondary" onClick={() => navigate('/faculty/dashboard')}>Faculty Portal</Button>}
+            {permissions.includes(SEARCH_VIEW_PERMISSION) && (
+              <Button variant="secondary" iconLeft={<Icon name="search" size={16} />} onClick={openGlobalSearch}>
+                Search
+              </Button>
+            )}
+            <Button variant="ghost" onClick={handleLogout}>
+              Sign out
             </Button>
+          </>
+        }
+      />
+
+      <Grid columns={undefined} min={200} gap={4}>
+        <StatCard label="Available modules" value={modules.length} hint={user?.status ? `Account: ${user.status}` : undefined} />
+        <StatCard label="Effective permissions" value={permissions.length} />
+        <StatCard label="Enabled feature flags" value={featureList.length === 0 ? '—' : enabledFeatures} hint={featureList.length === 0 ? 'Requires tenant.features.manage' : undefined} />
+        <StatCard label="Active entitlements" value={entitlementList.length === 0 ? '—' : enabledEntitlements} />
+      </Grid>
+
+      <Card>
+        <CardBody>
+          <Inline justify="space-between" style={{ marginBottom: 4 }}>
+            <h2 className="ui-card__title">Your modules</h2>
+            <span style={{ fontSize: '0.82rem', color: 'var(--ui-color-text-muted)' }}>
+              {permissions.includes(SEARCH_VIEW_PERMISSION) ? 'Tip: press Ctrl + K to search anything' : ''}
+            </span>
+          </Inline>
+          {modules.length === 0 ? (
+            <p style={{ color: 'var(--ui-color-text-muted)', marginTop: 8 }}>
+              No modules are available for your role. Contact your administrator if this looks wrong.
+            </p>
+          ) : (
+            <Grid min={240} gap={4} style={{ marginTop: 12 }}>
+              {modules.map((item) => (
+                <ModuleCard key={item.to} item={item} />
+              ))}
+            </Grid>
           )}
-          <Button variant="secondary" onClick={handleLogout}>
-            Log out
-          </Button>
+        </CardBody>
+      </Card>
+
+      {(entitledAi || entitledAnalytics) && (
+        <Card>
+          <CardBody>
+            <h2 className="ui-card__title" style={{ marginBottom: 8 }}>Add-ons on your plan</h2>
+            <Inline gap={2}>
+              {entitledAnalytics && <Badge tone="success">Advanced analytics</Badge>}
+              {entitledAi && <Badge tone="success">AI assistant</Badge>}
+            </Inline>
+          </CardBody>
+        </Card>
+      )}
+
+      <details className="ui-card" style={{ padding: 0 }}>
+        <summary style={{ cursor: 'pointer', padding: '14px 20px', fontWeight: 600, listStyle: 'revert' }}>
+          Account &amp; access details
+        </summary>
+        <div style={{ padding: '0 20px 20px' }}>
+          <Grid min={300} gap={4}>
+            <Stack gap={2}>
+              <h3 style={{ fontSize: '0.95rem' }}>Session</h3>
+              <Kv k="Tenant" v={tenantSlug ?? '—'} />
+              <Kv k="User" v={user?.fullName ?? '—'} />
+              <Kv k="Email" v={user?.email ?? '—'} />
+              <Kv k="Status" v={user?.status ?? '—'} />
+              <Kv k="Roles" v={user?.roles.join(', ') || 'none'} />
+            </Stack>
+
+            <Stack gap={2}>
+              <h3 style={{ fontSize: '0.95rem' }}>Effective permissions ({permissions.length})</h3>
+              {permissions.length === 0 ? (
+                <p style={{ color: 'var(--ui-color-text-muted)' }}>No permissions granted.</p>
+              ) : (
+                <Inline gap={1}>
+                  {permissions.map((permission) => (
+                    <Badge key={permission}>{permission}</Badge>
+                  ))}
+                </Inline>
+              )}
+            </Stack>
+
+            <Stack gap={2}>
+              <h3 style={{ fontSize: '0.95rem' }}>Feature flags</h3>
+              {featureList.length === 0 ? (
+                <p style={{ color: 'var(--ui-color-text-muted)' }}>Not visible with the current role (requires tenant.features.manage).</p>
+              ) : (
+                <Inline gap={1}>
+                  {featureList.map(([key, enabled]) => (
+                    <Badge key={key} tone={enabled ? 'success' : 'neutral'}>
+                      {key}
+                    </Badge>
+                  ))}
+                </Inline>
+              )}
+            </Stack>
+
+            <Stack gap={2}>
+              <h3 style={{ fontSize: '0.95rem' }}>Granular entitlements</h3>
+              {entitlementList.length === 0 ? (
+                <p style={{ color: 'var(--ui-color-text-muted)' }}>No entitlement data loaded.</p>
+              ) : (
+                <Inline gap={1}>
+                  {entitlementList.map(([key, enabled]) => (
+                    <Badge key={key} tone={enabled ? 'success' : 'neutral'}>
+                      {key}
+                    </Badge>
+                  ))}
+                </Inline>
+              )}
+            </Stack>
+          </Grid>
         </div>
-      </div>
+      </details>
+    </Stack>
+  );
+}
 
-      <Card>
-        <h2 style={{ fontSize: '1rem', marginBottom: 8 }}>Session</h2>
-        <p>Tenant: {tenantSlug}</p>
-        <p>User: {user?.fullName} ({user?.email})</p>
-        <p>Status: {user?.status}</p>
-        <p>Roles: {user?.roles.join(', ') || 'none'}</p>
-      </Card>
-
-      <Card>
-        <h2 style={{ fontSize: '1rem', marginBottom: 8 }}>Effective permissions</h2>
-        {permissions.length === 0 ? (
-          <p>No permissions granted.</p>
-        ) : (
-          <ul>
-            {permissions.map((permission) => (
-              <li key={permission}>{permission}</li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <Card>
-        <h2 style={{ fontSize: '1rem', marginBottom: 8 }}>Feature flags for this tenant's plan</h2>
-        {Object.keys(features).length === 0 ? (
-          <p>Not visible with the current role (requires tenant.features.manage).</p>
-        ) : (
-          <ul>
-            {Object.entries(features).map(([key, enabled]) => (
-              <li key={key} style={{ color: enabled ? '#15803d' : '#9ca3af' }}>
-                {key}: {enabled ? 'enabled' : 'disabled'}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <Card>
-        <h2 style={{ fontSize: '1rem', marginBottom: 8 }}>Granular entitlements</h2>
-        {Object.keys(entitlements).length === 0 ? (
-          <p style={{ color: '#9ca3af' }}>No entitlement data loaded.</p>
-        ) : (
-          <ul>
-            {Object.entries(entitlements).map(([key, enabled]) => (
-              <li key={key} style={{ color: enabled ? '#15803d' : '#9ca3af' }}>
-                {key}: {enabled ? 'enabled' : 'disabled'}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <EntitlementNav />
+function Kv({ k, v }: { k: string; v: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 12, borderBottom: '1px solid var(--ui-color-border)', padding: '6px 0' }}>
+      <span style={{ minWidth: 90, color: 'var(--ui-color-text-muted)', fontSize: '0.82rem' }}>{k}</span>
+      <span style={{ fontSize: '0.9rem' }}>{v}</span>
     </div>
   );
 }

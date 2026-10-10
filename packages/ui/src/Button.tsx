@@ -1,21 +1,48 @@
 import React from 'react';
+import { cx } from './theme';
+import { Spinner } from './feedback';
+
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'subtle';
+export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary';
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  /** Show a spinner and block interaction while true. */
+  loading?: boolean;
+  /** Stretch to the container width. */
+  block?: boolean;
+  /** Leading adornment (icon element). */
+  iconLeft?: React.ReactNode;
 }
 
-export function Button({ variant = 'primary', style, ...props }: ButtonProps) {
-  const base: React.CSSProperties = {
-    padding: '0.5rem 1rem',
-    borderRadius: 6,
-    border: '1px solid transparent',
-    fontSize: '0.9rem',
-    cursor: props.disabled ? 'not-allowed' : 'pointer',
-    opacity: props.disabled ? 0.6 : 1,
-  };
-  const variants: Record<string, React.CSSProperties> = {
-    primary: { background: '#1d4ed8', color: '#fff' },
-    secondary: { background: '#fff', color: '#1d4ed8', borderColor: '#1d4ed8' },
-  };
-  return <button {...props} style={{ ...base, ...variants[variant], ...style }} />;
+/**
+ * The design-system button. Backwards compatible with the original
+ * `variant="primary" | "secondary"` API, extended with sizes, loading and icon slots. All visual
+ * styling lives in the global stylesheet so hover/focus/disabled states stay consistent.
+ */
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  loading = false,
+  block = false,
+  iconLeft,
+  className,
+  disabled,
+  children,
+  type,
+  ...props
+}: ButtonProps) {
+  return (
+    <button
+      {...props}
+      type={type}
+      className={cx('ui-btn', `ui-btn--${variant}`, size !== 'md' && `ui-btn--${size}`, block && 'ui-btn--block', className)}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+    >
+      {loading ? <Spinner /> : iconLeft}
+      {children}
+    </button>
+  );
 }

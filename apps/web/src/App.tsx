@@ -1,14 +1,16 @@
 import React, { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { Spinner } from '@college-erp/ui';
 import { AuthProvider } from './features/auth/auth-context';
 import { GlobalSearchPalette } from './features/search/search-palette';
 import { PlatformAuthProvider } from './features/platform-auth/platform-auth-context';
 
 /**
- * Every route module is code-split: the app shell (auth providers, router, search palette)
- * ships eagerly, and each page loads on first navigation. This keeps the initial bundle to the
- * shell instead of the ~60 feature pages, and pairs with the vendor manualChunks in vite.config.
+ * Every route module is code-split: the app shell (auth providers, router, search palette) ships
+ * eagerly, and each page loads on first navigation. This keeps the initial bundle to the shell
+ * instead of the ~60 feature pages, and pairs with the vendor manualChunks in vite.config.
  */
+const AppLayout = lazy(() => import('./app/app-shell').then((m) => ({ default: m.AppLayout })));
 const AdvancedAnalyticsPage = lazy(() => import('./routes/analytics').then((m) => ({ default: m.AdvancedAnalyticsPage })));
 const AiAssistantPage = lazy(() => import('./routes/ai-assistant').then((m) => ({ default: m.AiAssistantPage })));
 const AuditLogPage = lazy(() => import('./routes/audit-log').then((m) => ({ default: m.AuditLogPage })));
@@ -111,13 +113,14 @@ function ProfileRoute() {
 }
 
 /** Two entirely separate route trees, each wrapped in its OWN auth provider — the tenant realm
- * (AuthProvider) never renders inside the platform realm's tree and vice versa. This is the
- * routing half of the same isolation lib/platform-http.ts enforces at the HTTP layer: there is
- * no shared React state, no shared token, and no code path that crosses from one to the other. */
+ *  (AuthProvider) never renders inside the platform realm's tree and vice versa. This is the
+ *  routing half of the same isolation lib/platform-http.ts enforces at the HTTP layer: there is
+ *  no shared React state, no shared token, and no code path that crosses from one to the other. */
 function RouteLoadingFallback() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', color: '#475569' }}>
-      Loading…
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', color: '#475569', gap: 10 }}>
+      <Spinner />
+      <span>Loading…</span>
     </div>
   );
 }
@@ -169,234 +172,61 @@ function TenantArea() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/sso/callback" element={<SsoCallbackPage />} />
+
+        {/* Staff console — every page shares the responsive app shell (sidebar, breadcrumbs,
+            command palette, user menu). The shell is chrome only; each page keeps its own logic. */}
         <Route
-          path="/dashboard"
           element={
             <ProtectedRoute>
-              <DashboardPage />
+              <AppLayout />
             </ProtectedRoute>
           }
-        />
-        <Route
-          path="/audit"
-          element={
-            <ProtectedRoute>
-              <AuditLogPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/analytics"
-          element={
-            <ProtectedRoute>
+        >
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="audit" element={<AuditLogPage />} />
+          <Route
+            path="analytics"
+            element={
               <EntitlementRoute entitlement="analytics.advanced">
                 <AdvancedAnalyticsPage />
               </EntitlementRoute>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/reports"
-          element={
-            <ProtectedRoute>
-              <ReportsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/imports"
-          element={
-            <ProtectedRoute>
-              <ImportExportPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/ai-assistant"
-          element={
-            <ProtectedRoute>
+            }
+          />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="imports" element={<ImportExportPage />} />
+          <Route
+            path="ai-assistant"
+            element={
               <EntitlementRoute entitlement="ai.assistant">
                 <AiAssistantPage />
               </EntitlementRoute>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/billing"
-          element={
-            <ProtectedRoute>
-              <BillingPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <TenantConfigurationPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/campuses"
-          element={
-            <ProtectedRoute>
-              <CampusesPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/organization"
-          element={
-            <ProtectedRoute>
-              <OrganizationPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/students"
-          element={
-            <ProtectedRoute>
-              <StudentsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admissions"
-          element={
-            <ProtectedRoute>
-              <AdmissionsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/academics"
-          element={
-            <ProtectedRoute>
-              <AcademicsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/timetable"
-          element={
-            <ProtectedRoute>
-              <TimetablePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/attendance"
-          element={
-            <ProtectedRoute>
-              <AttendancePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/exams"
-          element={
-            <ProtectedRoute>
-              <ExamsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/certificates"
-          element={
-            <ProtectedRoute>
-              <CertificatesPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/library"
-          element={
-            <ProtectedRoute>
-              <LibraryPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/inventory"
-          element={
-            <ProtectedRoute>
-              <InventoryPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/hostel"
-          element={
-            <ProtectedRoute>
-              <HostelPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/transport"
-          element={
-            <ProtectedRoute>
-              <TransportPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/hr"
-          element={
-            <ProtectedRoute>
-              <HrPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/placements"
-          element={
-            <ProtectedRoute>
-              <PlacementsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/helpdesk"
-          element={
-            <ProtectedRoute>
-              <HelpdeskPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/notifications"
-          element={
-            <ProtectedRoute>
-              <NotificationsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/documents"
-          element={
-            <ProtectedRoute>
-              <DocumentsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/integrations"
-          element={
-            <ProtectedRoute>
-              <IntegrationsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/identity"
-          element={
-            <ProtectedRoute>
-              <IdentityPage />
-            </ProtectedRoute>
-          }
-        />
+            }
+          />
+          <Route path="billing" element={<BillingPage />} />
+          <Route path="settings" element={<TenantConfigurationPage />} />
+          <Route path="campuses" element={<CampusesPage />} />
+          <Route path="organization" element={<OrganizationPage />} />
+          <Route path="students" element={<StudentsPage />} />
+          <Route path="students/:id" element={<ProfileRoute />} />
+          <Route path="admissions" element={<AdmissionsPage />} />
+          <Route path="academics" element={<AcademicsPage />} />
+          <Route path="timetable" element={<TimetablePage />} />
+          <Route path="attendance" element={<AttendancePage />} />
+          <Route path="exams" element={<ExamsPage />} />
+          <Route path="certificates" element={<CertificatesPage />} />
+          <Route path="library" element={<LibraryPage />} />
+          <Route path="inventory" element={<InventoryPage />} />
+          <Route path="hostel" element={<HostelPage />} />
+          <Route path="transport" element={<TransportPage />} />
+          <Route path="hr" element={<HrPage />} />
+          <Route path="placements" element={<PlacementsPage />} />
+          <Route path="helpdesk" element={<HelpdeskPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="documents" element={<DocumentsPage />} />
+          <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="identity" element={<IdentityPage />} />
+        </Route>
+
         {/* Student self-service portal — only reachable by users linked to a Student record. */}
         <Route
           path="/portal"
@@ -480,14 +310,6 @@ function TenantArea() {
         {/* Public QR landing — intentionally outside ProtectedRoute; the token is the credential. */}
         <Route path="/verify/certificate" element={<CertificateVerifyPage />} />
         <Route path="/verify/student-id" element={<StudentIdVerifyPage />} />
-        <Route
-          path="/students/:id"
-          element={
-            <ProtectedRoute>
-              <ProfileRoute />
-            </ProtectedRoute>
-          }
-        />
       </Routes>
     </AuthProvider>
   );

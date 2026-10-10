@@ -1,6 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { ConfirmProvider, GlobalStyles, ToastProvider } from '@college-erp/ui';
 import { App } from './App';
 import { PwaProvider } from './features/pwa/pwa-context';
 
@@ -11,10 +12,15 @@ if (!container) {
 
 createRoot(container).render(
   <React.StrictMode>
+    <GlobalStyles />
     <PwaProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <ToastProvider>
+        <ConfirmProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </ConfirmProvider>
+      </ToastProvider>
     </PwaProvider>
   </React.StrictMode>,
 );

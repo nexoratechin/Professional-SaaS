@@ -1,23 +1,47 @@
-import React from 'react';
+import React, { forwardRef, useId } from 'react';
+import { cx } from './theme';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
+  hint?: string;
+  error?: string | null;
+  /** Marks the label with a required asterisk (also pass `required` to the input for a11y). */
+  requiredMark?: boolean;
 }
 
-export function Input({ label, id, style, ...props }: InputProps) {
-  const inputId = id ?? props.name;
+/**
+ * Text input with an integrated field label, hint and inline error. Backwards compatible with the
+ * original `label` prop; `error`/`hint` add accessible validation messaging via aria attributes.
+ */
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
+  { label, hint, error, requiredMark, id, className, style, required, ...props },
+  ref,
+) {
+  const autoId = useId();
+  const inputId = id ?? props.name ?? autoId;
+  const describedBy = [error ? `${inputId}-error` : null, hint ? `${inputId}-hint` : null].filter(Boolean).join(' ') || undefined;
+  const showMark = requiredMark ?? required;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <div className="ui-field">
       {label && (
-        <label htmlFor={inputId} style={{ fontSize: '0.85rem', color: '#374151' }}>
+        <label className="ui-field__label" htmlFor={inputId}>
           {label}
+          {showMark && <span className="ui-field__req" aria-hidden="true">*</span>}
         </label>
       )}
       <input
-        id={inputId}
         {...props}
-        style={{ padding: '0.5rem', borderRadius: 6, border: '1px solid #d1d5db', ...style }}
+        id={inputId}
+        ref={ref}
+        required={required}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy}
+        className={cx('ui-input', error && 'ui-input--invalid', className)}
+        style={style}
       />
+      {hint && !error && <span className="ui-field__hint" id={`${inputId}-hint`}>{hint}</span>}
+      {error && <span className="ui-field__error" id={`${inputId}-error`} role="alert">{error}</span>}
     </div>
   );
-}
+});
