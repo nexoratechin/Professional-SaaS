@@ -20,6 +20,7 @@ const DashboardPage = lazy(() => import('./routes/dashboard').then((m) => ({ def
 const CampusesPage = lazy(() => import('./routes/campuses').then((m) => ({ default: m.CampusesPage })));
 const EntitlementRoute = lazy(() => import('./routes/entitlement-route').then((m) => ({ default: m.EntitlementRoute })));
 const LoginPage = lazy(() => import('./routes/login').then((m) => ({ default: m.LoginPage })));
+const OnboardingPage = lazy(() => import('./routes/onboarding').then((m) => ({ default: m.OnboardingPage })));
 const PlatformAnalyticsPage = lazy(() => import('./routes/platform/platform-analytics').then((m) => ({ default: m.PlatformAnalyticsPage })));
 const PlatformAuditLogPage = lazy(() => import('./routes/platform/platform-audit-log').then((m) => ({ default: m.PlatformAuditLogPage })));
 const PlatformBillingPage = lazy(() => import('./routes/platform/platform-billing').then((m) => ({ default: m.PlatformBillingPage })));
@@ -173,6 +174,7 @@ function TenantArea() {
         <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/sso/callback" element={<SsoCallbackPage />} />
 
         {/* Staff console — every page shares the responsive app shell (sidebar, breadcrumbs,

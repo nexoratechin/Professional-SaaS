@@ -11,6 +11,7 @@ export * from './placements';
 export * from './search';
 export * from './campus';
 export * from './identity';
+export * from './onboarding';
 import type { GlobalCampusPoliciesDto } from './campus';
 
 export interface TenantDto {

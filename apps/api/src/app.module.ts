@@ -57,6 +57,7 @@ import { ParentPortalModule } from './modules/parent-portal/parent-portal.module
 import { FacultyPortalModule } from './modules/faculty-portal/faculty-portal.module';
 import { ImportExportModule } from './modules/import-export/import-export.module';
 import { GlobalSearchModule } from './modules/global-search/global-search.module';
+import { OnboardingModule } from './modules/onboarding/onboarding.module';
 
 @Module({
   imports: [
@@ -119,6 +120,7 @@ import { GlobalSearchModule } from './modules/global-search/global-search.module
     TenantConfigurationModule,
     BrandingModule,
     CampusModule,
+    OnboardingModule,
   ],
   providers: [
     // Platform-wide cross-cutting concerns, registered here (not main.ts) so e2e tests boot the
@@ -144,6 +146,11 @@ export class AppModule implements NestModule {
         { path: 'api/docs', method: RequestMethod.ALL },
         { path: 'api/docs/(.*)', method: RequestMethod.ALL },
         { path: 'public/(.*)', method: RequestMethod.ALL },
+        // The self-service onboarding wizard is public and runs on the apex domain before the
+        // tenant's subdomain (or any JWT) exists; its routes resolve their tenant internally from
+        // the onboarding session token, so they must not be tenant-resolved by the middleware.
+        { path: 'onboarding', method: RequestMethod.ALL },
+        { path: 'onboarding/(.*)', method: RequestMethod.ALL },
         { path: 'platform/(.*)', method: RequestMethod.ALL },
         { path: 'plans', method: RequestMethod.ALL },
         { path: 'plans/(.*)', method: RequestMethod.ALL },

@@ -144,6 +144,24 @@ export function LoginPage() {
 
           {!localAuthEnabled && error && <div style={{ color: '#dc2626', fontSize: '0.85rem' }}>{error}</div>}
         </div>
+        <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 12, fontSize: '0.85rem' }}>
+          <span style={{ color: '#6b7280' }}>New to College ERP? </span>
+          <button
+            type="button"
+            onClick={() => navigate('/onboarding')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--ui-color-primary, #1d4ed8)',
+              cursor: 'pointer',
+              padding: 0,
+              font: 'inherit',
+              textDecoration: 'underline',
+            }}
+          >
+            Set up your college
+          </button>
+        </div>
       </Card>
     </div>
   );

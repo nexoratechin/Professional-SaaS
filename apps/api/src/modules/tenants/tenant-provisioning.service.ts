@@ -14,8 +14,19 @@ export interface ProvisionDefaultAdminInput {
   tenantId: string;
   email: string;
   fullName: string;
-  password: string;
-  /** The platform admin who created the tenant — stamped onto the seeded role/user rows. */
+  /** Plaintext password for the bootstrap admin. Required unless `passwordHash` is supplied. */
+  password?: string;
+  /** A pre-computed bcrypt hash — used by the self-service onboarding flow, which captured the
+   *  account's password (hashed) in step 1 and must never persist the plaintext across steps. */
+  passwordHash?: string;
+  /**
+   * When set, the roles/permissions/workflows are attached to this EXISTING user (and the user is
+   * activated) instead of creating a new one. The onboarding wizard provisions the account as an
+   * INVITED user as soon as the tenant exists (step 2) so later steps can be audited against a
+   * real actor, then finalizes it here at completion — without a duplicate-user conflict.
+   */
+  existingUserId?: string;
+  /** The platform admin (or onboarding session) who created the tenant — stamped on seeded rows. */
   createdBy?: string;
 }
 
@@ -35,7 +46,11 @@ export interface ProvisionDefaultAdminInput {
  */
 @Injectable()
 export class TenantProvisioningService {
-  async provisionDefaultAdmin(input: ProvisionDefaultAdminInput): Promise<void> {
+  async provisionDefaultAdmin(input: ProvisionDefaultAdminInput): Promise<{
+    adminUserId: string;
+    rolesCreated: number;
+    permissionsGranted: number;
+  }> {
     // The tenant client routes to the tenant's physical store (shared, dedicated schema or
     // dedicated database — see packages/database's connection registry). Reading permissions
     // through it (rather than the unscoped platform client) is what makes enterprise stores work:
@@ -66,20 +81,40 @@ export class TenantProvisioningService {
       });
     }
 
-    const passwordHash = await bcrypt.hash(input.password, 12);
-    const adminUser = await tenantClient.user.create({
-      data: {
-        tenantId: input.tenantId,
-        email: input.email,
-        fullName: input.fullName,
-        passwordHash,
-        status: 'ACTIVE',
-        // The platform admin who provisioned this tenant typed this email themselves — treat
-        // it as already verified rather than sending a verification link to the bootstrap admin.
-        emailVerifiedAt: new Date(),
-        createdBy: input.createdBy,
-      },
-    });
+    // Prefer a caller-supplied hash (onboarding captured it in step 1); otherwise hash the
+    // plaintext. At least one of the two must be present.
+    const passwordHash = input.passwordHash ?? (input.password ? await bcrypt.hash(input.password, 12) : undefined);
+    if (!passwordHash) {
+      throw new Error('provisionDefaultAdmin requires either password or passwordHash.');
+    }
+
+    // Attach to an existing (onboarding-provisioned, INVITED) user when one is supplied, else
+    // create the bootstrap admin — the two paths converge on the same active, verified user.
+    const adminUser = input.existingUserId
+      ? await tenantClient.user.update({
+          where: { id: input.existingUserId },
+          data: {
+            email: input.email,
+            fullName: input.fullName,
+            passwordHash,
+            status: 'ACTIVE',
+            emailVerifiedAt: new Date(),
+            updatedBy: input.createdBy,
+          },
+        })
+      : await tenantClient.user.create({
+          data: {
+            tenantId: input.tenantId,
+            email: input.email,
+            fullName: input.fullName,
+            passwordHash,
+            status: 'ACTIVE',
+            // The platform admin who provisioned this tenant typed this email themselves — treat
+            // it as already verified rather than sending a verification link to the bootstrap admin.
+            emailVerifiedAt: new Date(),
+            createdBy: input.createdBy,
+          },
+        });
 
     await tenantClient.userRole.create({
       data: { tenantId: input.tenantId, userId: adminUser.id, roleId: adminRole.id },
@@ -122,6 +157,13 @@ export class TenantProvisioningService {
     for (const definition of DEFAULT_WORKFLOW_DEFINITIONS) {
       await this.seedWorkflowDefinition(tenantClient, input.tenantId, definition, input.createdBy);
     }
+
+    return {
+      adminUserId: adminUser.id,
+      // TENANT_ADMIN + every DEFAULT_ROLE_DEFINITIONS role.
+      rolesCreated: 1 + DEFAULT_ROLE_DEFINITIONS.length,
+      permissionsGranted: allPermissions.length,
+    };
   }
 
   /**

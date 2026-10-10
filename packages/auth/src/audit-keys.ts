@@ -58,6 +58,8 @@ export const AUDIT_MODULES = {
   IMPORTS: 'imports',
   /** Enterprise identity / SSO (apps/api/src/modules/identity). */
   IDENTITY: 'identity',
+  /** Self-service college onboarding wizard (apps/api/src/modules/onboarding). */
+  ONBOARDING: 'onboarding',
 } as const;
 
 export type AuditModule = (typeof AUDIT_MODULES)[keyof typeof AUDIT_MODULES];
@@ -104,6 +106,12 @@ export const AUDIT_ACTIONS = {
   TENANT_DATA_ISOLATION_CHANGED: 'TENANT_DATA_ISOLATION_CHANGED',
   /** Provisioning or migration of an enterprise store failed (recorded for operator triage). */
   TENANT_DATABASE_FAILED: 'TENANT_DATABASE_FAILED',
+
+  // --- Self-service onboarding wizard (module ONBOARDING, see apps/api's onboarding module) ---
+  ONBOARDING_STARTED: 'ONBOARDING_STARTED',
+  ONBOARDING_STEP_COMPLETED: 'ONBOARDING_STEP_COMPLETED',
+  ONBOARDING_COMPLETED: 'ONBOARDING_COMPLETED',
+  ONBOARDING_ABANDONED: 'ONBOARDING_ABANDONED',
 
   // --- Multi-campus operations (module CAMPUS, see apps/api's campus module) ---
   CAMPUS_CONFIGURATION_UPDATED: 'CAMPUS_CONFIGURATION_UPDATED',

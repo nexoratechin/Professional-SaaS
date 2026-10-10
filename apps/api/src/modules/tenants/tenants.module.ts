@@ -19,6 +19,6 @@ import { TenantsService } from './tenants.service';
     TenantLookupService,
     TenantResolutionMiddleware,
   ],
-  exports: [TenantLookupService, TenantResolutionMiddleware],
+  exports: [TenantLookupService, TenantResolutionMiddleware, TenantProvisioningService],
 })
 export class TenantsModule {}

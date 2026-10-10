@@ -9,5 +9,6 @@ import { OrganizationService } from './organization.service';
   imports: [CommonGuardsModule, RbacModule, AuthModule],
   controllers: [OrganizationController],
   providers: [OrganizationService],
+  exports: [OrganizationService],
 })
 export class OrganizationModule {}

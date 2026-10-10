@@ -504,6 +504,7 @@ model Tenant {
   securityEvents                    SecurityEvent[]
   securitySettings                  TenantSecuritySettings?
   configuration                     TenantConfiguration?
+  onboardingSessions                OnboardingSession[]
   campusConfigurations              CampusConfiguration[]
   identityProviders                 IdentityProvider[]
   identityProviderRoleMappings      IdentityProviderRoleMapping[]
@@ -11090,4 +11091,67 @@ model IdentityProviderRoleMapping {
   @@unique([identityProviderId, claimName, claimValue])
   @@index([tenantId, identityProviderId])
   @@map("identity_provider_role_mappings")
+}
+
+/// Self-service college onboarding wizard sessions. One row per college that starts the PUBLIC
+/// onboarding flow (account -> college -> plan -> branding -> academic structure -> modules ->
+/// import -> administrator -> notifications -> complete). Control-plane (nullable tenantId)
+/// because a session exists before its Tenant: step 1 captures the account, step 2 creates the
+/// tenant. The raw session token is never stored — only its SHA-256 hash (tokenHash), exactly
+/// like refresh tokens (see Session). Progress is denormalized into completedSteps/currentStep so
+/// the wizard is resumable across devices; `data` accumulates the (non-secret) answers for every
+/// step. Deliberately NOT a tenant-scoped model (nullable tenantId exempts it from the Prisma
+/// tenant-guard extension), since the platform realm must read/write it before a tenant context
+/// can exist.
+model OnboardingSession {
+  id                  String           @id @default(cuid())
+  tenantId            String?          @map("tenant_id") @db.Uuid
+  tenant              Tenant?          @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  /// Denormalized tenant slug/name captured at step 2, so the wizard (and a resume) can show which
+  /// college it belongs to without an extra join, and so completion can invalidate the slug cache.
+  tenantSlug          String?          @map("tenant_slug")
+  tenantName          String?          @map("tenant_name")
+  status              OnboardingStatus @default(IN_PROGRESS)
+  /// 1-based index of the furthest step the wizard has reached (drives resume).
+  currentStep         Int              @default(1) @map("current_step")
+  /// Completed step keys (JSON array of OnboardingStep strings), so partial progress survives a
+  /// dropped connection without replaying writes.
+  completedSteps      Json             @default("[]") @map("completed_steps")
+  /// The account created in step 1 (the person running onboarding). Becomes the tenant's first
+  /// administrator at completion.
+  accountEmail        String           @map("account_email")
+  accountFullName     String           @map("account_full_name")
+  accountPasswordHash String           @map("account_password_hash")
+  /// The INVITED tenant User provisioned right after the tenant is created (step 2) so subsequent
+  /// wizard writes are attributed to a real actor; activated + granted TENANT_ADMIN at completion.
+  adminUserId         String?          @map("admin_user_id") @db.Uuid
+  adminEmail          String?          @map("admin_email")
+  adminFullName       String?          @map("admin_full_name")
+  planCode            String?          @map("plan_code")
+  /// Non-secret per-step answers (branding, academic structure, modules, import summary,
+  /// notification preferences) accumulated across the wizard.
+  data                Json             @default("{}")
+  /// SHA-256 hash of the opaque onboarding token — the raw value only ever lives on the client.
+  tokenHash           String           @unique @map("token_hash")
+  ipAddress           String?          @map("ip_address")
+  userAgent           String?          @map("user_agent")
+  expiresAt           DateTime         @map("expires_at")
+  completedAt         DateTime?        @map("completed_at")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("onboarding_sessions")
+}
+
+/// Lifecycle of a self-service onboarding session. IN_PROGRESS is resumable until expiresAt;
+/// COMPLETED means the tenant is ACTIVE and fully provisioned; ABANDONED is a session started but
+/// never finished within its TTL (swept by a future cleanup job — no worker change is required for
+/// correctness, an expired session simply refuses to resume).
+enum OnboardingStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
 }
