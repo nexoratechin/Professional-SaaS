@@ -7,6 +7,15 @@ const prisma = new PrismaClient();
 async function seedPlatformAdmin() {
   const email = process.env.PLATFORM_ADMIN_EMAIL ?? 'platform-admin@college-erp.local';
   const password = process.env.PLATFORM_ADMIN_PASSWORD ?? 'ChangeMe123!';
+
+  // Refuse to seed publicly-known default credentials outside development. A production seed
+  // without an operator-provided password would create a full platform admin anyone can log into.
+  if (!process.env.PLATFORM_ADMIN_PASSWORD && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'PLATFORM_ADMIN_PASSWORD must be set when seeding in production — refusing to create a platform admin with the default password.',
+    );
+  }
+
   const passwordHash = await bcrypt.hash(password, 12);
 
   await prisma.platformUser.upsert({

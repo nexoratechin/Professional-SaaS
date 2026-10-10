@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
@@ -99,6 +99,24 @@ export class UsersService {
     ]);
     if (!user || !role) {
       throw new NotFoundException('User or role not found.');
+    }
+
+    // No privilege escalation: the actor may only assign a role whose permissions are a subset of
+    // their own. Otherwise a user holding just `roles.manage` could assign themselves the seeded
+    // system TENANT_ADMIN role (which grants far more) and take over the tenant.
+    const [rolePermissions, actorPermissions] = await Promise.all([
+      this.tenantPrisma.client.rolePermission.findMany({
+        where: { roleId },
+        include: { permission: { select: { key: true } } },
+      }),
+      this.permissionsService.getEffectivePermissions(tenantId, actorUserId),
+    ]);
+    const actorKeys = new Set(actorPermissions);
+    const missing = rolePermissions
+      .map((rolePermission) => rolePermission.permission.key)
+      .filter((key) => !actorKeys.has(key as never));
+    if (missing.length > 0) {
+      throw new ForbiddenException('You cannot assign a role that grants permissions you do not hold.');
     }
 
     // Tenant-scoped lookups — referencing another tenant's campus/department/program id here

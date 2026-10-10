@@ -139,7 +139,10 @@ export class AuditService {
     tenantId: string,
     params: Omit<AuditLogSearchFilters, 'tenantId' | 'scope'> = {},
   ): Promise<AuditLogSearchResult> {
-    return this.search({ ...params, tenantId });
+    // Force TENANT scope: a tenant user must never see PLATFORM-scope entries that happen to carry
+    // their tenantId (platform-admin actions, payment reconciliation), which include the platform
+    // actor's snapshotted email.
+    return this.search({ ...params, tenantId, scope: 'TENANT' });
   }
 
   async findAllPlatform(params: Omit<AuditLogSearchFilters, 'scope'> = {}): Promise<AuditLogSearchResult> {

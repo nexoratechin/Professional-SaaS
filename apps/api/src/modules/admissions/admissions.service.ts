@@ -20,6 +20,7 @@ import {
 import { Prisma, type PrismaClient } from '@college-erp/database';
 import { AUDIT_ACTIONS } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
+import { StorageService } from '../../common/storage/storage.service';
 import { AuditService } from '../audit/audit.service';
 import { PermissionsService } from '../rbac/permissions.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -89,6 +90,7 @@ export class AdmissionsService {
     private readonly notifications: NotificationsService,
     private readonly workflowDefinitions: WorkflowDefinitionsService,
     private readonly workflowEngine: WorkflowEngineService,
+    private readonly storage: StorageService,
   ) {}
 
   // ── Scope ─────────────────────────────────────────────────────────────────
@@ -675,6 +677,8 @@ export class AdmissionsService {
     if (!(required as string[]).includes(normalizedCategory)) {
       throw new BadRequestException(`"${dto.category}" is not in the session's document checklist (${required.join(', ')}).`);
     }
+    // A client-supplied key must belong to this tenant — never accept a foreign tenant's object.
+    if (dto.storageKey) this.storage.assertKeyBelongsToTenant(tenantId, dto.storageKey);
 
     const document = await (this.tenantPrisma.client as any).admissionDocument.create({
       data: {

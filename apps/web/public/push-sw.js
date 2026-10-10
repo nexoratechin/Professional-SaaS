@@ -2,6 +2,17 @@
  * `workbox.importScripts` (see vite.config.ts). Workbox owns precaching/runtime caching; this
  * file only adds the push lifecycle listeners, which generateSW does not emit. */
 
+/** Only same-origin, relative navigation targets are allowed. A push payload is server-controlled
+ *  data; without this an attacker who can influence it could force an open client to navigate to
+ *  an external origin (phishing) or a `javascript:`-style scheme. */
+function safeNavigationTarget(url) {
+  if (typeof url !== 'string' || url.length === 0) return '/notifications';
+  // Must be a path on this origin: a single leading slash, not protocol-relative ("//host") and not
+  // a backslash variant browsers may normalise to "//".
+  if (!url.startsWith('/') || url.startsWith('//') || url.startsWith('/\\')) return '/notifications';
+  return url;
+}
+
 self.addEventListener('push', (event) => {
   let payload = { title: 'College ERP', body: 'You have a new notification.', url: '/notifications' };
   try {
@@ -10,7 +21,7 @@ self.addEventListener('push', (event) => {
       payload = {
         title: parsed.title || payload.title,
         body: parsed.body || payload.body,
-        url: parsed.url || payload.url,
+        url: safeNavigationTarget(parsed.url),
         tag: parsed.tag,
       };
     }
@@ -32,7 +43,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = (event.notification.data && event.notification.data.url) || '/notifications';
+  const target = safeNavigationTarget(event.notification.data && event.notification.data.url);
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

@@ -48,4 +48,50 @@ describe('StorageService tenant isolation', () => {
     const otherTenantKey = storage.buildKey(tenantB, 'documents', 'secret.pdf');
     await expect(storage.delete(tenantA, otherTenantKey)).rejects.toBeInstanceOf(ForbiddenException);
   });
+
+  it('assertKeyInCategory accepts a key the feature itself issued', () => {
+    const key = storage.buildKey(tenantA, 'imports', 'students.csv');
+    expect(() => storage.assertKeyInCategory(tenantA, key, 'imports')).not.toThrow();
+  });
+
+  it('assertKeyInCategory rejects a key from a different category (cross-feature IDOR)', () => {
+    const certificateKey = storage.buildKey(tenantA, 'certificates', 'CERT-2026-0001.pdf');
+    expect(() => storage.assertKeyInCategory(tenantA, certificateKey, 'imports')).toThrow(ForbiddenException);
+  });
+
+  it("assertKeyInCategory still rejects another tenant's key", () => {
+    const otherTenantKey = storage.buildKey(tenantB, 'document'.concat('s'), 'x.pdf');
+    expect(() => storage.assertKeyInCategory(tenantA, otherTenantKey, 'documents')).toThrow(ForbiddenException);
+  });
+
+  describe('download response headers', () => {
+    it('forces an attachment + neutral content type for client-declared HTML (stored XSS guard)', async () => {
+      const key = storage.buildKey(tenantA, 'documents', 'evil.html');
+      const url = await storage.getDownloadUrl(tenantA, key, { filename: 'evil.html', contentType: 'text/html' });
+      const params = new URL(url).searchParams;
+      expect(params.get('response-content-disposition')).toContain('attachment');
+      expect(params.get('response-content-type')).toBe('application/octet-stream');
+    });
+
+    it('allows inline rendering only for a safe allowlisted content type', async () => {
+      const key = storage.buildKey(tenantA, 'documents', 'doc.pdf');
+      const url = await storage.getDownloadUrl(tenantA, key, { filename: 'doc.pdf', contentType: 'application/pdf' });
+      const params = new URL(url).searchParams;
+      expect(params.get('response-content-disposition')).toContain('inline');
+      expect(params.get('response-content-type')).toBe('application/pdf');
+    });
+
+    it('sanitizes quotes/CRLF in the filename before building Content-Disposition', async () => {
+      const key = storage.buildKey(tenantA, 'documents', 'x.pdf');
+      const url = await storage.getDownloadUrl(tenantA, key, {
+        filename: 'a"\r\nSet-Cookie: x=y.pdf',
+        contentType: 'application/pdf',
+      });
+      // The raw dangerous characters must not survive into the header value.
+      const disposition = new URL(url).searchParams.get('response-content-disposition') ?? '';
+      expect(disposition).not.toContain('"'.repeat(2));
+      expect(disposition).not.toContain('\n');
+      expect(disposition).not.toContain('\r');
+    });
+  });
 });

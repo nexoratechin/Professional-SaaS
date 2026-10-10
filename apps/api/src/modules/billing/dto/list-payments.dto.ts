@@ -16,6 +16,7 @@ export class RecordPaymentDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(100_000_000)
   amountCents?: number;
 
   @IsOptional()

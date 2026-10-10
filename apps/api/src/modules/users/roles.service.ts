@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AUDIT_ACTIONS, AUDIT_MODULES, PERMISSION_SCOPE_TYPES } from '@college-erp/auth';
 import type { PermissionScopeType as RolePermissionScopeType } from '@college-erp/database';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
@@ -61,10 +61,23 @@ export class RolesService {
       throw new BadRequestException('Provide at least one permission grant.');
     }
 
+    // No privilege escalation: an actor with `roles.manage` must not be able to grant a role
+    // permissions they do not themselves hold. Without this, a delegated role-manager could mint a
+    // role carrying `users.manage`/`roles.manage`/`tenant.settings.manage` and assign it to
+    // themselves (see UsersService.assignRole) for full tenant takeover.
+    const distinctKeys = [...new Set(grants.map((grant) => grant.key))];
+    const actorPermissions = new Set(await this.permissionsService.getEffectivePermissions(tenantId, actorUserId));
+    const escalating = distinctKeys.filter((key) => !actorPermissions.has(key as never));
+    if (escalating.length > 0) {
+      throw new ForbiddenException(
+        `You cannot grant permissions you do not hold: ${escalating.join(', ')}.`,
+      );
+    }
+
     const permissions = await this.platformPrisma.client.permission.findMany({
-      where: { key: { in: grants.map((grant) => grant.key) } },
+      where: { key: { in: distinctKeys } },
     });
-    if (permissions.length !== new Set(grants.map((grant) => grant.key)).size) {
+    if (permissions.length !== distinctKeys.length) {
       throw new BadRequestException('One or more permission keys are invalid.');
     }
     const permissionIdByKey = new Map(permissions.map((permission) => [permission.key, permission.id]));

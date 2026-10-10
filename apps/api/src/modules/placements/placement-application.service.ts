@@ -106,7 +106,7 @@ export class PlacementApplicationService {
 
   async confirmResumeUpload(tenantId: string, user: AuthenticatedUser, dto: Dto.ConfirmResumeUploadDto) {
     const resume = await this.resumeOrThrow(dto.id);
-    this.storage.assertKeyBelongsToTenant(tenantId, dto.key);
+    this.storage.assertKeyInCategory(tenantId, dto.key, 'placement-resumes');
 
     await this.setPrimaryIfRequested(resume.studentId, dto.id, dto.isPrimary);
     const updated = await this.tenantPrisma.client.placementResume.update({

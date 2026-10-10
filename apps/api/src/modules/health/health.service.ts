@@ -74,11 +74,14 @@ export class HealthService {
 
   async readiness(): Promise<ReadinessReport> {
     const timeoutMs = this.config.get('HEALTH_CHECK_TIMEOUT_MS');
+    // Dependency error strings can leak internal hostnames/ports/connection URLs — never expose
+    // them from a public endpoint in production.
+    const exposeErrors = this.config.get('NODE_ENV') !== 'production';
 
     const [database, redisCheck, storage, worker] = await Promise.all([
-      this.checkDatabase(timeoutMs),
-      this.checkRedis(timeoutMs),
-      this.checkStorage(timeoutMs),
+      this.checkDatabase(timeoutMs, exposeErrors),
+      this.checkRedis(timeoutMs, exposeErrors),
+      this.checkStorage(timeoutMs, exposeErrors),
       this.checkWorkerFleet(),
     ]);
 
@@ -95,27 +98,27 @@ export class HealthService {
     };
   }
 
-  private async checkDatabase(timeoutMs: number): Promise<DependencyCheck> {
+  private async checkDatabase(timeoutMs: number, exposeErrors: boolean): Promise<DependencyCheck> {
     const result = await probe(
       () => this.platformPrisma.client.$queryRaw`SELECT 1`,
       timeoutMs,
       'database',
     );
     recordHealthCheck('database', result.ok, result.latencyMs);
-    return toCheck(result, true);
+    return toCheck(result, true, exposeErrors);
   }
 
-  private async checkRedis(timeoutMs: number): Promise<DependencyCheck> {
+  private async checkRedis(timeoutMs: number, exposeErrors: boolean): Promise<DependencyCheck> {
     const result = await probe(() => this.redis.ping(), timeoutMs, 'redis');
     recordRedisPing(result.latencyMs, result.ok);
     recordHealthCheck('redis', result.ok, result.latencyMs);
-    return toCheck(result, true);
+    return toCheck(result, true, exposeErrors);
   }
 
-  private async checkStorage(timeoutMs: number): Promise<DependencyCheck> {
+  private async checkStorage(timeoutMs: number, exposeErrors: boolean): Promise<DependencyCheck> {
     const result = await probe(() => this.storage.checkConnectivity(), Math.max(timeoutMs, 3_000), 'storage');
     recordHealthCheck('storage', result.ok, result.latencyMs);
-    return toCheck(result, false);
+    return toCheck(result, false, exposeErrors);
   }
 
   /** Counts live heartbeat keys; no heartbeat system configured still reports expected replicas. */
@@ -140,11 +143,11 @@ export class HealthService {
   }
 }
 
-function toCheck(result: ProbeResult, critical: boolean): DependencyCheck {
+function toCheck(result: ProbeResult, critical: boolean, exposeErrors: boolean): DependencyCheck {
   return {
     ok: result.ok,
     latencyMs: Math.round(result.latencyMs * 100) / 100,
-    ...(result.error ? { error: result.error } : {}),
+    ...(result.error && exposeErrors ? { error: result.error } : {}),
     critical,
   };
 }

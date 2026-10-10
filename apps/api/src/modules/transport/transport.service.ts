@@ -19,6 +19,7 @@ import {
 import { Prisma } from '@college-erp/database';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
+import { StorageService } from '../../common/storage/storage.service';
 import { AuditService } from '../audit/audit.service';
 import { PermissionsService } from '../rbac/permissions.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -98,6 +99,7 @@ export class TransportService {
     private readonly permissionsService: PermissionsService,
     private readonly notifications: NotificationsService,
     private readonly gpsService: TransportGpsService,
+    private readonly storage: StorageService,
   ) {}
 
   private get db(): any {
@@ -403,6 +405,8 @@ export class TransportService {
 
   async createVehicleDocument(tenantId: string, userId: string, vehicleId: string, dto: CreateVehicleDocumentDto) {
     await this.findVehicle(tenantId, vehicleId);
+    // A client-supplied key must belong to this tenant — never accept a foreign tenant's object.
+    if (dto.storageKey) this.storage.assertKeyBelongsToTenant(tenantId, dto.storageKey);
     const row = await this.db.transportVehicleDocument.create({
       data: {
         tenantId,
@@ -428,6 +432,7 @@ export class TransportService {
   async updateVehicleDocument(tenantId: string, userId: string, id: string, dto: UpdateVehicleDocumentDto) {
     const before = await this.db.transportVehicleDocument.findFirst({ where: { id } });
     if (!before) throw new NotFoundException('Document not found.');
+    if (dto.storageKey) this.storage.assertKeyBelongsToTenant(tenantId, dto.storageKey);
     const row = await this.db.transportVehicleDocument.update({
       where: { id },
       data: {

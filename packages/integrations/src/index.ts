@@ -27,6 +27,7 @@ export * from './cipher';
 export * from './signature';
 export * from './retry';
 export * from './redact';
+export * from './ssrf';
 export * from './sync';
 export * from './executor';
 export * from './adapters/http-json.adapter';

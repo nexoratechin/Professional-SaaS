@@ -65,7 +65,7 @@ export function PortalCertificatesPage() {
     setActionError(null);
     try {
       const result = await apiFetch<{ downloadUrl: string }>(`/student-portal/certificates/${certificate.id}/download-url`);
-      window.open(result.downloadUrl, '_blank', 'noopener');
+      window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Download unavailable.');
     }

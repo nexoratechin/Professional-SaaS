@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto';
 import { Controller, Get, NotFoundException, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { defaultRegistry } from '@college-erp/observability';
@@ -41,9 +42,17 @@ export class MetricsController {
     if (!token) return;
     const header = request.header('authorization') ?? '';
     const bearer = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : undefined;
-    const provided = bearer ?? request.header('x-metrics-token');
-    if (provided !== token) {
+    const provided = bearer ?? request.header('x-metrics-token') ?? '';
+    if (!timingSafeEqualString(provided, token)) {
       throw new UnauthorizedException('A valid metrics token is required.');
     }
   }
+}
+
+/** Constant-time string comparison that never throws on length mismatch. */
+function timingSafeEqualString(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
 }

@@ -11,7 +11,7 @@ import { MfaDisableDto } from './dto/mfa-disable.dto';
 import { MfaEnrollConfirmDto } from './dto/mfa-enroll-confirm.dto';
 import { MfaVerifyDto } from './dto/mfa-verify.dto';
 import { PlatformMfaService } from './platform-mfa.service';
-import { setRefreshCookie } from './refresh-cookie.util';
+import { setPlatformRefreshCookie } from './refresh-cookie.util';
 
 /** Matches PlatformAuthController's login throttle. */
 const MFA_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
@@ -66,7 +66,10 @@ export class PlatformMfaController {
       userAgent: req.headers['user-agent'],
     });
 
-    setRefreshCookie(res, result.rawRefreshToken, this.config);
+    // Platform realm cookie (name/path `/platform/auth`), matching PlatformAuthController — using
+    // the tenant cookie here both broke platform refresh (the platform endpoint never receives a
+    // Path=/auth cookie) and leaked a platform-session token onto the tenant /auth surface.
+    setPlatformRefreshCookie(res, result.rawRefreshToken, this.config);
     return {
       accessToken: result.accessToken,
       platformUser: {

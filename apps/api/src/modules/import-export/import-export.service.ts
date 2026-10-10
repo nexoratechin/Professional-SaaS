@@ -157,6 +157,9 @@ export class ImportExportService {
     const entity = this.requireEntity(entityKey);
     await this.assertEntityPermission(tenantId, userId, entity, 'import');
     const format = detectFormat(dto.storageKey);
+    // Only a key this feature issued for imports may be read — a tenant-prefix check alone would
+    // let a caller preview any object it can name under its tenant (certificates, payroll, …).
+    this.storage.assertKeyInCategory(tenantId, dto.storageKey, 'imports');
     const buffer = await this.storage.downloadBuffer(tenantId, dto.storageKey);
     const parsed = parseTabularFile(buffer, format);
     const mapping = dto.mapping ?? autoMapHeaders(entity, parsed.headers);
@@ -188,6 +191,9 @@ export class ImportExportService {
 
     const exists = await this.storage.objectExists(tenantId, dto.storageKey);
     if (!exists) throw new BadRequestException('The uploaded file could not be found in storage.');
+    // The job stores and later re-reads the key in the worker, so bind it to the imports category
+    // here as well — same allow-listing rationale as preview().
+    this.storage.assertKeyInCategory(tenantId, dto.storageKey, 'imports');
 
     const format = dto.format ?? detectFormat(dto.fileName);
     const job = await (this.client.importJob.create({

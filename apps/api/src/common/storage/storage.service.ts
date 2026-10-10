@@ -67,6 +67,23 @@ export class StorageService {
     }
   }
 
+  /** Least-privilege variant of the tenant check: the key must live under the caller's tenant AND
+   *  under an expected category directory (e.g. `imports`, `placement-resumes`, `documents`).
+   *
+   *  This is what stops a "confirm my upload" endpoint that accepts a client-supplied key from
+   *  being pointed at an unrelated object the caller can name but was never granted (a certificate
+   *  PDF, another workflow's document, …). Prefixing alone only proves which tenant OWNS the bytes,
+   *  not that the caller was ever issued a URL for that specific key. Categories are the same
+   *  coarse buckets `buildKey` writes into, so a caller can only ever confirm keys its own feature
+   *  handed out. */
+  assertKeyInCategory(tenantId: string, key: string, category: string): void {
+    this.assertKeyBelongsToTenant(tenantId, key);
+    const safeCategory = category.replace(/[^a-zA-Z0-9_-]/g, '_');
+    if (!key.startsWith(`${this.tenantPrefix(tenantId)}${safeCategory}/`)) {
+      throw new ForbiddenException('This file was not issued for this operation.');
+    }
+  }
+
   buildKey(tenantId: string, category: string, filename: string): string {
     const safeCategory = category.replace(/[^a-zA-Z0-9_-]/g, '_');
     const safeFilename = filename.replace(/[^a-zA-Z0-9_.-]/g, '_');
@@ -99,11 +116,19 @@ export class StorageService {
     options?: { contentType?: string; filename?: string },
   ): Promise<string> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    const inlineType = safeInlineContentType(options?.contentType);
+    const responseContentType = options?.contentType ? (inlineType ?? 'application/octet-stream') : undefined;
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
-      ...(options?.contentType ? { ResponseContentType: options.contentType } : {}),
-      ...(options?.filename ? { ResponseContentDisposition: `inline; filename="${options.filename}"` } : {}),
+      // Only echo a Content-Type the storage origin is allowed to render inline. An arbitrary
+      // client-declared `text/html`/`image/svg+xml` is downgraded to `application/octet-stream`
+      // so a stored document can never be served as an active document from the storage origin
+      // (stored XSS / content-type confusion).
+      ...(responseContentType ? { ResponseContentType: responseContentType } : {}),
+      ...(options?.filename
+        ? { ResponseContentDisposition: buildContentDisposition(options.filename, inlineType !== null) }
+        : {}),
     });
     return getSignedUrl(this.client, command, { expiresIn: DOWNLOAD_URL_TTL_SECONDS });
   }
@@ -207,4 +232,31 @@ function isNotFound(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const candidate = error as { name?: string; $metadata?: { httpStatusCode?: number } };
   return candidate.name === 'NotFound' || candidate.name === 'NoSuchKey' || candidate.$metadata?.httpStatusCode === 404;
+}
+
+/** Content types the storage origin may serve inline. Everything else is forced to a download
+ *  (`Content-Disposition: attachment`) and a neutral content type so a stored file can never be
+ *  rendered as active content (HTML/SVG/JS) by the browser. */
+const SAFE_INLINE_CONTENT_TYPES = new Set([
+  'application/pdf',
+  'text/plain',
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+]);
+
+function safeInlineContentType(contentType: string | undefined): string | null {
+  if (!contentType) return null;
+  const normalized = (contentType.split(';')[0] ?? '').trim().toLowerCase();
+  return SAFE_INLINE_CONTENT_TYPES.has(normalized) ? normalized : null;
+}
+
+/** Builds a header-safe `Content-Disposition` value. The filename is sanitized (quotes, CR/LF and
+ *  path separators removed) so it cannot break out of the quoted value or inject a header, and the
+ *  disposition is `inline` only for the safe content-type allowlist. Attachment responses get a
+ *  neutral octet-stream content type by the caller. */
+function buildContentDisposition(filename: string, allowInline: boolean): string {
+  const safe = filename.replace(/[\r\n"\\/\u0000-\u001f]/g, '_').slice(0, 255) || 'download';
+  return `${allowInline ? 'inline' : 'attachment'}; filename="${safe}"`;
 }

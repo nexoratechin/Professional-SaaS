@@ -10,7 +10,7 @@
  * were fixed — idempotent because MANUAL marks are preserved.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Prisma, type PrismaClient } from '@college-erp/database';
 import { AUDIT_ACTIONS } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../../common/prisma/tenant-scoped-prisma.service';
@@ -343,8 +343,16 @@ export class AttendanceDevicesService {
     if (!authToken) {
       throw new BadRequestException('This device has no push token configured.');
     }
-    if (opts.bearerToken && !this.deviceSecretCipher.matches(device.authTokenEncrypted, opts.bearerToken)) {
-      throw new BadRequestException('Invalid device push token.');
+    // FAIL CLOSED: the device push token is mandatory. Previously the check was conditional on the
+    // header being present (`opts.bearerToken && !matches(...)`), so an unauthenticated caller could
+    // simply omit `Authorization` and have events accepted for any tenant whose (non-secret,
+    // human-readable) device code they knew. The token is now required and compared in constant
+    // time; the optional HMAC signature below stays an additional layer, never a substitute.
+    if (!opts.bearerToken) {
+      throw new UnauthorizedException('Device push token is required.');
+    }
+    if (!this.deviceSecretCipher.matches(device.authTokenEncrypted, opts.bearerToken)) {
+      throw new UnauthorizedException('Invalid device push token.');
     }
 
     const cfg = await this.ingestService.deviceRules(tenantId);

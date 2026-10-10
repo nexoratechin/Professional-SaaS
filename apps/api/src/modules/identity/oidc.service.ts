@@ -1,5 +1,6 @@
 import { createHash, createPublicKey, randomBytes, verify as cryptoVerify, type JsonWebKey } from 'crypto';
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { assertSafeOutboundUrl } from '@college-erp/integrations';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../common/redis/redis.constants';
 
@@ -262,8 +263,14 @@ export class OidcService {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
     try {
-      return await fetch(url, { ...init, signal: controller.signal });
-    } catch {
+      // issuer/discoveryUrl (and the endpoints they advertise) are tenant-configured: block SSRF
+      // to internal services and never follow a redirect out of the validated host.
+      await assertSafeOutboundUrl(url);
+      return await fetch(url, { ...init, redirect: 'manual', signal: controller.signal });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'SsrfError') {
+        throw new UnauthorizedException('The identity provider URL is not permitted.');
+      }
       throw new UnauthorizedException('Could not reach the identity provider.');
     } finally {
       clearTimeout(timeout);

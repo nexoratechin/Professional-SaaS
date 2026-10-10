@@ -113,14 +113,19 @@ async function bootstrap() {
     .addTag('reports', 'Report catalog, preview, exports, saved reports, templates and schedules')
     .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig, {
-    operationIdFactory: (_controllerKey: string, methodKey: string) => methodKey,
-  });
-  applyGlobalHeaderParameters(document);
-  SwaggerModule.setup('api/docs', app, document, {
-    customSiteTitle: 'College ERP SaaS API',
-    swaggerOptions: { persistAuthorization: true, displayRequestDuration: true },
-  });
+  // Docs are disabled in production: they enumerate the full API surface, and there is no need to
+  // expose that on a public deployment (the same reasoning as /metrics requiring a token). Dev,
+  // test and staging keep the interactive docs.
+  if (config.get('NODE_ENV') !== 'production') {
+    const document = SwaggerModule.createDocument(app, swaggerConfig, {
+      operationIdFactory: (_controllerKey: string, methodKey: string) => methodKey,
+    });
+    applyGlobalHeaderParameters(document);
+    SwaggerModule.setup('api/docs', app, document, {
+      customSiteTitle: 'College ERP SaaS API',
+      swaggerOptions: { persistAuthorization: true, displayRequestDuration: true },
+    });
+  }
 
   const port = config.get('PORT');
 

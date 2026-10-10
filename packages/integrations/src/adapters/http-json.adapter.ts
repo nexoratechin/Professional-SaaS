@@ -36,6 +36,7 @@ import {
 } from '../types';
 import { classifyIntegrationFailure } from '../retry';
 import { truncateResponse } from '../redact';
+import { assertSafeOutboundUrl } from '../ssrf';
 
 const DEFAULT_USER_AGENT = 'college-erp-integrations/1.0';
 const MAX_RESPONSE_CHARS = 8_000;
@@ -179,10 +180,15 @@ async function httpCall(options: HttpCallOptions): Promise<HttpCallResult> {
   let response: Response;
   const startedAt = Date.now();
   try {
+    // SSRF guard: baseUrl/path/query are tenant-controlled config. Reject internal targets before
+    // the request leaves the process, and never follow redirects (a public URL could otherwise
+    // bounce to an internal one).
+    await assertSafeOutboundUrl(url);
     response = await fetch(url, {
       method,
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      redirect: 'manual',
       // Rejecting self-signed certificates requires a custom dispatcher/agent that `fetch` does not
       // expose portably; `verifyTls: false` is therefore honoured only where the runtime supports
       // it, and is deliberately not a blanket "ignore TLS errors" switch.

@@ -2,15 +2,19 @@ import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { AlertSeverity, AlertStatus, BackgroundJobStatus } from '@college-erp/database';
 import { CurrentPlatformUser } from '../../common/decorators/current-platform-user.decorator';
+import { RequirePlatformRole } from '../../common/decorators/require-platform-role.decorator';
 import { PlatformAuthGuard } from '../../common/guards/platform-auth.guard';
+import { PlatformRoleGuard } from '../../common/guards/platform-role.guard';
 import { AlertingService } from '../../common/observability/alerting.service';
 import { AnalyticsQueryDto } from '../analytics/dto/analytics-query.dto';
 import { PlatformAnalyticsService } from './platform-analytics.service';
 import { PlatformOpsService } from './platform-ops.service';
 
 /**
- * Read-only cross-tenant views for the platform admin dashboard — open to any authenticated
- * platform user (PLATFORM_ADMIN or PLATFORM_SUPPORT); nothing here mutates tenant data.
+ * Cross-tenant views for the platform admin dashboard. Read-only GETs are open to any authenticated
+ * platform user (PLATFORM_ADMIN or PLATFORM_SUPPORT, for support triage); every MUTATING route
+ * (alert lifecycle, payment reconciliation) additionally requires PLATFORM_ADMIN via
+ * @RequirePlatformRole — those endpoints change state, so a support account must not reach them.
  *
  * No `@RequirePermission`/`@RequireFeature`/`@RequireEntitlement`: these are operator views, not
  * tenant features, and the existing platform routes are gated purely on "is a platform user". The
@@ -88,16 +92,22 @@ export class PlatformOpsController {
 
   /** Runs one alert-evaluation pass synchronously — useful right after a deploy or incident. */
   @Post('system/alerts/evaluate')
+  @UseGuards(PlatformRoleGuard)
+  @RequirePlatformRole('PLATFORM_ADMIN')
   evaluateAlerts() {
     return this.alerting.evaluate();
   }
 
   @Post('system/alerts/:id/acknowledge')
+  @UseGuards(PlatformRoleGuard)
+  @RequirePlatformRole('PLATFORM_ADMIN')
   acknowledgeAlert(@Param('id') id: string, @CurrentPlatformUser() platformUser: { id: string }) {
     return this.alerting.acknowledgeAlert(id, platformUser.id);
   }
 
   @Post('system/alerts/:id/resolve')
+  @UseGuards(PlatformRoleGuard)
+  @RequirePlatformRole('PLATFORM_ADMIN')
   resolveAlert(@Param('id') id: string) {
     return this.alerting.resolveAlert(id);
   }
@@ -138,6 +148,8 @@ export class PlatformOpsController {
 
   /** Manually reconcile one recorded gateway payment against the provider's current status. */
   @Post('payments/:id/reconcile')
+  @UseGuards(PlatformRoleGuard)
+  @RequirePlatformRole('PLATFORM_ADMIN')
   reconcilePayment(@Param('id') id: string) {
     return this.platformOps.reconcilePayment(id);
   }

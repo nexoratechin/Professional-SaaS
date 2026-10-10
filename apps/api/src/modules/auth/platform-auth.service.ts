@@ -149,22 +149,57 @@ export class PlatformAuthService {
     return { mfaRequired: false, accessToken, rawRefreshToken, platformUser };
   }
 
-  async refresh(rawRefreshToken: string) {
+  async refresh(rawRefreshToken: string, meta: RequestMeta = {}) {
     const session = await this.platformPrisma.client.platformSession.findUnique({
       where: { refreshTokenHash: hashToken(rawRefreshToken) },
     });
-    if (!session || session.revokedAt || session.expiresAt < new Date()) {
+    if (!session) {
       throw new UnauthorizedException('Invalid refresh token.');
+    }
+
+    // Reuse detection, mirroring the tenant realm: presenting an already-rotated token means the
+    // value was captured — kill every live platform session for the operator and audit it.
+    if (session.revokedAt) {
+      await this.platformPrisma.client.platformSession.updateMany({
+        where: { platformUserId: session.platformUserId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await this.auditService.record({
+        scope: 'PLATFORM',
+        actorType: 'PLATFORM_USER',
+        actorPlatformUserId: session.platformUserId,
+        action: AUDIT_ACTIONS.REFRESH_TOKEN_REUSE_DETECTED,
+        module: AUDIT_MODULES.AUTH,
+        entityType: 'PlatformSession',
+        entityId: session.id,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
+      throw new UnauthorizedException('Invalid refresh token.');
+    }
+
+    if (session.expiresAt < new Date()) {
+      throw new UnauthorizedException('Refresh token expired.');
     }
 
     const rawRefreshTokenNext = generateOpaqueToken();
     const newSession = await this.platformPrisma.client.$transaction(async (tx) => {
-      await tx.platformSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+      // Conditional revoke: a concurrent second presentation of the same token updates 0 rows and
+      // is rejected, so two live sessions can never be minted from one token.
+      const revoked = await tx.platformSession.updateMany({
+        where: { id: session.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      if (revoked.count === 0) {
+        throw new UnauthorizedException('Invalid refresh token.');
+      }
       return tx.platformSession.create({
         data: {
           platformUserId: session.platformUserId,
           refreshTokenHash: hashToken(rawRefreshTokenNext),
           expiresAt: this.refreshExpiry(),
+          ipAddress: meta.ipAddress,
+          userAgent: meta.userAgent,
         },
       });
     });

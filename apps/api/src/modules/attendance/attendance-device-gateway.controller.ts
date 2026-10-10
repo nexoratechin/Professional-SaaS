@@ -5,7 +5,7 @@
  *
  *  * the tenant + device are resolved by the device `code` in the URL path (device codes are
  *    tenant-unique), and
- *  * the device proves identity via its provisioned push token — an `Authorization: Bearer
+ *  * the device proves identity via its provisioned push token — a REQUIRED `Authorization: Bearer
  *    <token>` header compared in constant-time — plus an OPTIONAL HMAC push signature
  *    (`X-Device-Signature` over `timestamp.JSON.stringify({code, events})`) as defense in depth.
  *

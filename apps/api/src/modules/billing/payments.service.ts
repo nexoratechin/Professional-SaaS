@@ -34,6 +34,18 @@ export class PaymentsService {
     }
 
     const amountCents = dto.amountCents ?? invoice.totalCents;
+    if (amountCents <= 0) {
+      throw new BadRequestException('Payment amount must be greater than zero.');
+    }
+    if (amountCents > invoice.totalCents) {
+      throw new BadRequestException('Payment amount cannot exceed the invoice total.');
+    }
+    // A SUCCEEDED payment settles the whole invoice (markPaid), so it must cover the full total —
+    // otherwise a 1-cent "success" would mark a large invoice paid. Partial payments are recorded
+    // with status PENDING/FAILED and reconciled once the balance is met.
+    if (dto.status === 'SUCCEEDED' && amountCents !== invoice.totalCents) {
+      throw new BadRequestException('A SUCCEEDED payment must settle the full invoice total.');
+    }
     const payment = await this.platformPrisma.client.payment.create({
       data: {
         tenantId: invoice.tenantId,

@@ -62,6 +62,7 @@ export class PlatformAuthController {
 
     const { accessToken, rawRefreshToken: nextRawRefreshToken } = await this.platformAuthService.refresh(
       rawRefreshToken,
+      { ipAddress: req.ip, userAgent: req.headers['user-agent'] },
     );
 
     setPlatformRefreshCookie(res, nextRawRefreshToken, this.config);

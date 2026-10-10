@@ -9,6 +9,7 @@
  * endpoint and returns its payload; TCP/MQTT vendors are expected to register their own adapter.
  */
 import { Logger } from '@nestjs/common';
+import { assertSafeOutboundUrl } from '@college-erp/integrations';
 
 export interface DevicePullContext {
   protocol: string;
@@ -39,7 +40,10 @@ async function httpPullAdapter(ctx: DevicePullContext): Promise<DevicePullResult
   const headers: Record<string, string> = { ...GENERIC_HTTP_HEADERS };
   if (ctx.commKey) headers['Authorization'] = `Bearer ${ctx.commKey}`;
 
-  const response = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+  // endpointUrl/ipAddress are tenant-supplied: block SSRF to internal services and don't follow
+  // redirects out of the validated host.
+  await assertSafeOutboundUrl(url);
+  const response = await fetch(url, { headers, redirect: 'manual', signal: AbortSignal.timeout(15_000) });
   if (!response.ok) {
     throw new Error(`Device pull failed with HTTP ${response.status} from ${url}.`);
   }

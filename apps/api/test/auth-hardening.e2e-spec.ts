@@ -6,12 +6,13 @@ import { loginAsPlatformAdmin, loginAsTenantUser, provisionTenant } from './util
 
 /**
  * No email provider exists yet (Phase 8+ Integrations) — PasswordResetService/
- * EmailVerificationService log the token instead of emailing it (see their doc comments).
- * Spying on Logger.prototype.log (a real prototype method, not per-instance-bound — verified
- * against @nestjs/common's implementation) lets these e2e tests capture that token and drive
- * the full forgot/reset and invite/verify round trips exactly like a real client would after
- * clicking the link in an email.
+ * EmailVerificationService log the token instead of emailing it, but ONLY when the explicit
+ * AUTH_DEBUG_TOKEN_LOGGING flag is on (off by default; never in production). Tests opt in here and
+ * spy on Logger.prototype.log to capture that token, driving the full forgot/reset and
+ * invite/verify round trips exactly like a real client would after clicking the link in an email.
  */
+process.env.AUTH_DEBUG_TOKEN_LOGGING = 'true';
+
 function captureLoggedToken(pattern: RegExp) {
   let captured: string | undefined;
   const spy = jest.spyOn(Logger.prototype, 'log').mockImplementation(function mockLog(message?: unknown) {
@@ -82,7 +83,7 @@ describe('Auth hardening (e2e)', () => {
         .send({ email: 'does-not-exist@example.com' })
         .expect(204);
 
-      const { getToken } = captureLoggedToken(/Reset token \(not delivered[^:]*: ([0-9a-f]+)/);
+      const { getToken } = captureLoggedToken(/Reset token[^:]*: ([0-9a-f]+)/);
 
       await request(app.getHttpServer())
         .post('/auth/forgot-password')
@@ -132,7 +133,7 @@ describe('Auth hardening (e2e)', () => {
       const tenantA = await provisionTenant(app, platformToken);
       const tenantB = await provisionTenant(app, platformToken);
 
-      const { getToken } = captureLoggedToken(/Reset token \(not delivered[^:]*: ([0-9a-f]+)/);
+      const { getToken } = captureLoggedToken(/Reset token[^:]*: ([0-9a-f]+)/);
       await request(app.getHttpServer())
         .post('/auth/forgot-password')
         .set('X-Tenant-Slug', tenantA.slug)
@@ -153,7 +154,7 @@ describe('Auth hardening (e2e)', () => {
       const tenant = await provisionTenant(app, platformToken);
       const adminToken = await loginAsTenantUser(app, tenant.slug, tenant.adminEmail, tenant.adminPassword);
 
-      const { getToken } = captureLoggedToken(/Verification token \(not delivered[^:]*: ([0-9a-f]+)/);
+      const { getToken } = captureLoggedToken(/Verification token[^:]*: ([0-9a-f]+)/);
 
       const newUserEmail = `verify-${Date.now()}@example.com`;
       await request(app.getHttpServer())
@@ -263,3 +264,4 @@ describe('Auth hardening (e2e)', () => {
     });
   });
 });
+

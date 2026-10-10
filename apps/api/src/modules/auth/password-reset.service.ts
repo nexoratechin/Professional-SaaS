@@ -1,6 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
+import { AppConfigService } from '../../config/app-config.service';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { SecurityEventsService } from '../security/security-events.service';
@@ -20,6 +21,7 @@ export class PasswordResetService {
     private readonly securityEvents: SecurityEventsService,
     private readonly securitySettings: SecuritySettingsService,
     private readonly passwordHistory: PasswordHistoryService,
+    private readonly config: AppConfigService,
   ) {}
 
   /**
@@ -45,12 +47,24 @@ export class PasswordResetService {
       },
     });
 
-    // No email provider yet (Phase 8+ Integrations) — log the link the same way
-    // NotificationsProcessor logs deliveries, so this flow is fully exercisable end to end today.
-    this.logger.log(
-      `Password reset requested for ${email} (tenant ${tenantSlug}). Reset token (not delivered — no email ` +
-        `provider configured yet): ${rawToken}`,
-    );
+    // Invalidate any still-outstanding tokens for this user so an older (possibly leaked) token
+    // cannot be redeemed after a fresh reset is requested.
+    await this.platformPrisma.client.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    // The raw token is only logged when AUTH_DEBUG_TOKEN_LOGGING is explicitly enabled (never in
+    // production): a leaked log line would otherwise be a live account-takeover credential.
+    if (this.config.get('AUTH_DEBUG_TOKEN_LOGGING')) {
+      this.logger.log(
+        `Password reset requested for ${email} (tenant ${tenantSlug}). Reset token (debug logging enabled): ${rawToken}`,
+      );
+    } else {
+      this.logger.log(
+        `Password reset requested for ${email} (tenant ${tenantSlug}). Reset link generated; configure an email provider to deliver it.`,
+      );
+    }
 
     await this.auditService.record({
       scope: 'TENANT',

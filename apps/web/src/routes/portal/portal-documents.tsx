@@ -87,7 +87,7 @@ export function PortalDocumentsPage() {
     setActionError(null);
     try {
       const result = await apiFetch<{ downloadUrl: string }>(`/student-portal/documents/${document.id}/download-url`);
-      window.open(result.downloadUrl, '_blank', 'noopener');
+      window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Download unavailable.');
     }

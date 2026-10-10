@@ -1,5 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
+import { AppConfigService } from '../../config/app-config.service';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { generateOpaqueToken, hashToken } from './token.util';
@@ -19,6 +20,7 @@ export class EmailVerificationService {
   constructor(
     private readonly platformPrisma: PlatformPrismaService,
     private readonly auditService: AuditService,
+    private readonly config: AppConfigService,
   ) {}
 
   async issueVerificationToken(tenantId: string, tenantSlug: string, userId: string, email: string): Promise<void> {
@@ -32,10 +34,23 @@ export class EmailVerificationService {
       },
     });
 
-    this.logger.log(
-      `Email verification requested for ${email} (tenant ${tenantSlug}). Verification token (not delivered — no ` +
-        `email provider configured yet): ${rawToken}`,
-    );
+    // Invalidate any still-outstanding tokens for this user so an older token cannot be replayed.
+    await this.platformPrisma.client.emailVerificationToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    // The raw token is only logged when AUTH_DEBUG_TOKEN_LOGGING is explicitly enabled (never in
+    // production): it is a live account-activation credential.
+    if (this.config.get('AUTH_DEBUG_TOKEN_LOGGING')) {
+      this.logger.log(
+        `Email verification requested for ${email} (tenant ${tenantSlug}). Verification token (debug logging enabled): ${rawToken}`,
+      );
+    } else {
+      this.logger.log(
+        `Email verification requested for ${email} (tenant ${tenantSlug}). Verification link generated; configure an email provider to deliver it.`,
+      );
+    }
 
     await this.auditService.record({
       scope: 'TENANT',

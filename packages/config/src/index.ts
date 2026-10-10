@@ -33,6 +33,12 @@ export const apiEnvSchema = z.object({
   ACCESS_TOKEN_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
 
+  /** SECURITY: off by default. When true, PasswordResetService / EmailVerificationService log the
+   *  raw single-use token to the application log — a dev/e2e convenience for a deployment with no
+   *  email provider yet. Never enable in production: anyone with log access could take over any
+   *  account for which they can trigger a reset. */
+  AUTH_DEBUG_TOKEN_LOGGING: boolFromString,
+
   /** AES-256-GCM key (64 hex chars = 32 bytes) encrypting MFA/TOTP secrets at rest — generate
    * with `openssl rand -hex 32`. Distinct from the JWT keypair: this protects a symmetric secret
    * that must be decrypted to verify a 6-digit code, never asserted/signed like a token claim. */
