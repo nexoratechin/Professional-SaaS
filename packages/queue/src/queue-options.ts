@@ -51,6 +51,9 @@ export const QUEUE_RETRY_POLICIES: Partial<Record<QueueName, QueueRetryPolicy>> 
   // Report rendering is CPU/memory heavy: keep a bounded history and let the dispatcher's
   // explicit per-enqueue jobId preserve idempotency.
   [QUEUE_NAMES.REPORT_EXPORTS]: { attempts: 3, backoffDelayMs: 5_000, removeOnComplete: 500, removeOnFail: 5_000 },
+  // Backups are long-running and must not restart in a tight loop on a transient error; the next
+  // scheduled run is the natural retry, so one extra attempt with a wide backoff is enough.
+  [QUEUE_NAMES.BACKUP]: { attempts: 2, backoffDelayMs: 300_000, removeOnComplete: 100, removeOnFail: 1_000 },
 };
 
 /**
@@ -95,6 +98,8 @@ export const DEFAULT_QUEUE_CONCURRENCY: Readonly<Partial<Record<QueueName, numbe
   [QUEUE_NAMES.CERTIFICATE_GENERATION]: 4,
   [QUEUE_NAMES.PAYMENT_RECONCILIATION]: 2,
   [QUEUE_NAMES.DEAD_LETTER]: 1,
+  // One backup at a time: dumps are I/O-heavy and the scheduler already serializes them.
+  [QUEUE_NAMES.BACKUP]: 1,
 };
 
 const MAX_PROCESSOR_CONCURRENCY = 100;

@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import type { AlertStatus, AlertSeverity, Prisma, SystemAlert } from '@college-erp/database';
 import {
+  BACKUP_LAST_SUCCESS_KEYS,
   readWindowsSum,
   recordAlertFired,
   setActiveAlerts,
@@ -95,7 +96,7 @@ export class AlertingService implements OnModuleInit, OnModuleDestroy {
   // ── Snapshot assembly ─────────────────────────────────────────────────────────────────────
 
   private async buildSnapshot(): Promise<AlertSignalSnapshot> {
-    const [readiness, queueOverview, shortWindows, longWindows] = await Promise.all([
+    const [readiness, queueOverview, shortWindows, longWindows, lastBackupAtRaw] = await Promise.all([
       this.health.readiness(),
       this.queueMonitoring.overview().catch(() => undefined),
       readWindowsSum(
@@ -116,6 +117,9 @@ export class AlertingService implements OnModuleInit, OnModuleDestroy {
         [WINDOW_COUNTERS.paymentFailures, WINDOW_COUNTERS.notificationFailures, WINDOW_COUNTERS.storageFailures],
         WINDOW_LONG_MINUTES,
       ),
+      // Written by the worker's backup service after every successful PostgreSQL backup; absent
+      // (null) means "never recorded" and fires backup_stale when backups are expected.
+      this.redis.get(BACKUP_LAST_SUCCESS_KEYS.postgres).catch(() => null),
     ]);
 
     const queues = queueOverview?.queues ?? [];
@@ -155,6 +159,9 @@ export class AlertingService implements OnModuleInit, OnModuleDestroy {
       notificationFailures60m: longWindows[WINDOW_COUNTERS.notificationFailures] ?? 0,
       storageFailures60m: longWindows[WINDOW_COUNTERS.storageFailures] ?? 0,
       trackedErrors15m: shortWindows[WINDOW_COUNTERS.trackedErrors] ?? 0,
+      backupExpected: this.config.get('BACKUP_EXPECTED'),
+      lastPostgresBackupAt: parseEpochSeconds(lastBackupAtRaw),
+      backupMaxAgeHours: this.config.get('BACKUP_MAX_AGE_HOURS'),
     };
   }
 
@@ -344,4 +351,11 @@ export class AlertingService implements OnModuleInit, OnModuleDestroy {
       data: { status: 'RESOLVED', resolvedAt: new Date() },
     });
   }
+}
+
+/** Redis stores the backup heartbeat as an epoch-seconds string; anything else means "unknown". */
+function parseEpochSeconds(raw: string | null): number | null {
+  if (raw === null) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : null;
 }

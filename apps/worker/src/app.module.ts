@@ -8,6 +8,7 @@ import { WorkerObservabilityModule } from './common/observability/worker-observa
 import { TenantConnectionModule } from './common/tenant/tenant-connection.module';
 import { AiDocumentProcessingProcessorModule } from './queues/ai/ai-document-processing-processor.module';
 import { AnalyticsRefreshProcessorModule } from './queues/analytics-refresh/analytics-refresh-processor.module';
+import { BackupProcessorModule } from './queues/backup/backup-processor.module';
 import { CertificateGenerationProcessorModule } from './queues/certificate-generation/certificate-generation-processor.module';
 import { DataImportProcessorModule } from './queues/data-imports/data-import-processor.module';
 import { DocumentRetentionProcessorModule } from './queues/document-retention/document-retention-processor.module';
@@ -65,6 +66,7 @@ import { WorkflowEscalationProcessorModule } from './queues/workflow-escalation/
     PdfGenerationProcessorModule,
     CertificateGenerationProcessorModule,
     PaymentReconciliationProcessorModule,
+    BackupProcessorModule,
   ],
 })
 export class AppModule {}

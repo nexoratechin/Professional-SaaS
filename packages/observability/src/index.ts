@@ -10,3 +10,4 @@ export * from './errors/error-tracker';
 export * from './errors/sinks';
 export * from './alerts/types';
 export * from './alerts/rules';
+export * from './alerts/backup-keys';

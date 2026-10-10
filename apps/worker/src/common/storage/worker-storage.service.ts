@@ -4,9 +4,14 @@ import {
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
+import type { Readable } from 'node:stream';
 import { bumpWindow, recordStorageOperation, WINDOW_COUNTERS } from '@college-erp/observability';
 import type Redis from 'ioredis';
 import { AppConfigService } from '../../config/app-config.service';
@@ -59,6 +64,92 @@ export class WorkerStorageService {
     if (!key.startsWith(this.tenantPrefix(tenantId))) {
       throw new Error(`Object key does not belong to tenant ${tenantId}.`);
     }
+  }
+
+  // ── System objects (backups and other platform maintenance artifacts) ──────────────────────
+  // The tenant namespace is `tenants/<id>/`; system objects live everywhere else (by convention
+  // under the configured backup prefix). The two guards are disjoint, so a backup key can never be
+  // read through a tenant method and a tenant object can never be deleted through a system method.
+
+  private assertSystemKey(key: string): void {
+    if (key.startsWith('tenants/')) {
+      throw new Error('System object keys must not use the tenant namespace (tenants/<tenantId>/).');
+    }
+  }
+
+  /** Streams a system object to storage from a local file (backup archives are multi-GB). */
+  async uploadSystemFile(key: string, filePath: string, contentType: string): Promise<void> {
+    this.assertSystemKey(key);
+    const fileStat = await stat(filePath);
+    await this.send('putSystemObject', () =>
+      this.client.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: createReadStream(filePath),
+          ContentLength: fileStat.size,
+          ContentType: contentType,
+        }),
+      ),
+    );
+  }
+
+  async uploadSystemBuffer(key: string, body: Buffer, contentType: string): Promise<void> {
+    this.assertSystemKey(key);
+    await this.send('putSystemObject', () =>
+      this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType })),
+    );
+  }
+
+  /** Streams a system object back to a local file (restore-verification downloads). */
+  async downloadSystemToFile(key: string, filePath: string): Promise<void> {
+    this.assertSystemKey(key);
+    const result = await this.send('getSystemObject', () =>
+      this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
+    );
+    if (!result.Body) throw new Error(`System object ${key} has no body.`);
+    await pipeline(result.Body as Readable, createWriteStream(filePath));
+  }
+
+  async deleteSystemObject(key: string): Promise<void> {
+    this.assertSystemKey(key);
+    try {
+      await this.send('deleteSystemObject', () =>
+        this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })),
+      );
+    } catch {
+      // Missing objects are a successful delete.
+    }
+  }
+
+  /** Lists every system object under a prefix (paginated; backs retention planning). */
+  async listSystemObjects(
+    prefix: string,
+  ): Promise<Array<{ key: string; sizeBytes: number; lastModified: Date | null }>> {
+    let continuationToken: string | undefined;
+    const objects: Array<{ key: string; sizeBytes: number; lastModified: Date | null }> = [];
+    do {
+      const result = await this.send('listSystemObjects', async () => {
+        // The SDK type for ContinuationToken is `string | undefined`; capture it for the loop.
+        return this.client.send(
+          new ListObjectsV2Command({
+            Bucket: this.bucket,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+          }),
+        );
+      });
+      for (const item of result.Contents ?? []) {
+        if (!item.Key) continue;
+        objects.push({
+          key: item.Key,
+          sizeBytes: item.Size ?? 0,
+          lastModified: item.LastModified ?? null,
+        });
+      }
+      continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
+    } while (continuationToken);
+    return objects;
   }
 
   /** Readiness probe — verifies the configured bucket is reachable. */

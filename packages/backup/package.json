@@ -1,0 +1,31 @@
+{
+  "name": "@college-erp/backup",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --config ../../eslint.config.js",
+    "test": "jest --config jest.config.js --passWithNoTests",
+    "test:recovery": "jest --config jest.recovery.config.js --runInBand",
+    "clean": "rimraf dist .turbo",
+    "backup:postgres": "ts-node --transpile-only scripts/backup-cli.ts postgres",
+    "backup:verify": "ts-node --transpile-only scripts/backup-cli.ts verify",
+    "backup:restore": "ts-node --transpile-only scripts/backup-cli.ts restore",
+    "backup:redis": "ts-node --transpile-only scripts/backup-cli.ts redis"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.13",
+    "@types/node": "^20.16.10",
+    "jest": "^29.7.0",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}

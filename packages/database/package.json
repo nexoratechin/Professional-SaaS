@@ -17,11 +17,14 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
+    "db:deploy:safe": "ts-node --transpile-only scripts/safe-migrate.ts",
+    "db:migration:rollback": "ts-node --transpile-only scripts/migration-rollback.ts",
     "tenant:db:list": "ts-node --transpile-only scripts/tenant-db.ts list",
     "tenant:db:migrate": "ts-node --transpile-only scripts/tenant-db.ts migrate"
   },
   "dependencies": {
     "@college-erp/auth": "workspace:*",
+    "@college-erp/backup": "workspace:*",
     "@college-erp/observability": "workspace:*",
     "@prisma/client": "^5.20.0",
     "bcryptjs": "^2.4.3"

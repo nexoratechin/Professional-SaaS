@@ -19,8 +19,14 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # Persistence is part of the recovery strategy: AOF (fsync every second) plus RDB save points,
+    # stored on a named volume so queue/cache state survives container recreation. The worker's
+    # scheduled redis-snapshot job additionally exports the RDB to MinIO. See docs/backup-recovery.md.
+    command: ['redis-server', '--appendonly', 'yes', '--appendfsync', 'everysec', '--save', '300', '60']
     ports:
       - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
@@ -109,6 +115,10 @@ services:
       ERROR_TRACKING_ENABLED: ${ERROR_TRACKING_ENABLED:-true}
       ERROR_TRACKING_WEBHOOK_URL: ${ERROR_TRACKING_WEBHOOK_URL:-}
       ERROR_TRACKING_PERSIST: ${ERROR_TRACKING_PERSIST:-true}
+      # Backup posture for the backup_stale alert: compose runs the worker backup scheduler by
+      # default, so the API expects a fresh backup heartbeat. See docs/backup-recovery.md.
+      BACKUP_EXPECTED: ${BACKUP_EXPECTED:-true}
+      BACKUP_MAX_AGE_HOURS: ${BACKUP_MAX_AGE_HOURS:-26}
     ports:
       - '3000:3000'
     healthcheck:
@@ -177,6 +187,21 @@ services:
       ERROR_TRACKING_ENABLED: ${ERROR_TRACKING_ENABLED:-true}
       ERROR_TRACKING_WEBHOOK_URL: ${ERROR_TRACKING_WEBHOOK_URL:-}
       ERROR_TRACKING_PERSIST: ${ERROR_TRACKING_PERSIST:-true}
+      # --- Backup & recovery (see docs/backup-recovery.md) -----------------------------------
+      # Scheduled pg_dump -> S3 backup with TOC verification; the image ships pg_dump/pg_restore/
+      # psql/redis-cli. Restore verification needs CREATE DATABASE rights (off by default).
+      BACKUP_ENABLED: ${BACKUP_ENABLED:-true}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-backups}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_VERIFY_RESTORE_ENABLED: ${BACKUP_VERIFY_RESTORE_ENABLED:-false}
+      BACKUP_SCRATCH_DATABASE_PREFIX: ${BACKUP_SCRATCH_DATABASE_PREFIX:-college_erp_recovery_}
+      BACKUP_RETENTION_DAILY: ${BACKUP_RETENTION_DAILY:-7}
+      BACKUP_RETENTION_WEEKLY: ${BACKUP_RETENTION_WEEKLY:-4}
+      BACKUP_RETENTION_MONTHLY: ${BACKUP_RETENTION_MONTHLY:-12}
+      BACKUP_REDIS_ENABLED: ${BACKUP_REDIS_ENABLED:-true}
+      BACKUP_REDIS_INTERVAL_HOURS: ${BACKUP_REDIS_INTERVAL_HOURS:-6}
+      BACKUP_REDIS_RDB_EXPORT_ENABLED: ${BACKUP_REDIS_RDB_EXPORT_ENABLED:-true}
+      BACKUP_REDIS_MAX_AGE_HOURS: ${BACKUP_REDIS_MAX_AGE_HOURS:-26}
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3100/health/live || exit 1']
       interval: 15s
@@ -222,5 +247,6 @@ services:
 
 volumes:
   pg_data:
+  redis_data:
   minio_data:
   clamav_data:

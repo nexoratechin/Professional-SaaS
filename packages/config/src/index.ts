@@ -182,6 +182,17 @@ export const apiEnvSchema = z.object({
   ERROR_TRACKING_WEBHOOK_URL: optionalUrl,
   ERROR_TRACKING_PERSIST: boolFromStringDefaultTrue,
 
+  // --- Backup & recovery (alerting side) ------------------------------------------------------
+  // The worker's backup scheduler writes a "last successful PostgreSQL backup" heartbeat into
+  // Redis; the alert engine raises backup_stale when it ages past BACKUP_MAX_AGE_HOURS. Enable
+  // BACKUP_EXPECTED only where the worker backup scheduler actually runs. See
+  // docs/backup-recovery.md.
+
+  /** When true, a missing/stale backup heartbeat fires the backup_stale alert rule. */
+  BACKUP_EXPECTED: boolFromString,
+  /** RPO budget in hours the alert rule compares the heartbeat against (default 26 = daily + slack). */
+  BACKUP_MAX_AGE_HOURS: z.coerce.number().int().positive().default(26),
+
   // --- Enterprise database isolation (optional; off by default) ------------------------------
   // The default architecture remains shared PostgreSQL + tenant_id. These knobs enable the opt-in
   // dedicated-schema / dedicated-database modes. See docs/enterprise-database-isolation.md.
@@ -325,10 +336,47 @@ export const workerEnvSchema = z.object({
   ERROR_TRACKING_WEBHOOK_URL: optionalUrl,
   ERROR_TRACKING_PERSIST: boolFromStringDefaultTrue,
 
-  // --- Enterprise database isolation (optional; off by default) ------------------------------
-  // The worker routes a DEDICATED_* tenant's jobs to its schema/database using the same registry
-  // the API populates. These must match the API's settings. See
-  // docs/enterprise-database-isolation.md.
+  // --- Backup & recovery ----------------------------------------------------------------------
+  // Scheduled PostgreSQL backups + verification + retention, Redis snapshots, and the
+  // last-success heartbeat the API's backup_stale alert reads. Off by default so a plain
+  // `pnpm dev` worker (no pg_dump on PATH) never fails jobs; docker-compose sets it true.
+  // See docs/backup-recovery.md for RPO/RTO and the restore runbook.
+
+  /** Master switch for the scheduled postgres-backup / backup-prune / redis-snapshot jobs. */
+  BACKUP_ENABLED: boolFromString,
+  /** Environment segment of backup object keys; defaults to NODE_ENV. */
+  BACKUP_ENVIRONMENT: optionalString,
+  /** Object-key prefix every backup artifact lives under (also the worker storage guard). */
+  BACKUP_S3_PREFIX: z.string().min(1).default('backups'),
+  /** Full-backup cadence in hours (24 = daily). This is the RPO driver. */
+  BACKUP_INTERVAL_HOURS: z.coerce.number().positive().default(24),
+  /** Restore-verify each backup into a scratch database (in addition to the always-on TOC check).
+   *  Needs CREATE DATABASE rights on the admin URL below. */
+  BACKUP_VERIFY_RESTORE_ENABLED: boolFromString,
+  /** Admin URL used to create/drop scratch verification databases; defaults to DATABASE_URL with
+   *  the maintenance database. */
+  BACKUP_SCRATCH_DATABASE_URL: optionalUrl,
+  /** Scratch database name prefix for restore verification. */
+  BACKUP_SCRATCH_DATABASE_PREFIX: z.string().min(1).default('college_erp_recovery_'),
+  /** GFS retention (see planRetention): newest per day/week/month. */
+  BACKUP_RETENTION_DAILY: z.coerce.number().int().min(0).default(7),
+  BACKUP_RETENTION_WEEKLY: z.coerce.number().int().min(0).default(4),
+  BACKUP_RETENTION_MONTHLY: z.coerce.number().int().min(0).default(12),
+  /** Hard timeout for a single pg_dump/pg_restore run. */
+  BACKUP_TIMEOUT_MS: z.coerce.number().int().positive().default(1_800_000),
+  /** Explicit tool paths, for images/hosts where they are not on PATH. */
+  BACKUP_PG_DUMP_PATH: optionalString,
+  BACKUP_PG_RESTORE_PATH: optionalString,
+  BACKUP_PSQL_PATH: optionalString,
+  /** Redis snapshot jobs: BGSAVE heartbeat + (optionally) an RDB export to object storage. */
+  BACKUP_REDIS_ENABLED: boolFromStringDefaultTrue,
+  BACKUP_REDIS_INTERVAL_HOURS: z.coerce.number().positive().default(6),
+  /** Export the RDB via redis-cli and upload it; when false only the BGSAVE heartbeat is recorded. */
+  BACKUP_REDIS_RDB_EXPORT_ENABLED: boolFromStringDefaultTrue,
+  /** Explicit redis-cli path for RDB export. */
+  BACKUP_REDIS_CLI_PATH: optionalString,
+  /** Redis snapshot freshness budget the worker assesses and logs against. */
+  BACKUP_REDIS_MAX_AGE_HOURS: z.coerce.number().positive().default(26),
   TENANT_DB_ISOLATION_ENABLED: boolFromString,
   /** Same 64-hex AES-256-GCM key as the API — the worker decrypts connection URLs to route jobs. */
   TENANT_DB_SECRET_KEY: z

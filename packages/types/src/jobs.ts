@@ -36,6 +36,8 @@ export const QUEUE_NAMES = {
   INTEGRATION_SYNC: 'integration-sync',
   /** Bulk CSV/XLSX import processing (apps/worker's data-import queue). */
   DATA_IMPORTS: 'data-imports',
+  /** Scheduled PostgreSQL backups, backup verification/pruning and Redis snapshots. */
+  BACKUP: 'backup',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -300,3 +302,26 @@ export interface DeadLetterJobData {
   failedAt: string;
   payload: unknown;
 }
+
+/**
+ * Scheduled PostgreSQL backup. A platform-wide maintenance job — the logical dump covers the whole
+ * shared database, so (like the other cross-tenant sweeps) it deliberately does NOT extend
+ * TenantJobData. Verification of the produced archive runs inline; the optional scratch-database
+ * restore verification is gated by BACKUP_VERIFY_RESTORE_ENABLED or `verifyRestore: true`.
+ */
+export interface PostgresBackupJobData {
+  requestedBy?: 'schedule' | 'manual';
+  /** Force restore-verification for this run even when the env default is off. */
+  verifyRestore?: boolean;
+}
+
+/**
+ * Scheduled Redis snapshot: BGSAVE + persistence assessment, plus an RDB export to object storage
+ * when redis-cli is available and export is enabled.
+ */
+export interface RedisSnapshotJobData {
+  requestedBy?: 'schedule' | 'manual';
+}
+
+/** GFS retention sweep over stored backup archives (cross-tenant by construction). */
+export type BackupPruneJobData = Record<string, never>;

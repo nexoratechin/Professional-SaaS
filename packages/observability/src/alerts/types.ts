@@ -35,6 +35,11 @@ export interface AlertSignalSnapshot {
   notificationFailures60m: number;
   storageFailures60m: number;
   trackedErrors15m: number;
+  /** Backup posture: whether backups are expected at all, when PostgreSQL last backed up
+   *  (epoch seconds, null = never/unknown), and the RPO budget the rule compares against. */
+  backupExpected: boolean;
+  lastPostgresBackupAt: number | null;
+  backupMaxAgeHours: number;
 }
 
 export interface AlertEvaluation {

@@ -254,6 +254,41 @@ export function recordStorageOperation(operation: string, ok: boolean, durationM
     .observe({ operation }, toSeconds(durationMs));
 }
 
+// ── Backup & recovery ────────────────────────────────────────────────────────────────────────
+
+export function recordBackupEvent(kind: string, outcome: 'success' | 'failure', sizeBytes?: number): void {
+  registry()
+    .counter(`${METRIC_PREFIX}_backup_operations_total`, 'Backup operations by kind and outcome.', ['kind', 'outcome'])
+    .inc({ kind, outcome });
+  if (outcome === 'success' && sizeBytes !== undefined) {
+    registry()
+      .gauge(`${METRIC_PREFIX}_backup_last_size_bytes`, 'Size in bytes of the most recent successful backup, by kind.', [
+        'kind',
+      ])
+      .set({ kind }, sizeBytes);
+  }
+}
+
+export function recordBackupVerification(kind: string, method: 'toc' | 'restore', ok: boolean): void {
+  registry()
+    .counter(`${METRIC_PREFIX}_backup_verifications_total`, 'Backup verifications by kind, method and result.', [
+      'kind',
+      'method',
+      'result',
+    ])
+    .inc({ kind, method, result: ok ? 'ok' : 'failed' });
+}
+
+export function setBackupLastSuccess(kind: string, timestampSeconds: number): void {
+  registry()
+    .gauge(
+      `${METRIC_PREFIX}_backup_last_success_timestamp_seconds`,
+      'Unix timestamp of the last successful backup, by kind (alert when now - value exceeds the RPO budget).',
+      ['kind'],
+    )
+    .set({ kind }, timestampSeconds);
+}
+
 // ── Auth ─────────────────────────────────────────────────────────────────────────────────────
 
 export function recordAuthEvent(surface: 'tenant_login' | 'platform_login' | 'mfa', result: 'success' | 'failure', reason?: string): void {

@@ -61,6 +61,9 @@ registry (this is the standard multi-process model — scrape every replica). Pr
 | `college_erp_storage_operations_total`, `_storage_operation_duration_seconds` | counter/histogram | operation,result / operation | Storage failures |
 | `college_erp_auth_events_total` | counter | surface, result, reason | Authentication failures |
 | `college_erp_usage_events_total`, `_usage_units_total` | counter | event_type | Tenant usage (metered) |
+| `college_erp_backup_operations_total`, `_backup_last_size_bytes` | counter/gauge | kind,outcome / kind | Backup success/failure (see docs/backup-recovery.md) |
+| `college_erp_backup_last_success_timestamp_seconds` | gauge | kind | Last successful backup — alert when `time() - value` exceeds the RPO |
+| `college_erp_backup_verifications_total` | counter | kind,method,result | Structure/restore verifications |
 | `college_erp_errors_tracked_total` | counter | source, name | Error tracking |
 | `college_erp_alerts_fired_total`, `_alerts_active` | counter/gauge | rule,severity / severity | Alerting |
 | `college_erp_health_status`, `_health_check_duration_seconds` | gauge/histogram | check | System health |
@@ -126,6 +129,7 @@ dedupe key.
 | `auth_failures_spike` | WARNING | ≥ 30 failed logins / 15 min |
 | `suspicious_logins` | WARNING | ≥ 3 blocked suspicious logins / 15 min |
 | `tracked_errors_spike` | WARNING | ≥ 10 tracked errors / 15 min |
+| `backup_stale` | CRITICAL / WARNING | expected backups never recorded (CRITICAL), or heartbeat older than `BACKUP_MAX_AGE_HOURS` (CRITICAL at 2×) |
 
 Thresholds live in `ALERT_THRESHOLDS` (one source of truth) and are unit-tested in
 `rules.spec.ts`. Operator endpoints (platform auth):
@@ -155,6 +159,8 @@ Thresholds live in `ALERT_THRESHOLDS` (one source of truth) and are unit-tested 
 | `ERROR_TRACKING_PERSIST` | `true` | `system_error_events` ledger |
 | `WORKER_HEALTH_ENABLED` / `WORKER_HEALTH_PORT` | `true` / `3100` | worker HTTP surface |
 | `WORKER_HEARTBEAT_INTERVAL_MS` / `WORKER_HEARTBEAT_TTL_SECONDS` | `15000` / `45` | must both match the API's expectation |
+| `BACKUP_EXPECTED` (api) | `false` | whether `backup_stale` alerts at all |
+| `BACKUP_MAX_AGE_HOURS` (api) | `26` | RPO budget compared against the worker's backup heartbeat |
 
 ## 7. Wiring a monitoring stack (example)
 
@@ -174,7 +180,8 @@ scrape_configs:
 Suggested first alerts on top of the exported series (belt-and-braces to the built-in engine):
 `up == 0` per job, `rate(college_erp_http_request_duration_seconds_sum[5m]) /
 rate(college_erp_http_request_duration_seconds_count[5m]) > 1`,
-`college_erp_queue_dead_letter_backlog > 0`.
+`college_erp_queue_dead_letter_backlog > 0`,
+`time() - college_erp_backup_last_success_timestamp_seconds{kind="postgres"} > 26*3600`.
 
 ## 8. Runbook cheat-sheet
 

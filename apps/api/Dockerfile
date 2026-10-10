@@ -2,7 +2,10 @@
 # (blueprint defers managed-cloud deployment to a later phase; this proves docker-compose up
 # brings the whole stack up end-to-end).
 FROM node:20-alpine
-RUN apk add --no-cache openssl
+# openssl for Prisma; PostgreSQL client tools so db:deploy:safe / db:migration:rollback can run
+# inside this image (see docs/backup-recovery.md).
+RUN apk add --no-cache openssl \
+  && (apk add --no-cache postgresql16-client || apk add --no-cache postgresql-client)
 RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 WORKDIR /app
 
