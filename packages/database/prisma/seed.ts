@@ -1,6 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { seedGlobalCatalog } from '../src/seeding/global-catalog';
+import {
+  formatDemoSeedSummary,
+  seedDemoCollege,
+  shouldSeedDemoData,
+  type DemoSeedSummary,
+} from '../src/seeding/demo';
 
 const prisma = new PrismaClient();
 
@@ -46,6 +52,17 @@ async function main() {
   console.log('Seeded global catalog (permissions, feature flags, plans, plan modules, billing config).');
 
   await seedPlatformAdmin();
+
+  // Demo college: on by default outside production, opt-in in production with SEED_DEMO_DATA=true.
+  // Idempotent — every row is upserted against a deterministic key, so re-running is safe.
+  if (shouldSeedDemoData()) {
+    const summary: DemoSeedSummary = await seedDemoCollege(prisma);
+    console.log(formatDemoSeedSummary(summary));
+  } else {
+    console.log(
+      'Demo college seeding skipped (SEED_DEMO_DATA is disabled, or NODE_ENV=production without an explicit opt-in).',
+    );
+  }
 }
 
 main()

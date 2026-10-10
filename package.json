@@ -17,6 +17,7 @@
     "db:generate": "pnpm --filter @college-erp/database prisma:generate",
     "db:migrate": "pnpm --filter @college-erp/database prisma:migrate",
     "db:seed": "pnpm --filter @college-erp/database prisma:seed",
+    "db:seed:demo": "pnpm --filter @college-erp/database seed:demo",
     "db:validate": "pnpm --filter @college-erp/database prisma:validate",
     "db:deploy:safe": "pnpm --filter @college-erp/database db:deploy:safe",
     "db:migration:rollback": "pnpm --filter @college-erp/database db:migration:rollback",
