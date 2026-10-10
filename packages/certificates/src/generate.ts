@@ -369,15 +369,16 @@ async function latestResultProcess(
 function mergeBranding(tenantBranding: unknown, templateBranding: unknown): CertificateBranding {
   const tenant = (tenantBranding ?? {}) as Record<string, unknown>;
   const template = (templateBranding ?? {}) as Record<string, unknown>;
+  const cert = (tenant.certificate ?? {}) as Record<string, unknown>;
   return {
     collegeName: (template.collegeName as string) ?? (tenant.collegeName as string) ?? null,
     tagline: (template.tagline as string) ?? (tenant.tagline as string) ?? null,
-    watermark: (template.watermark as string) ?? (tenant.watermark as string) ?? null,
-    signedBy: (template.signedBy as string) ?? (tenant.signedBy as string) ?? null,
-    headerText: (template.headerText as string) ?? null,
-    footerText: (template.footerText as string) ?? null,
-    primaryColor: (template.primaryColor as string) ?? (tenant.primaryColor as string) ?? null,
-    accentColor: (template.accentColor as string) ?? (tenant.accentColor as string) ?? null,
+    watermark: (template.watermark as string) ?? (cert.watermark as string) ?? (tenant.watermark as string) ?? null,
+    signedBy: (template.signedBy as string) ?? (cert.signedBy as string) ?? (tenant.signedBy as string) ?? null,
+    headerText: (template.headerText as string) ?? (cert.headerText as string) ?? null,
+    footerText: (template.footerText as string) ?? (cert.footerText as string) ?? null,
+    primaryColor: (template.primaryColor as string) ?? (cert.primaryColor as string) ?? (tenant.primaryColor as string) ?? null,
+    accentColor: (template.accentColor as string) ?? (cert.accentColor as string) ?? (tenant.accentColor as string) ?? null,
   };
 }
 

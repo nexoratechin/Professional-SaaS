@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Breadcrumbs } from '@college-erp/ui';
 import { useAuth } from '../features/auth/auth-context';
+import { brandingAssetUrl, useBranding } from '../features/branding/branding-context';
 import { openGlobalSearch } from '../features/search/search-palette';
 import { PwaChrome } from '../features/pwa/pwa-ui';
 import { Icon } from './icons';
@@ -39,11 +40,14 @@ function RouterLink({ to, className, children }: { to: string; className?: strin
  */
 export function AppLayout() {
   const { user, permissions, entitlements, hasFetchedEntitlements, tenantSlug, logout } = useAuth();
+  const { branding } = useBranding();
   const location = useLocation();
   const navigate = useNavigate();
   const [navOpen, setNavOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const portalName = branding?.portalName ?? 'College ERP';
 
   useEffect(() => {
     setNavOpen(false);
@@ -91,10 +95,10 @@ export function AppLayout() {
     return [{ label: 'Home', to: '/dashboard' }, ...items];
   }, [location.pathname]);
 
-  const pageTitle = breadcrumbs[breadcrumbs.length - 1]?.label ?? 'College ERP';
+  const pageTitle = breadcrumbs[breadcrumbs.length - 1]?.label ?? portalName;
   useEffect(() => {
-    document.title = `${pageTitle} · College ERP`;
-  }, [pageTitle]);
+    document.title = `${pageTitle} · ${portalName}`;
+  }, [pageTitle, portalName]);
 
   const canSearch = permissions.includes(SEARCH_PERMISSION);
   const canSeeNotifications = permissions.includes(NOTIFICATIONS_PERMISSION);
@@ -113,9 +117,13 @@ export function AppLayout() {
 
       <aside className={`app-sidebar ${navOpen ? 'app-open' : ''}`}>
         <Link to="/dashboard" className="app-sidebar__brand">
-          <span className="app-sidebar__logo"><Icon name="academics" size={18} /></span>
+          {branding?.logoUrl ? (
+            <img src={brandingAssetUrl(branding.logoUrl) as string} alt={portalName} className="app-sidebar__logoimg" />
+          ) : (
+            <span className="app-sidebar__logo"><Icon name="academics" size={18} /></span>
+          )}
           <span>
-            College ERP
+            {portalName}
             <small>{tenantSlug ?? 'Workspace'}</small>
           </span>
         </Link>

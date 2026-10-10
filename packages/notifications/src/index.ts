@@ -4,3 +4,4 @@ export * from './audience';
 export * from './settings';
 export * from './smtp';
 export * from './providers';
+export * from './branding';

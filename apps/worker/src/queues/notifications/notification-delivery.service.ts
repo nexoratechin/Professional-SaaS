@@ -12,8 +12,12 @@ import {
   ProviderDeliveryError,
   createNotificationProvider,
   devConsoleProviderFor,
+  renderBrandedEmailHtml,
+  resolveEmailBranding,
   type NotificationProvider,
   type ProviderSendResult,
+  type NotificationMessage,
+  type TenantBrandingLike,
 } from '@college-erp/notifications';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
@@ -102,6 +106,7 @@ export class NotificationDeliveryService {
       const attemptStartedAt = Date.now();
       const attemptNumber = notification.attempts + 1;
       const results: ProviderSendResult[] = [];
+      const presentation = notification.channel === 'EMAIL' ? await this.emailPresentation(notification) : undefined;
 
       for (const address of addresses) {
         try {
@@ -110,6 +115,7 @@ export class NotificationDeliveryService {
             to: address,
             subject: notification.subject ?? undefined,
             body: notification.body,
+            ...(presentation ?? {}),
           });
           results.push(result);
 
@@ -248,6 +254,36 @@ export class NotificationDeliveryService {
         false,
         error,
       );
+    }
+  }
+
+  /**
+   * Tenant-branded email presentation: a branded HTML body plus the tenant's sender identity
+   * (From display name / optional From address / Reply-To). Branding is read from the tenant's
+   * configuration document through the unscoped platform client (the document is a platform-level
+   * model keyed by tenantId, and this job has no request scope). Any failure falls back to the
+   * plain-text body — branding must never block delivery.
+   */
+  private async emailPresentation(notification: Notification): Promise<Partial<NotificationMessage> | undefined> {
+    try {
+      const [configRow, tenant] = await Promise.all([
+        platformPrismaClient.tenantConfiguration.findUnique({ where: { tenantId: notification.tenantId } }),
+        platformPrismaClient.tenant.findUnique({ where: { id: notification.tenantId }, select: { name: true } }),
+      ]);
+      const branding = ((configRow?.data as Record<string, unknown> | null)?.branding ?? null) as TenantBrandingLike | null;
+      const resolved = resolveEmailBranding(branding, tenant?.name ?? 'College ERP');
+      return {
+        html: renderBrandedEmailHtml({ subject: notification.subject ?? '', body: notification.body, branding: resolved }),
+        fromName: resolved.senderName,
+        ...(resolved.senderEmail ? { fromAddress: resolved.senderEmail } : {}),
+        ...(resolved.replyTo ? { replyTo: resolved.replyTo } : {}),
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Could not resolve email branding for tenant ${notification.tenantId}; sending plain text: ` +
+          `${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+      return undefined;
     }
   }
 

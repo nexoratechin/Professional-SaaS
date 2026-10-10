@@ -1,16 +1,71 @@
 import {
   IsArray,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const HEX_COLOR_MESSAGE = '$property must be a hex color like #1d4ed8';
+
+/** Certificate-specific branding overrides (falls back to the tenant's general branding). */
+export class CertificateBrandingSectionDto {
+  @IsOptional()
+  @IsString()
+  headerText?: string;
+
+  @IsOptional()
+  @IsString()
+  footerText?: string;
+
+  @IsOptional()
+  @IsString()
+  watermark?: string;
+
+  @IsOptional()
+  @IsString()
+  signedBy?: string;
+
+  @IsOptional()
+  @Matches(HEX_COLOR, { message: HEX_COLOR_MESSAGE })
+  primaryColor?: string;
+
+  @IsOptional()
+  @Matches(HEX_COLOR, { message: HEX_COLOR_MESSAGE })
+  accentColor?: string;
+}
+
+/** Branding for generic generated PDFs (report exports, statements). */
+export class PdfBrandingSectionDto {
+  @IsOptional()
+  @IsString()
+  headerText?: string;
+
+  @IsOptional()
+  @IsString()
+  footerText?: string;
+
+  @IsOptional()
+  @Matches(HEX_COLOR, { message: HEX_COLOR_MESSAGE })
+  primaryColor?: string;
+
+  @IsOptional()
+  @Matches(HEX_COLOR, { message: HEX_COLOR_MESSAGE })
+  accentColor?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  showCollegeName?: boolean;
+}
 
 export class BrandingSectionDto {
   @IsOptional()
@@ -23,6 +78,10 @@ export class BrandingSectionDto {
 
   @IsOptional()
   @IsString()
+  portalName?: string;
+
+  @IsOptional()
+  @IsString()
   logoKey?: string;
 
   @IsOptional()
@@ -31,15 +90,85 @@ export class BrandingSectionDto {
 
   @IsOptional()
   @IsString()
+  faviconKey?: string;
+
+  @IsOptional()
+  @IsString()
+  faviconUrl?: string;
+
+  @IsOptional()
+  @Matches(HEX_COLOR, { message: HEX_COLOR_MESSAGE })
   primaryColor?: string;
 
   @IsOptional()
-  @IsString()
+  @Matches(HEX_COLOR, { message: HEX_COLOR_MESSAGE })
   secondaryColor?: string;
 
   @IsOptional()
-  @IsString()
+  @Matches(HEX_COLOR, { message: HEX_COLOR_MESSAGE })
   accentColor?: string;
+
+  @IsOptional()
+  @IsString()
+  loginTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  loginSubtitle?: string;
+
+  @IsOptional()
+  @IsString()
+  loginWelcomeText?: string;
+
+  @IsOptional()
+  @Matches(HEX_COLOR, { message: HEX_COLOR_MESSAGE })
+  loginBackgroundColor?: string;
+
+  @IsOptional()
+  @IsString()
+  loginBackgroundKey?: string;
+
+  @IsOptional()
+  @IsString()
+  loginBackgroundUrl?: string;
+
+  @IsOptional()
+  @Matches(HEX_COLOR, { message: HEX_COLOR_MESSAGE })
+  emailHeaderColor?: string;
+
+  @IsOptional()
+  @IsString()
+  emailFooterText?: string;
+
+  @IsOptional()
+  @IsString()
+  emailSignature?: string;
+
+  @IsOptional()
+  @IsEmail()
+  emailSupportAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  senderName?: string;
+
+  @IsOptional()
+  @IsEmail()
+  senderEmail?: string;
+
+  @IsOptional()
+  @IsEmail()
+  replyToEmail?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CertificateBrandingSectionDto)
+  certificate?: CertificateBrandingSectionDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PdfBrandingSectionDto)
+  pdf?: PdfBrandingSectionDto;
 }
 
 export class AcademicCalendarSectionDto {

@@ -8,6 +8,17 @@ const TITLE_FONT_SIZE = 15;
 const ROW_HEIGHT = 15;
 const TABLE_TOP_OFFSET = 74;
 
+/** Tenant branding applied to a generated report PDF. Optional and defaults to the historical
+ * unbranded layout (grid + "Generated" line) so existing exports are byte-for-byte unchanged. */
+export interface ReportPdfBranding {
+  headerText?: string | null;
+  footerText?: string | null;
+  primaryColor?: string | null;
+  accentColor?: string | null;
+  showCollegeName?: boolean | null;
+  collegeName?: string | null;
+}
+
 interface PdfInput {
   title: string;
   subtitle?: string;
@@ -16,6 +27,7 @@ interface PdfInput {
   summary: Record<string, number>;
   columns: ReportColumn[];
   rows: ReportRow[];
+  branding?: ReportPdfBranding | null;
 }
 
 function sanitize(value: unknown): string {
@@ -36,6 +48,24 @@ function escapePdf(value: string): string {
 
 function draw(text: string, x: number, y: number, font: 'F1' | 'F2', size: number): string {
   return `BT /${font} ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${escapePdf(sanitize(text))}) Tj ET`;
+}
+
+function toRgb(color: string | null | undefined): [number, number, number] {
+  const match = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(color ?? '');
+  if (!match) return [0, 0, 0];
+  const hex = match[1]!.length === 3 ? match[1]!.split('').map((c) => c + c).join('') : match[1]!;
+  const int = Number.parseInt(hex, 16);
+  return [((int >> 16) & 0xff) / 255, ((int >> 8) & 0xff) / 255, (int & 0xff) / 255];
+}
+
+function setFill(color: string | null | undefined): string {
+  const [r, g, b] = toRgb(color);
+  return `${r.toFixed(3)} ${g.toFixed(3)} ${b.toFixed(3)} rg`;
+}
+
+/** Draw white text on a colored band (the `rg` fill is set first, then reset to black). */
+function drawOnColor(text: string, x: number, y: number, size: number, color: string): string {
+  return `${setFill(color)} BT /F2 ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${escapePdf(sanitize(text))}) Tj ET 0 0 0 rg`;
 }
 
 function formatCell(value: ReportRow[string] | undefined, format: ReportColumn['format']): string {
@@ -77,7 +107,21 @@ export function renderTablePdf(input: PdfInput): Buffer {
 
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
     const ops: string[] = [];
-    let y = PAGE_HEIGHT - MARGIN;
+    const branding = input.branding ?? null;
+    const bandHeight = branding?.primaryColor ? 36 : 0;
+    const bandLabel =
+      branding?.headerText || (branding?.showCollegeName === false ? null : branding?.collegeName) || null;
+    if (bandHeight > 0) {
+      ops.push(setFill(branding?.primaryColor));
+      ops.push(`0 ${(PAGE_HEIGHT - bandHeight).toFixed(2)} ${PAGE_WIDTH} ${bandHeight} re f`);
+      if (bandLabel) {
+        ops.push(drawOnColor(bandLabel, MARGIN, PAGE_HEIGHT - bandHeight + 12, 12, '#ffffff'));
+      }
+      if (branding?.headerText && branding?.collegeName && branding?.showCollegeName !== false) {
+        ops.push(drawOnColor(branding.collegeName, PAGE_WIDTH - MARGIN - 180, PAGE_HEIGHT - bandHeight + 13, 9, '#ffffff'));
+      }
+    }
+    let y = PAGE_HEIGHT - MARGIN - bandHeight;
     ops.push(draw(input.title, MARGIN, y, 'F2', TITLE_FONT_SIZE));
     y -= 18;
     if (input.subtitle) {
@@ -102,6 +146,9 @@ export function renderTablePdf(input: PdfInput): Buffer {
       x += widths[index] ?? 60;
     });
     ops.push(draw(`Page ${pageIndex + 1} of ${pageCount}`, PAGE_WIDTH - MARGIN - 80, MARGIN - 12, 'F1', 8));
+    if (branding?.footerText) {
+      ops.push(draw(branding.footerText, MARGIN, MARGIN - 12, 'F1', 8));
+    }
 
     const start = pageIndex * perPage;
     const slice = input.rows.slice(start, start + perPage);

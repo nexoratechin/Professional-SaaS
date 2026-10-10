@@ -32,6 +32,16 @@ export interface NotificationMessage {
   to: string;
   subject?: string;
   body: string;
+  /** Optional tenant-branded HTML body (email channel). The plain-text `body` remains the
+   * multipart alternative so non-HTML clients still receive the message. */
+  html?: string;
+  /** Optional From display name (email channel) — the tenant's sender identity. */
+  fromName?: string;
+  /** Optional From address override (email channel); the provider's envelope sender is used when
+   * unset, so this never affects the SMTP MAIL FROM. */
+  fromAddress?: string;
+  /** Optional Reply-To address (email channel). */
+  replyTo?: string;
 }
 
 export interface ProviderSendResult {
@@ -102,7 +112,12 @@ export class SmtpProvider implements NotificationProvider {
 
   async send(message: NotificationMessage): Promise<ProviderSendResult> {
     try {
-      const messageId = await sendSmtpEmail(this.config, message.to, message.subject ?? '', message.body);
+      const messageId = await sendSmtpEmail(this.config, message.to, message.subject ?? '', message.body, {
+        fromName: message.fromName,
+        fromAddress: message.fromAddress,
+        replyTo: message.replyTo,
+        html: message.html,
+      });
       return { providerMessageId: messageId ?? null };
     } catch (error) {
       if (error instanceof ProviderDeliveryError) throw error;

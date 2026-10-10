@@ -21,6 +21,7 @@ export const APP_SHELL_CSS = `
   width: 30px; height: 30px; border-radius: 8px; background: var(--ui-color-primary);
   display: inline-flex; align-items: center; justify-content: center; color: #fff; flex: 0 0 auto;
 }
+.app-sidebar__logoimg { max-width: 34px; max-height: 34px; flex: 0 0 auto; border-radius: 6px; }
 .app-sidebar__nav { flex: 1; overflow-y: auto; padding: 12px 10px; }
 .app-navgroup { margin-bottom: 12px; }
 .app-navgroup__label {

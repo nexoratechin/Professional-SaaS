@@ -2,11 +2,12 @@ import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import type { Job } from 'bullmq';
 import { ACTIONS_IMPLIED_BY_MANAGE, PERMISSION_ACTIONS } from '@college-erp/auth';
-import { createTenantScopedClient, type TenantScopedPrismaClient } from '@college-erp/database';
+import { createTenantScopedClient, platformPrismaClient, type TenantScopedPrismaClient } from '@college-erp/database';
 import {
   executeReport,
   renderReport,
   type ReportFilters,
+  type ReportPdfBranding,
   type ReportPrisma,
   type ReportScopeGrant,
   type ReportTemplateDefinition,
@@ -59,7 +60,11 @@ export class ReportExportProcessor extends WorkerHost {
         template,
         actorUserId: actorUserId ?? undefined,
       });
-      const rendered = renderReport(run.format, result, { title: template?.title ?? undefined, subtitle: template?.subtitle });
+      const rendered = renderReport(run.format, result, {
+        title: template?.title ?? undefined,
+        subtitle: template?.subtitle,
+        branding: await this.loadPdfBranding(tenantId),
+      });
       const objectKey = `tenants/${tenantId}/reports/${runId}/${rendered.fileName}`;
       await this.storage.uploadBuffer(tenantId, objectKey, rendered.buffer, rendered.contentType);
       await db.reportRun.updateMany({
@@ -80,6 +85,30 @@ export class ReportExportProcessor extends WorkerHost {
       this.logger.error(`Report run ${runId} failed${finalAttempt ? '' : '; will retry'}: ${message}`);
       if (!finalAttempt) throw error;
     }
+  }
+
+  /**
+   * Loads the tenant's PDF branding (the `branding.pdf` section of its configuration document),
+   * falling back to the tenant display name. Read through the unscoped platform client because the
+   * configuration document is not a tenant-scoped Prisma model — this is the same access pattern
+   * the certificate-generation worker uses.
+   */
+  private async loadPdfBranding(tenantId: string): Promise<ReportPdfBranding | null> {
+    const [configRow, tenant] = await Promise.all([
+      platformPrismaClient.tenantConfiguration.findUnique({ where: { tenantId } }),
+      platformPrismaClient.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    ]);
+    const branding = ((configRow?.data as Record<string, unknown> | null)?.branding ?? {}) as Record<string, unknown>;
+    const pdf = (branding.pdf ?? {}) as Record<string, unknown>;
+    const collegeName = (branding.collegeName as string) ?? tenant?.name ?? null;
+    return {
+      headerText: (pdf.headerText as string) ?? null,
+      footerText: (pdf.footerText as string) ?? null,
+      primaryColor: (pdf.primaryColor as string) ?? (branding.primaryColor as string) ?? null,
+      accentColor: (pdf.accentColor as string) ?? (branding.accentColor as string) ?? null,
+      showCollegeName: (pdf.showCollegeName as boolean) ?? true,
+      collegeName,
+    };
   }
 
   /**

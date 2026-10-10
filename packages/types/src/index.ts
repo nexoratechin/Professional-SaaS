@@ -336,17 +336,119 @@ export interface TenantBillingOverviewDto {
 // Tenant configuration engine
 // ---------------------------------------------------------------------------
 
+/** Branding assets a tenant can upload. `logo`/`favicon`/`loginBackground` are stored under the
+ * tenant's storage prefix (see StorageService.buildKey) and streamed back through the public
+ * branding asset endpoint — a tenant can never reference another tenant's object. */
+export type BrandingAssetKind = 'logo' | 'favicon' | 'loginBackground';
+
+/** Certificate-specific branding overrides. Every field is optional so an unset value falls back
+ * to the tenant's general branding (see mergeBranding in @college-erp/certificates). */
+export interface TenantConfigCertificateBranding {
+  headerText: string | null;
+  footerText: string | null;
+  watermark: string | null;
+  signedBy: string | null;
+  primaryColor: string | null;
+  accentColor: string | null;
+}
+
+/** Branding applied to generic generated PDFs (report exports etc.) — distinct from certificate
+ * branding because a data export wants a lighter header/footer than an award certificate. */
+export interface TenantConfigPdfBranding {
+  headerText: string | null;
+  footerText: string | null;
+  primaryColor: string | null;
+  accentColor: string | null;
+  showCollegeName: boolean | null;
+}
+
 /** Branding section of the tenant configuration document. logoKey/logoUrl both describe the
- * tenant's uploaded logo: logoKey is the storage key (uploaded via the documents/storage
- * infrastructure), logoUrl a convenience direct URL when one was provided. */
+ * tenant's uploaded logo: logoKey is the storage key (uploaded via the storage infrastructure),
+ * logoUrl a convenience direct URL when one was provided. Every field is optional/nullable so a
+ * freshly-provisioned tenant with only defaults still renders. */
 export interface TenantConfigBranding {
+  // Identity
   collegeName: string | null;
   tagline: string | null;
+  /** White-label product/portal name shown in the app chrome, titles and login page. */
+  portalName: string | null;
+
+  // Uploaded assets
   logoKey: string | null;
   logoUrl: string | null;
+  faviconKey: string | null;
+  faviconUrl: string | null;
+
+  // Colors
   primaryColor: string | null;
   secondaryColor: string | null;
   accentColor: string | null;
+
+  // Login page
+  loginTitle: string | null;
+  loginSubtitle: string | null;
+  loginWelcomeText: string | null;
+  loginBackgroundColor: string | null;
+  loginBackgroundKey: string | null;
+  loginBackgroundUrl: string | null;
+
+  // Email templates / branding
+  emailHeaderColor: string | null;
+  emailFooterText: string | null;
+  emailSignature: string | null;
+  emailSupportAddress: string | null;
+
+  // Notification sender identity
+  senderName: string | null;
+  senderEmail: string | null;
+  replyToEmail: string | null;
+
+  // Generated documents
+  certificate: Partial<TenantConfigCertificateBranding> | null;
+  pdf: Partial<TenantConfigPdfBranding> | null;
+}
+
+/** The public (pre-authentication) branding payload served to the login page and any anonymous
+ * surface. Deliberately excludes sender identity, email templates and generated-document settings:
+ * an unauthenticated client only ever needs the visual identity. */
+export interface PublicTenantBrandingDto {
+  tenantId: string;
+  tenantSlug: string;
+  /** Latest configuration document version, so clients can cache/ETag on it. */
+  version: number;
+  portalName: string;
+  collegeName: string;
+  tagline: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string | null;
+  /** Relative API path to the streamed asset, or an absolute external URL when configured. */
+  logoUrl: string | null;
+  faviconUrl: string | null;
+  login: {
+    title: string;
+    subtitle: string | null;
+    welcomeText: string | null;
+    backgroundColor: string | null;
+    backgroundUrl: string | null;
+  };
+}
+
+/** Response of the authenticated asset upload-url endpoint. */
+export interface BrandingAssetUploadUrlDto {
+  kind: BrandingAssetKind;
+  storageKey: string;
+  uploadUrl: string;
+  expiresInSeconds: number;
+}
+
+/** State of one uploaded branding asset. */
+export interface BrandingAssetDto {
+  kind: BrandingAssetKind;
+  storageKey: string | null;
+  url: string | null;
+  contentType: string | null;
+  sizeBytes: number | null;
 }
 
 export interface TenantConfigAcademicCalendar {

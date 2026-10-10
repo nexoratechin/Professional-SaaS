@@ -38,6 +38,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
 import { FeesModule } from './modules/fees/fees.module';
 import { CertificatesModule } from './modules/certificates/certificates.module';
 import { TenantConfigurationModule } from './modules/tenant-configuration/tenant-configuration.module';
+import { BrandingModule } from './modules/branding/branding.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { CampusModule } from './modules/campus/campus.module';
 import { ResultsModule } from './modules/results/results.module';
@@ -116,6 +117,7 @@ import { GlobalSearchModule } from './modules/global-search/global-search.module
     SupportModule,
     PlatformOpsModule,
     TenantConfigurationModule,
+    BrandingModule,
     CampusModule,
   ],
   providers: [

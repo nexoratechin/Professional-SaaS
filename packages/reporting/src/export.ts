@@ -1,4 +1,4 @@
-import { renderTablePdf } from './pdf';
+import { renderTablePdf, type ReportPdfBranding } from './pdf';
 import type { ReportColumn, ReportExportFormat, ReportResult, ReportRow, RenderedReport } from './types';
 
 const CONTENT_TYPES: Record<ReportExportFormat, string> = {
@@ -17,6 +17,8 @@ export interface RenderOptions {
   title?: string;
   subtitle?: string;
   fileNameBase?: string;
+  /** Tenant PDF branding; only applied to the PDF format. */
+  branding?: ReportPdfBranding | null;
 }
 
 function safeFileBase(value: string): string {
@@ -116,6 +118,7 @@ export function renderReport(format: ReportExportFormat, result: ReportResult, o
     summary: result.summary,
     columns: result.columns,
     rows: result.rows,
+    branding: options.branding ?? null,
   });
   return { buffer, fileName, contentType: CONTENT_TYPES.PDF, extension };
 }

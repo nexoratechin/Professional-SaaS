@@ -27,6 +27,19 @@ export interface SmtpConnectionConfig {
   timeoutMs?: number;
 }
 
+/** Per-message presentation options layered on top of the connection config. All optional so the
+ * sender identity/branding is owned entirely by the caller (a tenant). */
+export interface SmtpMessageOptions {
+  /** Display name for the From header (e.g. a tenant's portal name). */
+  fromName?: string;
+  /** Overrides the From header address; the envelope sender (MAIL FROM) stays config.from. */
+  fromAddress?: string;
+  /** Optional Reply-To address (a tenant's support mailbox). */
+  replyTo?: string;
+  /** Optional HTML body; when present the message is sent as multipart/alternative. */
+  html?: string;
+}
+
 export class SmtpError extends Error {
   constructor(
     message: string,
@@ -113,12 +126,14 @@ async function command(socket: Socket, step: string, payload: string, timeoutMs:
   return response;
 }
 
-/** Sends a plain-text email and resolves to the server-reported Message-ID (when provided). */
+/** Returned by sendSmtpEmail when the message was accepted by the server. Resolves to the
+ * server-reported Message-ID (when provided). */
 export async function sendSmtpEmail(
   config: SmtpConnectionConfig,
   to: string,
   subject: string,
   body: string,
+  options: SmtpMessageOptions = {},
 ): Promise<string | null> {
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const helo = hostname() || 'localhost';
@@ -182,15 +197,34 @@ export async function sendSmtpEmail(
       throw new SmtpError(`SMTP DATA refused (${data.code}): ${data.message}`, isTransientCode(data.code));
     }
 
+    const fromHeader = options.fromName
+      ? `"${sanitizeHeader(options.fromName).replace(/"/g, "'")}" <${options.fromAddress ?? config.from}>`
+      : options.fromAddress ?? config.from;
+    const boundary = `college-erp-${Date.now().toString(36)}`;
     const messageBody =
-      `From: ${config.from}\r\n` +
+      `From: ${fromHeader}\r\n` +
       `To: ${to}\r\n` +
       `Subject: ${sanitizeHeader(subject)}\r\n` +
+      (options.replyTo ? `Reply-To: ${sanitizeHeader(options.replyTo)}\r\n` : '') +
       `MIME-Version: 1.0\r\n` +
-      `Content-Type: text/plain; charset=utf-8\r\n` +
-      `Content-Transfer-Encoding: 8bit\r\n` +
-      `\r\n` +
-      `${body}`;
+      (options.html
+        ? `Content-Type: multipart/alternative; boundary="${boundary}"\r\n` +
+          `\r\n` +
+          `--${boundary}\r\n` +
+          `Content-Type: text/plain; charset=utf-8\r\n` +
+          `Content-Transfer-Encoding: 8bit\r\n` +
+          `\r\n` +
+          `${body}\r\n` +
+          `--${boundary}\r\n` +
+          `Content-Type: text/html; charset=utf-8\r\n` +
+          `Content-Transfer-Encoding: 8bit\r\n` +
+          `\r\n` +
+          `${options.html}\r\n` +
+          `--${boundary}--`
+        : `Content-Type: text/plain; charset=utf-8\r\n` +
+          `Content-Transfer-Encoding: 8bit\r\n` +
+          `\r\n` +
+          `${body}`);
 
     const dataResponse = await command(socket, 'DATA body', `${messageBody}\r\n.\r\n`, timeoutMs);
     const messageIdMatch = /<[^>]+@[^>]+>/.exec(dataResponse.message);

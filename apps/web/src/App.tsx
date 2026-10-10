@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { Spinner } from '@college-erp/ui';
 import { AuthProvider } from './features/auth/auth-context';
+import { BrandingProvider } from './features/branding/branding-context';
 import { GlobalSearchPalette } from './features/search/search-palette';
 import { PlatformAuthProvider } from './features/platform-auth/platform-auth-context';
 
@@ -167,8 +168,9 @@ function PlatformArea() {
 function TenantArea() {
   return (
     <AuthProvider>
-      <GlobalSearchPalette />
-      <Routes>
+      <BrandingProvider>
+        <GlobalSearchPalette />
+        <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/sso/callback" element={<SsoCallbackPage />} />
@@ -311,6 +313,7 @@ function TenantArea() {
         <Route path="/verify/certificate" element={<CertificateVerifyPage />} />
         <Route path="/verify/student-id" element={<StudentIdVerifyPage />} />
       </Routes>
+      </BrandingProvider>
     </AuthProvider>
   );
 }
