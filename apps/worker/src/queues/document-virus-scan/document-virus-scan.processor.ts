@@ -4,6 +4,7 @@ import type { Job } from 'bullmq';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { createTenantScopedClient, platformPrismaClient } from '@college-erp/database';
 import type { DocumentVirusScanJobData } from '@college-erp/types';
+import { processorOptions } from '@college-erp/queue';
 import { QUEUE_NAMES } from '@college-erp/types';
 import { AppConfigService } from '../../config/app-config.service';
 import { WorkerStorageService } from '../../common/storage/worker-storage.service';
@@ -23,7 +24,7 @@ import type { VirusScanner } from './scanners/scanner.interface';
  * trail goes through the unscoped platform client with actorType SYSTEM (no HTTP actor exists).
  * Idempotent by design: versions already CLEAN/INFECTED/QUARANTINED are skipped.
  */
-@Processor(QUEUE_NAMES.DOCUMENT_VIRUS_SCAN)
+@Processor(QUEUE_NAMES.DOCUMENT_VIRUS_SCAN, processorOptions(QUEUE_NAMES.DOCUMENT_VIRUS_SCAN))
 export class DocumentVirusScanProcessor extends WorkerHost {
   private readonly logger = new Logger(DocumentVirusScanProcessor.name);
   private readonly scanner: VirusScanner;

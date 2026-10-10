@@ -10,7 +10,7 @@ import {
   type MarkSheetTable,
 } from '@college-erp/certificates';
 import { createTenantScopedClient, type GeneratedDocument } from '@college-erp/database';
-import { requireTenantId } from '@college-erp/queue';
+import { processorOptions, requireTenantId } from '@college-erp/queue';
 import { QUEUE_NAMES, type PdfGenerationJobData } from '@college-erp/types';
 import { WorkerStorageService } from '../../common/storage/worker-storage.service';
 
@@ -25,7 +25,7 @@ import { WorkerStorageService } from '../../common/storage/worker-storage.servic
  * Status moves QUEUED → ACTIVE → COMPLETED/FAILED on the row so a client can poll it; a duplicate
  * delivery after COMPLETED is a no-op.
  */
-@Processor(QUEUE_NAMES.PDF_GENERATION)
+@Processor(QUEUE_NAMES.PDF_GENERATION, processorOptions(QUEUE_NAMES.PDF_GENERATION))
 export class PdfGenerationProcessor extends WorkerHost {
   private readonly logger = new Logger(PdfGenerationProcessor.name);
 

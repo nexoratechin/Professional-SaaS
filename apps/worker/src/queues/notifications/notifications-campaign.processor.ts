@@ -6,6 +6,7 @@ import type { Job } from 'bullmq';
 import { FEATURE_KEYS } from '@college-erp/auth';
 import { createTenantScopedClient } from '@college-erp/database';
 import { renderTemplate, resolveAudience } from '@college-erp/notifications';
+import { processorOptions } from '@college-erp/queue';
 import { QUEUE_NAMES, type NotificationAudienceFilter, type NotificationCampaignJobData } from '@college-erp/types';
 import { EntitlementGate } from '../../entitlement/entitlement-gate';
 
@@ -24,7 +25,7 @@ import { EntitlementGate } from '../../entitlement/entitlement-gate';
  * All mutations ride the tenant-scoped client built from the job's tenantId — the job payload is
  * the only carrier of tenant context, exactly like the rest of the worker.
  */
-@Processor(QUEUE_NAMES.NOTIFICATIONS_CAMPAIGN)
+@Processor(QUEUE_NAMES.NOTIFICATIONS_CAMPAIGN, processorOptions(QUEUE_NAMES.NOTIFICATIONS_CAMPAIGN))
 export class NotificationsCampaignProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationsCampaignProcessor.name);
 

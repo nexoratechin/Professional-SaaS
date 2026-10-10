@@ -2,7 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { UnrecoverableError, type Job } from 'bullmq';
 import { createTenantScopedClient, type Notification } from '@college-erp/database';
-import { requireTenantId } from '@college-erp/queue';
+import { processorOptions, requireTenantId } from '@college-erp/queue';
 import { QUEUE_NAMES, type ChannelDeliveryJobData } from '@college-erp/types';
 import { NotificationDeliveryService } from './notification-delivery.service';
 
@@ -48,7 +48,7 @@ export abstract class ChannelDeliveryProcessor extends WorkerHost {
   }
 }
 
-@Processor(QUEUE_NAMES.EMAILS)
+@Processor(QUEUE_NAMES.EMAILS, processorOptions(QUEUE_NAMES.EMAILS))
 export class EmailsProcessor extends ChannelDeliveryProcessor {
   constructor(delivery: NotificationDeliveryService) {
     super(delivery);
@@ -58,7 +58,7 @@ export class EmailsProcessor extends ChannelDeliveryProcessor {
   }
 }
 
-@Processor(QUEUE_NAMES.SMS)
+@Processor(QUEUE_NAMES.SMS, processorOptions(QUEUE_NAMES.SMS))
 export class SmsProcessor extends ChannelDeliveryProcessor {
   constructor(delivery: NotificationDeliveryService) {
     super(delivery);
@@ -68,7 +68,7 @@ export class SmsProcessor extends ChannelDeliveryProcessor {
   }
 }
 
-@Processor(QUEUE_NAMES.WHATSAPP)
+@Processor(QUEUE_NAMES.WHATSAPP, processorOptions(QUEUE_NAMES.WHATSAPP))
 export class WhatsAppProcessor extends ChannelDeliveryProcessor {
   constructor(delivery: NotificationDeliveryService) {
     super(delivery);

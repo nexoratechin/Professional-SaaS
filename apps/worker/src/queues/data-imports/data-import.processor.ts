@@ -18,6 +18,7 @@ import {
   type DuplicateStrategy,
   type ValidatedRow,
 } from '@college-erp/imports';
+import { processorOptions } from '@college-erp/queue';
 import { QUEUE_NAMES, type DataImportJobData } from '@college-erp/types';
 import { WorkerStorageService } from '../../common/storage/worker-storage.service';
 
@@ -28,7 +29,7 @@ interface ImportJobOptions {
   updateExisting?: boolean;
 }
 
-@Processor(QUEUE_NAMES.DATA_IMPORTS)
+@Processor(QUEUE_NAMES.DATA_IMPORTS, processorOptions(QUEUE_NAMES.DATA_IMPORTS))
 export class DataImportProcessor extends WorkerHost {
   private readonly logger = new Logger(DataImportProcessor.name);
 

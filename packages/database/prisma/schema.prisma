@@ -2635,6 +2635,8 @@ model Notification {
   @@index([tenantId, channel])
   @@index([tenantId, campaignId])
   @@index([recipientUserId])
+  @@index([tenantId, createdAt])
+  @@index([recipientUserId, createdAt])
   @@map("notifications")
 }
 
@@ -2916,6 +2918,7 @@ model Document {
   @@index([tenantId, category])
   @@index([tenantId, documentTypeId])
   @@index([tenantId, status])
+  @@index([tenantId, createdAt])
   @@map("documents")
 }
 

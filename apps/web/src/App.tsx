@@ -1,102 +1,108 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { AuthProvider } from './features/auth/auth-context';
 import { GlobalSearchPalette } from './features/search/search-palette';
 import { PlatformAuthProvider } from './features/platform-auth/platform-auth-context';
-import { AdvancedAnalyticsPage } from './routes/analytics';
-import { AiAssistantPage } from './routes/ai-assistant';
-import { AuditLogPage } from './routes/audit-log';
-import { BillingPage } from './routes/billing';
-import { DashboardPage } from './routes/dashboard';
-import { CampusesPage } from './routes/campuses';
-import { EntitlementRoute } from './routes/entitlement-route';
-import { LoginPage } from './routes/login';
-import { PlatformAnalyticsPage } from './routes/platform/platform-analytics';
-import { PlatformAuditLogPage } from './routes/platform/platform-audit-log';
-import { PlatformBillingPage } from './routes/platform/platform-billing';
-import { PlatformCatalogPage } from './routes/platform/platform-catalog';
-import { PlatformDashboardPage } from './routes/platform/platform-dashboard';
-import { PlatformLayout } from './routes/platform/platform-layout';
-import { PlatformLoginPage } from './routes/platform/platform-login';
-import { PlatformProtectedRoute } from './routes/platform/platform-protected-route';
-import { PlatformSupportPage } from './routes/platform/platform-support';
-import { PlatformTenantDetailPage } from './routes/platform/platform-tenant-detail';
-import { PlatformTenantNewPage } from './routes/platform/platform-tenant-new';
-import { PlatformTenantsPage } from './routes/platform/platform-tenants';
-import { ProtectedRoute } from './routes/protected-route';
-import { StudentProfilePage } from './routes/student-profile';
-import { StudentsPage } from './routes/students';
-import { TenantConfigurationPage } from './routes/tenant-configuration';
-import { OrganizationPage } from './routes/organization';
-import { AdmissionsPage } from './routes/admissions';
-import { AcademicsPage } from './routes/academics';
-import { TimetablePage } from './routes/timetable';
-import { AttendancePage } from './routes/attendance';
-import { ExamsPage } from './routes/exams';
-import { CertificatesPage } from './routes/certificates';
-import { CertificateVerifyPage } from './routes/certificate-verify';
-import { StudentIdVerifyPage } from './routes/student-id-verify';
-import { LibraryPage } from './routes/library';
-import { InventoryPage } from './routes/inventory';
-import { HostelPage } from './routes/hostel';
-import { TransportPage } from './routes/transport';
-import { HrPage } from './routes/hr';
-import { PlacementsPage } from './routes/placements';
-import { HelpdeskPage } from './routes/helpdesk';
-import { NotificationsPage } from './routes/notifications';
-import { DocumentsPage } from './routes/documents';
-import { IntegrationsPage } from './routes/integrations';
-import { IdentityPage } from './routes/identity';
-import { SsoCallbackPage } from './routes/sso-callback';
-import { ReportsPage } from './routes/reports';
-import { ImportExportPage } from './routes/import-export';
-import { PortalGate } from './routes/portal/portal-gate';
-import { StudentPortalLayout } from './routes/portal/portal-layout';
-import { PortalDashboardPage } from './routes/portal/portal-dashboard';
-import { PortalIdCardPage } from './routes/portal/portal-id-card';
-import { PortalProfilePage } from './routes/portal/portal-profile';
-import { PortalAttendancePage } from './routes/portal/portal-attendance';
-import { PortalTimetablePage } from './routes/portal/portal-timetable';
-import { PortalCoursesPage } from './routes/portal/portal-courses';
-import { PortalFeesPage } from './routes/portal/portal-fees';
-import { PortalPaymentsPage } from './routes/portal/portal-payments';
-import { PortalExamsPage } from './routes/portal/portal-exams';
-import { PortalResultsPage } from './routes/portal/portal-results';
-import { PortalCertificatesPage } from './routes/portal/portal-certificates';
-import { PortalLibraryPage } from './routes/portal/portal-library';
-import { PortalHostelPage } from './routes/portal/portal-hostel';
-import { PortalTransportPage } from './routes/portal/portal-transport';
-import { PortalNoticesPage } from './routes/portal/portal-notices';
-import { PortalTicketsPage } from './routes/portal/portal-tickets';
-import { PortalDocumentsPage } from './routes/portal/portal-documents';
-import { ParentGate } from './routes/parent/parent-gate';
-import { ParentPortalLayout } from './routes/parent/parent-layout';
-import { ParentDashboardPage } from './routes/parent/parent-dashboard';
-import { ParentProfilePage } from './routes/parent/parent-profile';
-import { ParentAttendancePage } from './routes/parent/parent-attendance';
-import { ParentTimetablePage } from './routes/parent/parent-timetable';
-import { ParentFeesPage } from './routes/parent/parent-fees';
-import { ParentPaymentsPage } from './routes/parent/parent-payments';
-import { ParentExamsPage } from './routes/parent/parent-exams';
-import { ParentResultsPage } from './routes/parent/parent-results';
-import { ParentNoticesPage } from './routes/parent/parent-notices';
-import { ParentDocumentsPage } from './routes/parent/parent-documents';
-import { ParentTransportPage } from './routes/parent/parent-transport';
-import { ParentHostelPage } from './routes/parent/parent-hostel';
-import { FacultyGate } from './routes/faculty/faculty-gate';
-import { FacultyPortalLayout } from './routes/faculty/faculty-layout';
-import { FacultyDashboardPage } from './routes/faculty/faculty-dashboard';
-import { FacultyProfilePage } from './routes/faculty/faculty-profile';
-import { FacultyCoursesPage } from './routes/faculty/faculty-courses';
-import { FacultyStudentsPage } from './routes/faculty/faculty-students';
-import { FacultyTimetablePage } from './routes/faculty/faculty-timetable';
-import { FacultyAttendancePage } from './routes/faculty/faculty-attendance';
-import { FacultyMarksPage } from './routes/faculty/faculty-marks';
-import { FacultyAcademicsPage } from './routes/faculty/faculty-academics';
-import { FacultyLeavePage } from './routes/faculty/faculty-leave';
-import { FacultyWorkloadPage } from './routes/faculty/faculty-workload';
-import { FacultyNotificationsPage } from './routes/faculty/faculty-notifications';
-import { FacultyReportsPage } from './routes/faculty/faculty-reports';
+
+/**
+ * Every route module is code-split: the app shell (auth providers, router, search palette)
+ * ships eagerly, and each page loads on first navigation. This keeps the initial bundle to the
+ * shell instead of the ~60 feature pages, and pairs with the vendor manualChunks in vite.config.
+ */
+const AdvancedAnalyticsPage = lazy(() => import('./routes/analytics').then((m) => ({ default: m.AdvancedAnalyticsPage })));
+const AiAssistantPage = lazy(() => import('./routes/ai-assistant').then((m) => ({ default: m.AiAssistantPage })));
+const AuditLogPage = lazy(() => import('./routes/audit-log').then((m) => ({ default: m.AuditLogPage })));
+const BillingPage = lazy(() => import('./routes/billing').then((m) => ({ default: m.BillingPage })));
+const DashboardPage = lazy(() => import('./routes/dashboard').then((m) => ({ default: m.DashboardPage })));
+const CampusesPage = lazy(() => import('./routes/campuses').then((m) => ({ default: m.CampusesPage })));
+const EntitlementRoute = lazy(() => import('./routes/entitlement-route').then((m) => ({ default: m.EntitlementRoute })));
+const LoginPage = lazy(() => import('./routes/login').then((m) => ({ default: m.LoginPage })));
+const PlatformAnalyticsPage = lazy(() => import('./routes/platform/platform-analytics').then((m) => ({ default: m.PlatformAnalyticsPage })));
+const PlatformAuditLogPage = lazy(() => import('./routes/platform/platform-audit-log').then((m) => ({ default: m.PlatformAuditLogPage })));
+const PlatformBillingPage = lazy(() => import('./routes/platform/platform-billing').then((m) => ({ default: m.PlatformBillingPage })));
+const PlatformCatalogPage = lazy(() => import('./routes/platform/platform-catalog').then((m) => ({ default: m.PlatformCatalogPage })));
+const PlatformDashboardPage = lazy(() => import('./routes/platform/platform-dashboard').then((m) => ({ default: m.PlatformDashboardPage })));
+const PlatformLayout = lazy(() => import('./routes/platform/platform-layout').then((m) => ({ default: m.PlatformLayout })));
+const PlatformLoginPage = lazy(() => import('./routes/platform/platform-login').then((m) => ({ default: m.PlatformLoginPage })));
+const PlatformProtectedRoute = lazy(() => import('./routes/platform/platform-protected-route').then((m) => ({ default: m.PlatformProtectedRoute })));
+const PlatformSupportPage = lazy(() => import('./routes/platform/platform-support').then((m) => ({ default: m.PlatformSupportPage })));
+const PlatformTenantDetailPage = lazy(() => import('./routes/platform/platform-tenant-detail').then((m) => ({ default: m.PlatformTenantDetailPage })));
+const PlatformTenantNewPage = lazy(() => import('./routes/platform/platform-tenant-new').then((m) => ({ default: m.PlatformTenantNewPage })));
+const PlatformTenantsPage = lazy(() => import('./routes/platform/platform-tenants').then((m) => ({ default: m.PlatformTenantsPage })));
+const ProtectedRoute = lazy(() => import('./routes/protected-route').then((m) => ({ default: m.ProtectedRoute })));
+const StudentProfilePage = lazy(() => import('./routes/student-profile').then((m) => ({ default: m.StudentProfilePage })));
+const StudentsPage = lazy(() => import('./routes/students').then((m) => ({ default: m.StudentsPage })));
+const TenantConfigurationPage = lazy(() => import('./routes/tenant-configuration').then((m) => ({ default: m.TenantConfigurationPage })));
+const OrganizationPage = lazy(() => import('./routes/organization').then((m) => ({ default: m.OrganizationPage })));
+const AdmissionsPage = lazy(() => import('./routes/admissions').then((m) => ({ default: m.AdmissionsPage })));
+const AcademicsPage = lazy(() => import('./routes/academics').then((m) => ({ default: m.AcademicsPage })));
+const TimetablePage = lazy(() => import('./routes/timetable').then((m) => ({ default: m.TimetablePage })));
+const AttendancePage = lazy(() => import('./routes/attendance').then((m) => ({ default: m.AttendancePage })));
+const ExamsPage = lazy(() => import('./routes/exams').then((m) => ({ default: m.ExamsPage })));
+const CertificatesPage = lazy(() => import('./routes/certificates').then((m) => ({ default: m.CertificatesPage })));
+const CertificateVerifyPage = lazy(() => import('./routes/certificate-verify').then((m) => ({ default: m.CertificateVerifyPage })));
+const StudentIdVerifyPage = lazy(() => import('./routes/student-id-verify').then((m) => ({ default: m.StudentIdVerifyPage })));
+const LibraryPage = lazy(() => import('./routes/library').then((m) => ({ default: m.LibraryPage })));
+const InventoryPage = lazy(() => import('./routes/inventory').then((m) => ({ default: m.InventoryPage })));
+const HostelPage = lazy(() => import('./routes/hostel').then((m) => ({ default: m.HostelPage })));
+const TransportPage = lazy(() => import('./routes/transport').then((m) => ({ default: m.TransportPage })));
+const HrPage = lazy(() => import('./routes/hr').then((m) => ({ default: m.HrPage })));
+const PlacementsPage = lazy(() => import('./routes/placements').then((m) => ({ default: m.PlacementsPage })));
+const HelpdeskPage = lazy(() => import('./routes/helpdesk').then((m) => ({ default: m.HelpdeskPage })));
+const NotificationsPage = lazy(() => import('./routes/notifications').then((m) => ({ default: m.NotificationsPage })));
+const DocumentsPage = lazy(() => import('./routes/documents').then((m) => ({ default: m.DocumentsPage })));
+const IntegrationsPage = lazy(() => import('./routes/integrations').then((m) => ({ default: m.IntegrationsPage })));
+const IdentityPage = lazy(() => import('./routes/identity').then((m) => ({ default: m.IdentityPage })));
+const SsoCallbackPage = lazy(() => import('./routes/sso-callback').then((m) => ({ default: m.SsoCallbackPage })));
+const ReportsPage = lazy(() => import('./routes/reports').then((m) => ({ default: m.ReportsPage })));
+const ImportExportPage = lazy(() => import('./routes/import-export').then((m) => ({ default: m.ImportExportPage })));
+const PortalGate = lazy(() => import('./routes/portal/portal-gate').then((m) => ({ default: m.PortalGate })));
+const StudentPortalLayout = lazy(() => import('./routes/portal/portal-layout').then((m) => ({ default: m.StudentPortalLayout })));
+const PortalDashboardPage = lazy(() => import('./routes/portal/portal-dashboard').then((m) => ({ default: m.PortalDashboardPage })));
+const PortalIdCardPage = lazy(() => import('./routes/portal/portal-id-card').then((m) => ({ default: m.PortalIdCardPage })));
+const PortalProfilePage = lazy(() => import('./routes/portal/portal-profile').then((m) => ({ default: m.PortalProfilePage })));
+const PortalAttendancePage = lazy(() => import('./routes/portal/portal-attendance').then((m) => ({ default: m.PortalAttendancePage })));
+const PortalTimetablePage = lazy(() => import('./routes/portal/portal-timetable').then((m) => ({ default: m.PortalTimetablePage })));
+const PortalCoursesPage = lazy(() => import('./routes/portal/portal-courses').then((m) => ({ default: m.PortalCoursesPage })));
+const PortalFeesPage = lazy(() => import('./routes/portal/portal-fees').then((m) => ({ default: m.PortalFeesPage })));
+const PortalPaymentsPage = lazy(() => import('./routes/portal/portal-payments').then((m) => ({ default: m.PortalPaymentsPage })));
+const PortalExamsPage = lazy(() => import('./routes/portal/portal-exams').then((m) => ({ default: m.PortalExamsPage })));
+const PortalResultsPage = lazy(() => import('./routes/portal/portal-results').then((m) => ({ default: m.PortalResultsPage })));
+const PortalCertificatesPage = lazy(() => import('./routes/portal/portal-certificates').then((m) => ({ default: m.PortalCertificatesPage })));
+const PortalLibraryPage = lazy(() => import('./routes/portal/portal-library').then((m) => ({ default: m.PortalLibraryPage })));
+const PortalHostelPage = lazy(() => import('./routes/portal/portal-hostel').then((m) => ({ default: m.PortalHostelPage })));
+const PortalTransportPage = lazy(() => import('./routes/portal/portal-transport').then((m) => ({ default: m.PortalTransportPage })));
+const PortalNoticesPage = lazy(() => import('./routes/portal/portal-notices').then((m) => ({ default: m.PortalNoticesPage })));
+const PortalTicketsPage = lazy(() => import('./routes/portal/portal-tickets').then((m) => ({ default: m.PortalTicketsPage })));
+const PortalDocumentsPage = lazy(() => import('./routes/portal/portal-documents').then((m) => ({ default: m.PortalDocumentsPage })));
+const ParentGate = lazy(() => import('./routes/parent/parent-gate').then((m) => ({ default: m.ParentGate })));
+const ParentPortalLayout = lazy(() => import('./routes/parent/parent-layout').then((m) => ({ default: m.ParentPortalLayout })));
+const ParentDashboardPage = lazy(() => import('./routes/parent/parent-dashboard').then((m) => ({ default: m.ParentDashboardPage })));
+const ParentProfilePage = lazy(() => import('./routes/parent/parent-profile').then((m) => ({ default: m.ParentProfilePage })));
+const ParentAttendancePage = lazy(() => import('./routes/parent/parent-attendance').then((m) => ({ default: m.ParentAttendancePage })));
+const ParentTimetablePage = lazy(() => import('./routes/parent/parent-timetable').then((m) => ({ default: m.ParentTimetablePage })));
+const ParentFeesPage = lazy(() => import('./routes/parent/parent-fees').then((m) => ({ default: m.ParentFeesPage })));
+const ParentPaymentsPage = lazy(() => import('./routes/parent/parent-payments').then((m) => ({ default: m.ParentPaymentsPage })));
+const ParentExamsPage = lazy(() => import('./routes/parent/parent-exams').then((m) => ({ default: m.ParentExamsPage })));
+const ParentResultsPage = lazy(() => import('./routes/parent/parent-results').then((m) => ({ default: m.ParentResultsPage })));
+const ParentNoticesPage = lazy(() => import('./routes/parent/parent-notices').then((m) => ({ default: m.ParentNoticesPage })));
+const ParentDocumentsPage = lazy(() => import('./routes/parent/parent-documents').then((m) => ({ default: m.ParentDocumentsPage })));
+const ParentTransportPage = lazy(() => import('./routes/parent/parent-transport').then((m) => ({ default: m.ParentTransportPage })));
+const ParentHostelPage = lazy(() => import('./routes/parent/parent-hostel').then((m) => ({ default: m.ParentHostelPage })));
+const FacultyGate = lazy(() => import('./routes/faculty/faculty-gate').then((m) => ({ default: m.FacultyGate })));
+const FacultyPortalLayout = lazy(() => import('./routes/faculty/faculty-layout').then((m) => ({ default: m.FacultyPortalLayout })));
+const FacultyDashboardPage = lazy(() => import('./routes/faculty/faculty-dashboard').then((m) => ({ default: m.FacultyDashboardPage })));
+const FacultyProfilePage = lazy(() => import('./routes/faculty/faculty-profile').then((m) => ({ default: m.FacultyProfilePage })));
+const FacultyCoursesPage = lazy(() => import('./routes/faculty/faculty-courses').then((m) => ({ default: m.FacultyCoursesPage })));
+const FacultyStudentsPage = lazy(() => import('./routes/faculty/faculty-students').then((m) => ({ default: m.FacultyStudentsPage })));
+const FacultyTimetablePage = lazy(() => import('./routes/faculty/faculty-timetable').then((m) => ({ default: m.FacultyTimetablePage })));
+const FacultyAttendancePage = lazy(() => import('./routes/faculty/faculty-attendance').then((m) => ({ default: m.FacultyAttendancePage })));
+const FacultyMarksPage = lazy(() => import('./routes/faculty/faculty-marks').then((m) => ({ default: m.FacultyMarksPage })));
+const FacultyAcademicsPage = lazy(() => import('./routes/faculty/faculty-academics').then((m) => ({ default: m.FacultyAcademicsPage })));
+const FacultyLeavePage = lazy(() => import('./routes/faculty/faculty-leave').then((m) => ({ default: m.FacultyLeavePage })));
+const FacultyWorkloadPage = lazy(() => import('./routes/faculty/faculty-workload').then((m) => ({ default: m.FacultyWorkloadPage })));
+const FacultyNotificationsPage = lazy(() => import('./routes/faculty/faculty-notifications').then((m) => ({ default: m.FacultyNotificationsPage })));
+const FacultyReportsPage = lazy(() => import('./routes/faculty/faculty-reports').then((m) => ({ default: m.FacultyReportsPage })));
 
 function ProfileRoute() {
   const { id } = useParams<{ id: string }>();
@@ -108,12 +114,22 @@ function ProfileRoute() {
  * (AuthProvider) never renders inside the platform realm's tree and vice versa. This is the
  * routing half of the same isolation lib/platform-http.ts enforces at the HTTP layer: there is
  * no shared React state, no shared token, and no code path that crosses from one to the other. */
+function RouteLoadingFallback() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', color: '#475569' }}>
+      Loading…
+    </div>
+  );
+}
+
 export function App() {
   return (
-    <Routes>
-      <Route path="/platform/*" element={<PlatformArea />} />
-      <Route path="/*" element={<TenantArea />} />
-    </Routes>
+    <Suspense fallback={<RouteLoadingFallback />}>
+      <Routes>
+        <Route path="/platform/*" element={<PlatformArea />} />
+        <Route path="/*" element={<TenantArea />} />
+      </Routes>
+    </Suspense>
   );
 }
 

@@ -3,7 +3,7 @@ import { Inject, Logger } from '@nestjs/common';
 import { UnrecoverableError, type Job, type Queue } from 'bullmq';
 import { platformPrismaClient } from '@college-erp/database';
 import { resolvePaymentGateway } from '@college-erp/payments';
-import { defaultJobOptions, requireTenantId } from '@college-erp/queue';
+import { defaultJobOptions, processorOptions, requireTenantId } from '@college-erp/queue';
 import { bumpWindow, recordPaymentEvent, recordPaymentFailure, WINDOW_COUNTERS } from '@college-erp/observability';
 import {
   QUEUE_NAMES,
@@ -30,7 +30,7 @@ const SWEEP_BATCH = 200;
  * Idempotent: a payment already in a terminal state is left untouched, and a deterministic jobId
  * prevents piling multiple reconciliation jobs onto the same payment.
  */
-@Processor(QUEUE_NAMES.PAYMENT_RECONCILIATION)
+@Processor(QUEUE_NAMES.PAYMENT_RECONCILIATION, processorOptions(QUEUE_NAMES.PAYMENT_RECONCILIATION))
 export class PaymentReconciliationProcessor extends WorkerHost {
   private readonly logger = new Logger(PaymentReconciliationProcessor.name);
 

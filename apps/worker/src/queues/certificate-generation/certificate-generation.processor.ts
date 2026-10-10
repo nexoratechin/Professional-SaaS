@@ -7,7 +7,7 @@ import {
   type CertificateGenerationDeps,
 } from '@college-erp/certificates';
 import { createTenantScopedClient, platformPrismaClient } from '@college-erp/database';
-import { requireTenantId } from '@college-erp/queue';
+import { processorOptions, requireTenantId } from '@college-erp/queue';
 import { QUEUE_NAMES, type CertificateGenerationJobData } from '@college-erp/types';
 import { AppConfigService } from '../../config/app-config.service';
 import { WorkerStorageService } from '../../common/storage/worker-storage.service';
@@ -25,7 +25,7 @@ import { WorkerStorageService } from '../../common/storage/worker-storage.servic
  * A duplicate delivery after GENERATED is a no-op because generateCertificate short-circuits an
  * already-generated certificate (idempotent under BullMQ at-least-once).
  */
-@Processor(QUEUE_NAMES.CERTIFICATE_GENERATION)
+@Processor(QUEUE_NAMES.CERTIFICATE_GENERATION, processorOptions(QUEUE_NAMES.CERTIFICATE_GENERATION))
 export class CertificateGenerationProcessor extends WorkerHost {
   private readonly logger = new Logger(CertificateGenerationProcessor.name);
 

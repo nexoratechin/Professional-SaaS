@@ -33,6 +33,7 @@ import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { createTenantScopedClient, platformPrismaClient, Prisma, type AiDocumentClassificationStatus } from '@college-erp/database';
+import { processorOptions } from '@college-erp/queue';
 import { QUEUE_NAMES, type AiDocumentProcessingJobData } from '@college-erp/types';
 import { AppConfigService } from '../../config/app-config.service';
 import { WorkerStorageService } from '../../common/storage/worker-storage.service';
@@ -53,7 +54,7 @@ const MAX_OCR_INPUT_BYTES = 15 * 1024 * 1024;
 
 const OCR_REQUEST_TIMEOUT_MS = 60_000;
 
-@Processor(QUEUE_NAMES.AI_DOCUMENT_PROCESSING)
+@Processor(QUEUE_NAMES.AI_DOCUMENT_PROCESSING, processorOptions(QUEUE_NAMES.AI_DOCUMENT_PROCESSING))
 export class AiDocumentProcessingProcessor extends WorkerHost {
   private readonly logger = new Logger(AiDocumentProcessingProcessor.name);
 

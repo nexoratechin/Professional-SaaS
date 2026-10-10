@@ -2,7 +2,7 @@ import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job, Queue } from 'bullmq';
 import { createTenantScopedClient, type Notification } from '@college-erp/database';
-import { defaultJobOptions, requireTenantId } from '@college-erp/queue';
+import { defaultJobOptions, processorOptions, requireTenantId } from '@college-erp/queue';
 import { QUEUE_NAMES, type NotificationJobData, type QueueName } from '@college-erp/types';
 import { NotificationDeliveryService } from './notification-delivery.service';
 
@@ -16,7 +16,7 @@ import { NotificationDeliveryService } from './notification-delivery.service';
  * Tenant context comes only from the job payload (there is no request/guard here); every read and
  * write rides a tenant-scoped client built from tenantId.
  */
-@Processor(QUEUE_NAMES.NOTIFICATIONS)
+@Processor(QUEUE_NAMES.NOTIFICATIONS, processorOptions(QUEUE_NAMES.NOTIFICATIONS))
 export class NotificationsProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationsProcessor.name);
 

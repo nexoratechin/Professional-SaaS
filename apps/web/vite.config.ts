@@ -102,4 +102,20 @@ export default defineConfig({
     port: 5173,
     host: true,
   },
+  build: {
+    // Route modules are already code-split (see src/App.tsx); this splits the framework runtime
+    // into its own long-lived chunk so an app-code change doesn't invalidate the React/router
+    // vendor bytes in the browser/PWA cache, and raises the warning ceiling now that the shell is
+    // deliberately small and vendor is isolated.
+    target: 'es2020',
+    sourcemap: false,
+    chunkSizeWarningLimit: 750,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
 });

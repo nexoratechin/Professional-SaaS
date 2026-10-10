@@ -13,6 +13,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma, type PrismaClient } from '@college-erp/database';
 import { AUDIT_ACTIONS } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
+import { CacheService } from '../../common/cache/cache.service';
 import { AuditService } from '../audit/audit.service';
 import { PermissionsService } from '../rbac/permissions.service';
 import { studentScopeFilter } from './student-scope';
@@ -59,7 +60,21 @@ export class StudentsService {
     private readonly tenantPrisma: TenantScopedPrismaService,
     private readonly auditService: AuditService,
     private readonly permissionsService: PermissionsService,
+    private readonly cache: CacheService,
   ) {}
+
+  /** Summary staleness window. Mutations invalidate explicitly, so this only bounds drift from
+   *  cross-module writes (e.g. a fee payment changing "outstanding"). */
+  private static readonly SUMMARY_TTL_SECONDS = 30;
+
+  private summaryCachePrefix(tenantId: string): string {
+    return this.cache.key('students', tenantId, 'summary');
+  }
+
+  /** Drops every user's cached summary for the tenant after a student-shaped write. */
+  private async invalidateSummary(tenantId: string): Promise<void> {
+    await this.cache.delByPrefix(this.summaryCachePrefix(tenantId));
+  }
 
   // ── Scope ─────────────────────────────────────────────────────────────────
 
@@ -78,6 +93,21 @@ export class StudentsService {
     });
     if (!student) throw new NotFoundException('Student not found.');
     return student;
+  }
+
+  /**
+   * Batched form of {@link assertStudentInScope}: returns the subset of `studentIds` the caller
+   * may see, in ONE query instead of one-per-id. Callers that iterate a roster (attendance
+   * shortage reports) use this so authorization stays row-exact without an N+1 fan-out.
+   */
+  async filterIdsInScope(studentIds: string[], tenantId: string, userId: string): Promise<Set<string>> {
+    if (studentIds.length === 0) return new Set();
+    const scope = await this.scopeWhere(tenantId, userId);
+    const rows = await (this.tenantPrisma.client as Client).student.findMany({
+      where: { id: { in: studentIds }, deletedAt: null, ...(scope ?? {}) },
+      select: { id: true },
+    });
+    return new Set(rows.map((r) => r.id));
   }
 
   // ── List / search / filter ────────────────────────────────────────────────
@@ -199,7 +229,20 @@ export class StudentsService {
 
   // ── Summary stats ─────────────────────────────────────────────────────────
 
+  /**
+   * Tenant/user-scoped student dashboard aggregates. The seven underlying count/groupBy queries
+   * are cached for a short window per (tenant, user) — the dashboard re-fetches this on every
+   * load and after every mutation, and the result is identical for all readers with the same
+   * grant set. Mutations invalidate the tenant's prefix immediately.
+   */
   async summary(tenantId: string, userId: string) {
+    const key = this.cache.key('students', tenantId, 'summary', userId);
+    return this.cache.remember(key, StudentsService.SUMMARY_TTL_SECONDS, () =>
+      this.computeSummary(tenantId, userId),
+    );
+  }
+
+  private async computeSummary(tenantId: string, userId: string) {
     const scope = await this.scopeWhere(tenantId, userId);
     const base: Record<string, any> = { deletedAt: null };
     if (scope) Object.assign(base, scope);
@@ -370,6 +413,7 @@ export class StudentsService {
         after: { admissionNumber, fullName, status },
       });
 
+      await this.invalidateSummary(tenantId);
       return this.getDetail(student.id, tenantId, userId);
     } catch (err: any) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -412,6 +456,7 @@ export class StudentsService {
         before: { fullName: before.fullName },
         after: { fullName: updated.fullName },
       });
+      await this.invalidateSummary(tenantId);
       return this.getDetail(studentId, tenantId, userId);
     } catch (err: any) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -445,6 +490,7 @@ export class StudentsService {
       before: { status: before.status },
       after: { status: updated.status, reason: reason ?? null },
     });
+    await this.invalidateSummary(tenantId);
     return this.getDetail(studentId, tenantId, userId);
   }
 
@@ -469,6 +515,7 @@ export class StudentsService {
       entityId: studentId,
       before: { fullName: before.fullName },
     });
+    await this.invalidateSummary(tenantId);
     return { id: studentId, archived: true };
   }
 
@@ -493,6 +540,7 @@ export class StudentsService {
       entityType: 'Student',
       entityId: studentId,
     });
+    await this.invalidateSummary(tenantId);
     return this.getDetail(studentId, tenantId, userId);
   }
 

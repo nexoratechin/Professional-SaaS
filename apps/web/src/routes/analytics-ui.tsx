@@ -17,7 +17,7 @@
  *     materialized rollup and a reader deciding whether to trust them needs to know which.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import type {
   AnalyticsMetaDto,
   AnalyticsSeriesDto,
@@ -320,20 +320,27 @@ const SERIES_COLORS = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#0ea5e9', '#
  * comparable and a 4% attendance rate does not render as a full-height bar.
  */
 export function SeriesChart({ series, color }: { series: AnalyticsSeriesDto; color?: string }): React.ReactElement {
-  const present = series.points
-    .map((point) => point.value)
-    .filter((value): value is number => value !== null);
-  const dataMax = present.length > 0 ? Math.max(...present) : 0;
-  const dataMin = present.length > 0 ? Math.min(...present) : 0;
-  const ceiling = series.unit === 'PERCENT' ? Math.max(100, dataMax) : Math.max(dataMax, 0);
-  const floor = Math.min(0, dataMin);
-  const span = ceiling - floor || 1;
-  const zeroPercent = ((0 - floor) / span) * 100;
+  // Derived once per series rather than on every render — the parent dashboards re-render on
+  // window/filter changes far more often than the series data itself changes.
+  const { dataMax, gapCount, step, lastIndex, zeroPercent, floor, span } = useMemo(() => {
+    const present = series.points
+      .map((point) => point.value)
+      .filter((value): value is number => value !== null);
+    const max = present.length > 0 ? Math.max(...present) : 0;
+    const min = present.length > 0 ? Math.min(...present) : 0;
+    const spanLocal = (series.unit === 'PERCENT' ? Math.max(100, max) : Math.max(max, 0)) - Math.min(0, min) || 1;
+    const floorLocal = Math.min(0, min);
+    return {
+      dataMax: max,
+      gapCount: series.points.length - present.length,
+      step: Math.max(1, Math.ceil(series.points.length / 8)),
+      lastIndex: series.points.length - 1,
+      zeroPercent: ((0 - floorLocal) / spanLocal) * 100,
+      floor: floorLocal,
+      span: spanLocal,
+    };
+  }, [series]);
   const barColor = color ?? SERIES_COLORS[0];
-
-  const gapCount = series.points.length - present.length;
-  const step = Math.max(1, Math.ceil(series.points.length / 8));
-  const lastIndex = series.points.length - 1;
 
   return (
     <div>
@@ -420,8 +427,10 @@ export function SeriesGrid({ series }: { series: AnalyticsSeriesDto[] }): React.
  * which bucket".
  */
 export function StatusBreakdown({ title, rows, total }: { title: string; rows: Record<string, number>; total?: number }): React.ReactElement {
-  const entries = Object.entries(rows).filter(([, count]) => count > 0);
-  const sum = total ?? entries.reduce((acc, [, count]) => acc + count, 0);
+  const { entries, sum } = useMemo(() => {
+    const filtered = Object.entries(rows).filter(([, count]) => count > 0);
+    return { entries: filtered, sum: total ?? filtered.reduce((acc, [, count]) => acc + count, 0) };
+  }, [rows, total]);
 
   return (
     <div>
@@ -430,7 +439,7 @@ export function StatusBreakdown({ title, rows, total }: { title: string; rows: R
         <p style={{ fontSize: '0.8rem', color: '#9ca3af', margin: 0 }}>No data in this window.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {entries
+          {[...entries]
             .sort((left, right) => right[1] - left[1])
             .map(([status, count]) => (
               <div key={status} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem' }}>

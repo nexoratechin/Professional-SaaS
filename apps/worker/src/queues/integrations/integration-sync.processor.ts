@@ -27,6 +27,7 @@ import {
   type IntegrationAdapterContext,
   type PullPage,
 } from '@college-erp/integrations';
+import { processorOptions } from '@college-erp/queue';
 import { QUEUE_NAMES } from '@college-erp/types';
 import { EntitlementGate } from '../../entitlement/entitlement-gate';
 import { IntegrationWorkerAdapterContextFactory } from './integration-operations.processor';
@@ -55,7 +56,7 @@ type TenantClient = TenantScopedPrismaClient;
  * unscoped platform client to FIND candidates, then do every mutation through a client built from
  * that candidate's own tenantId.
  */
-@Processor(QUEUE_NAMES.INTEGRATION_SYNC)
+@Processor(QUEUE_NAMES.INTEGRATION_SYNC, processorOptions(QUEUE_NAMES.INTEGRATION_SYNC))
 export class IntegrationSyncProcessor extends WorkerHost {
   private readonly logger = new Logger(IntegrationSyncProcessor.name);
   private readonly registry = new IntegrationAdapterRegistry();

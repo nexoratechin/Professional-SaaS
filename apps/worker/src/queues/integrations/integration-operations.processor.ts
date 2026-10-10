@@ -12,6 +12,7 @@ import {
   type IntegrationEngineStore,
   type IntegrationRow,
 } from '@college-erp/integrations';
+import { processorOptions } from '@college-erp/queue';
 import { QUEUE_NAMES, type IntegrationOperationJobData } from '@college-erp/types';
 import { AppConfigService } from '../../config/app-config.service';
 import { EntitlementGate } from '../../entitlement/entitlement-gate';
@@ -65,7 +66,7 @@ export class IntegrationWorkerAdapterContextFactory {
   }
 }
 
-@Processor(QUEUE_NAMES.INTEGRATION_OPERATIONS)
+@Processor(QUEUE_NAMES.INTEGRATION_OPERATIONS, processorOptions(QUEUE_NAMES.INTEGRATION_OPERATIONS))
 export class IntegrationOperationsProcessor extends WorkerHost {
   private readonly logger = new Logger(IntegrationOperationsProcessor.name);
   private readonly registry = new IntegrationAdapterRegistry();

@@ -1024,22 +1024,52 @@ export class AttendanceService {
   async shortages(tenantId: string, userId: string, query: ScopeReportQueryDto) {
     const students = await this.reportRoster(tenantId, query);
     const r = await this.rules(tenantId);
+    const empty = { data: [] as Array<Record<string, unknown>>, total: 0, requiredPercent: r.thresholdPercent, requiredPerSubject: r.requiredPerSubject };
+    if (students.length === 0) return empty;
+
+    // Row-exact authorization in ONE query (was: assertStudentInScope per roster member).
+    const allowed = await this.studentsService.filterIdsInScope(students.map((student) => student.id), tenantId, userId);
+    if (allowed.size === 0) return empty;
+
+    const sessionIds = await this.percentageMetrics(tenantId, { termId: query.termId });
+    if (sessionIds.length === 0) return empty;
+
+    // One aggregate for the whole roster (was: two Session/Attendance findMany per student).
+    const buckets = await this.client.studentAttendance.groupBy({
+      by: ['studentId', 'status'],
+      where: { tenantId, studentId: { in: [...allowed] }, sessionId: { in: sessionIds } },
+      _count: { _all: true },
+    });
+
+    const metrics = new Map<string, { present: number; late: number; absent: number; leave: number }>();
+    for (const bucket of buckets) {
+      const acc = metrics.get(bucket.studentId) ?? { present: 0, late: 0, absent: 0, leave: 0 };
+      const count = bucket._count._all;
+      if (bucket.status === 'PRESENT') acc.present += count;
+      else if (bucket.status === 'LATE') acc.late += count;
+      else if (bucket.status === 'LEAVE') acc.leave += count;
+      else acc.absent += count;
+      metrics.set(bucket.studentId, acc);
+    }
+
     const rows: Array<Record<string, unknown>> = [];
     for (const student of students) {
-      const metrics = await this.percentage(tenantId, userId, {
-        studentId: student.id,
-        termId: query.termId,
-      });
-      if (metrics.totalSessions > 0 && metrics.percentage < r.thresholdPercent) {
+      if (!allowed.has(student.id)) continue;
+      const m = metrics.get(student.id);
+      if (!m) continue;
+      const total = m.present + m.late + m.absent + m.leave;
+      if (total === 0) continue;
+      const percentage = Math.round(((m.present + m.late) / total) * 10000) / 100;
+      if (percentage < r.thresholdPercent) {
         rows.push({
           studentId: student.id,
           fullName: student.fullName,
           rollNumber: student.rollNumber,
           admissionNumber: student.admissionNumber,
           sectionCode: student.section?.code ?? null,
-          present: metrics.present,
-          totalSessions: metrics.totalSessions,
-          percentage: metrics.percentage,
+          present: m.present,
+          totalSessions: total,
+          percentage,
           requiredPercent: r.thresholdPercent,
         });
       }

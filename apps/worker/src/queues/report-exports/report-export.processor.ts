@@ -11,6 +11,7 @@ import {
   type ReportScopeGrant,
   type ReportTemplateDefinition,
 } from '@college-erp/reporting';
+import { processorOptions } from '@college-erp/queue';
 import type { ReportExportJobData } from '@college-erp/types';
 import { QUEUE_NAMES } from '@college-erp/types';
 import { WorkerStorageService } from '../../common/storage/worker-storage.service';
@@ -21,7 +22,7 @@ interface ScopeSnapshot {
   actorUserId?: string;
 }
 
-@Processor(QUEUE_NAMES.REPORT_EXPORTS)
+@Processor(QUEUE_NAMES.REPORT_EXPORTS, processorOptions(QUEUE_NAMES.REPORT_EXPORTS))
 export class ReportExportProcessor extends WorkerHost {
   private readonly logger = new Logger(ReportExportProcessor.name);
 

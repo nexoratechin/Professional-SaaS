@@ -5,6 +5,7 @@ import type Redis from 'ioredis';
 import { defaultJobOptions, deterministicJobId, type BackgroundJobFilter } from '@college-erp/queue';
 import { QUEUE_NAMES, type PaymentReconciliationJobData } from '@college-erp/types';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
+import { CacheService } from '../../common/cache/cache.service';
 import { QueueMonitoringService } from '../../common/queue/queue-monitoring.service';
 import { REDIS_CLIENT } from '../../common/redis/redis.constants';
 
@@ -26,6 +27,7 @@ export class PlatformOpsService {
   constructor(
     private readonly platformPrisma: PlatformPrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly cache: CacheService,
     private readonly queueMonitoring: QueueMonitoringService,
     @InjectQueue(QUEUE_NAMES.PAYMENT_RECONCILIATION)
     private readonly paymentReconciliationQueue: Queue<PaymentReconciliationJobData>,
@@ -62,8 +64,17 @@ export class PlatformOpsService {
   }
 
   /** Platform-wide: every tenant, not one. studentRoleHolders is a proxy metric (count of
-   * STUDENT-role assignments) — no Student entity exists yet, see this task's summary. */
+   * STUDENT-role assignments) — no Student entity exists yet, see this task's summary.
+   *  Cached briefly: the platform dashboard is polled from several admin screens and every field
+   *  is a platform-wide aggregate, so a 60s window removes the repeated full-table scans without
+   *  making the view meaningfully stale. */
   async getDashboardSummary() {
+    return this.cache.remember(this.cache.key('platform-ops', 'platform', 'dashboard'), 60, () =>
+      this.computeDashboardSummary(),
+    );
+  }
+
+  private async computeDashboardSummary() {
     const [tenantsByStatus, totalActiveUsers, studentRoleHolders, storageAgg, subscriptionsByStatus, openSupportTickets] =
       await Promise.all([
         this.platformPrisma.client.tenant.groupBy({ by: ['status'], _count: true }),
@@ -85,8 +96,18 @@ export class PlatformOpsService {
     };
   }
 
-  /** Top tenants by storage consumption — for the platform "storage usage" view. */
+  /** Top tenants by storage consumption — for the platform "storage usage" view. Cached briefly
+   *  (storage totals move slowly) keyed by the requested page size. */
   async getStorageUsageByTenant(take = 20) {
+    const effectiveTake = Math.min(Math.max(take, 1), 200);
+    return this.cache.remember(
+      this.cache.key('platform-ops', 'platform', 'storage', effectiveTake),
+      120,
+      () => this.computeStorageUsage(effectiveTake),
+    );
+  }
+
+  private async computeStorageUsage(take: number) {
     const rows = await this.platformPrisma.client.document.groupBy({
       by: ['tenantId'],
       where: { deletedAt: null },

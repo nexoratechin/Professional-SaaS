@@ -113,27 +113,34 @@ export class GlobalSearchService {
       suggestions.push({ id: `query:${recent.id}`, kind: 'query', text: recent.query });
     }
 
-    // 2. Record labels from permitted families, still capped by the overall limit.
-    for (const descriptor of this.registry) {
-      if (suggestions.length >= limit) break;
-      if (hasNoGrant(permissionMap[descriptor.permission])) continue;
-
-      const remaining = limit - suggestions.length;
-      const grants = permissionMap[descriptor.permission] as ScopeGrant[];
-      const scopeWhere = await this.resolveScope(descriptor, grants, userId);
-      const where = combineSearchWhere(descriptor.textWhere(query), scopeWhere, descriptor.baseWhere);
-      const { rows } = await descriptor.query(this.tenantPrisma.client, where, remaining);
-      for (const row of rows) {
-        const item = descriptor.map(row, query);
-        suggestions.push({
-          id: `record:${descriptor.type}:${item.id}`,
-          kind: 'record',
-          text: item.title,
-          type: descriptor.type,
-          href: item.href,
+    // 2. Record labels from permitted families, still capped by the overall limit. The per-family
+    //    lookups run concurrently (was a serial await-per-family chain) but are flattened back in
+    //    registry order so ranking stays deterministic.
+    const permitted = this.registry.filter((descriptor) => !hasNoGrant(permissionMap[descriptor.permission]));
+    const perFamily = await Promise.all(
+      permitted.map(async (descriptor) => {
+        const grants = permissionMap[descriptor.permission] as ScopeGrant[];
+        const scopeWhere = await this.resolveScope(descriptor, grants, userId);
+        const where = combineSearchWhere(descriptor.textWhere(query), scopeWhere, descriptor.baseWhere);
+        const { rows } = await descriptor.query(this.tenantPrisma.client, where, limit);
+        return rows.map((row) => {
+          const item = descriptor.map(row, query);
+          return {
+            id: `record:${descriptor.type}:${item.id}`,
+            kind: 'record' as const,
+            text: item.title,
+            type: descriptor.type,
+            href: item.href,
+          };
         });
+      }),
+    );
+    for (const items of perFamily) {
+      for (const item of items) {
         if (suggestions.length >= limit) break;
+        suggestions.push(item);
       }
+      if (suggestions.length >= limit) break;
     }
 
     const response: GlobalSearchSuggestionsResponseDto = { query, suggestions };
