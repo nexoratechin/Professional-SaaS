@@ -8,22 +8,6 @@ on:
 jobs:
   build-test:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: college_erp
-          POSTGRES_PASSWORD: college_erp_ci_password
-          POSTGRES_DB: college_erp
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports: ["6379:6379"]
     env:
       DATABASE_URL: postgresql://college_erp:college_erp_ci_password@localhost:5432/college_erp
       REDIS_URL: redis://localhost:6379
@@ -31,6 +15,18 @@ jobs:
       JWT_PUBLIC_KEY: ${{ secrets.CI_JWT_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@v4
+
+      # Native PostgreSQL + Redis on the runner — no Docker service containers.
+      - name: Install and start PostgreSQL + Redis
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql postgresql-client redis-server
+          sudo systemctl enable --now postgresql
+          sudo systemctl enable --now redis-server
+          sudo -u postgres psql -c "CREATE ROLE college_erp LOGIN PASSWORD 'college_erp_ci_password' CREATEDB;"
+          sudo -u postgres psql -c "CREATE DATABASE college_erp OWNER college_erp;"
+          pg_isready -h localhost -p 5432
+          redis-cli ping
 
       - uses: pnpm/action-setup@v4
         with:
@@ -51,11 +47,6 @@ jobs:
 
       - name: Run migrations
         run: pnpm --filter @college-erp/database exec prisma migrate deploy
-
-      - name: Install PostgreSQL client tools (recovery tests)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-16 || sudo apt-get install -y postgresql-client
 
       - name: Automated recovery test (backup → verify → restore)
         env:

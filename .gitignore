@@ -30,6 +30,3 @@ coverage/
 
 # prisma
 packages/database/generated/
-
-# docker volumes (local dev data, never committed)
-.docker-data/

@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -98,6 +99,15 @@ export default defineConfig({
       },
     }),
   ],
+  // `@college-erp/types` is published as CommonJS (tsc `__exportStar`) because the NestJS API
+  // requires it. Rollup cannot statically resolve named exports through that CJS re-export
+  // helper, so the web build consumes the TypeScript source directly (pure data types, no runtime
+  // deps). `@college-erp/ui` already emits ESM and needs no alias.
+  resolve: {
+    alias: {
+      '@college-erp/types': fileURLToPath(new URL('../../packages/types/src/index.ts', import.meta.url)),
+    },
+  },
   server: {
     port: 5173,
     host: true,

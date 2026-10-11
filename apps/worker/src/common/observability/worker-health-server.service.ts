@@ -12,7 +12,7 @@ interface JsonBody {
 }
 
 /**
- * The worker's Docker/Kubernetes-facing surface (default :3100, disabled by WORKER_HEALTH_ENABLED):
+ * The worker's health/metrics HTTP surface (default :3100, disabled by WORKER_HEALTH_ENABLED):
  *
  *   GET /health        — liveness + build info (no dependency I/O)
  *   GET /health/live   — alias of /health

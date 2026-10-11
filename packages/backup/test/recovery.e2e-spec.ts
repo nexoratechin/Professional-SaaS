@@ -10,7 +10,7 @@
  * .github/workflows/ci.yml and docs/backup-recovery.md § Automated recovery tests.
  *
  * The test intentionally creates and drops a scratch database; point it at a disposable server
- * (CI service container or local docker-compose Postgres), never at production.
+ * (CI PostgreSQL service or a local PostgreSQL), never at production.
  */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

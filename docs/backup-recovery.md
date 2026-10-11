@@ -29,7 +29,7 @@ Redis and the existing S3/MinIO bucket.
 | **RPO — PostgreSQL (managed deployments)** | ≤ 5 min (recommended) | enable the provider's continuous WAL archiving/PITR on top of these logical backups |
 | **RPO — Redis** | ≤ 1 s (AOF), ≤ 6 h (off-host RDB) | AOF `everysec` + RDB save points on a persistent volume; scheduled RDB export to S3 |
 | **RPO — documents (S3/MinIO)** | 0 (source of truth) / replication lag | bucket versioning + mirror/replication (see §9) |
-| **RTO — full PostgreSQL restore** | ≤ 60 min for the current dataset sizes; re-measure per environment | restore runbook §6, pre-pulled restore image, tested quarterly |
+| **RTO — full PostgreSQL restore** | ≤ 60 min for the current dataset sizes; re-measure per environment | restore runbook §6, documented restore tooling, tested quarterly |
 | **RTO — single tenant disaster** | ≤ 60 min | restore-to-scratch then extract tenant rows (§6.3) |
 | **RTO — Redis** | ≤ 15 min | restart with AOF/RDB volume, or accept rebuild (queues are re-derivable, §8) |
 | **Backup verification** | every backup (structure) + weekly restore-verify | §4 |
@@ -84,11 +84,11 @@ recomputed before every restore; a mismatch refuses the restore.
 ### 5.1 Full restore (disaster recovery)
 
 Prerequisites: the archive (download from object storage with `mc cp`, `aws s3 cp`, or a presigned
-URL), `pg_restore` on PATH (or in the API/worker image), and a maintenance window.
+URL), `pg_restore` on PATH, and a maintenance window.
 
 ```bash
-# 0. Freeze the platform: stop api and worker so nothing writes during the restore.
-docker compose stop api worker
+# 0. Freeze the platform: stop the api and worker processes so nothing writes during the restore.
+#    (Ctrl+C in each terminal, or kill their node processes.)
 
 # 1. Identify the latest verified archive and its manifest.
 #    Object layout: backups/<env>/postgres/<yyyy>/<mm>/<dd>/<id>.dump (+ .manifest.json)
@@ -104,8 +104,8 @@ pnpm backup:postgres -- --out ./pre-restore.dump
 # 4. Restore into the primary database (--clean drops/recreates objects; --yes confirms).
 pnpm backup:restore -- --archive ./restore.dump --target-url "$DATABASE_URL" --clean --yes
 
-# 5. Start the platform and complete the post-restore checklist (below).
-docker compose start api worker
+# 5. Start the platform again and complete the post-restore checklist (below).
+#    Restart the api and worker processes in their terminals.
 ```
 
 The restore command runs the default integrity probes after `pg_restore --exit-on-error`, so a
@@ -178,8 +178,8 @@ Redis holds derived state — the recovery position is documented rather than ro
 | Cache / idempotency / rate-limit keys | transient duplication risk (idempotency window) | Rebuild naturally; clients retry with the same `Idempotency-Key`. |
 | Worker heartbeats, window counters | alert blind spots for one interval | Regenerated within `WORKER_HEARTBEAT_INTERVAL_MS`. |
 
-Persistence (configured in `docker-compose.yml`): AOF `everysec` + RDB save points on the
-`redis_data` volume, so a plain Redis/container restart loses at most ~1 s of writes.
+Persistence (configured in the local Redis server config): AOF `everysec` + RDB save points on a
+persistent data directory, so a plain Redis restart loses at most ~1 s of writes.
 
 Off-host recovery:
 
@@ -187,8 +187,8 @@ Off-host recovery:
    triggers `BGSAVE`, audits the persistence state (`aof_enabled`, `rdb_last_bgsave_status`,
    `aof_last_write_status`, last-save age), and — when `redis-cli` is available — exports the RDB to
    `backups/<env>/redis/…` with a manifest.
-2. To restore: stop the worker, place the exported RDB as `/data/dump.rdb` in the Redis volume
-   (`docker compose cp <file> redis:/data/dump.rdb`), restart Redis.
+2. To restore: stop the worker, place the exported RDB as `dump.rdb` in the Redis working
+   directory (the `dir` set in your local Redis config), then restart Redis.
 3. If AOF is also present, Redis prefers AOF on startup; either remove `/data/appendonlydir` or
    accept that AOF is the newer state (usually what you want).
 4. Verify: `redis-cli INFO persistence` shows `loading:0`, `rdb_last_bgsave_status:ok`.
@@ -229,7 +229,7 @@ separately or a perfect restore still cannot start:
 | `backup_stale` rule | API alert engine (WARNING past `BACKUP_MAX_AGE_HOURS`, CRITICAL past 2×, CRITICAL when never recorded) |
 | backup job failures → dead-letter queue | existing `dead_letter_backlog` / `dead_letter_moves` alerts |
 
-Set `BACKUP_EXPECTED=true` wherever the scheduler runs (docker-compose default) so the alert can
+Set `BACKUP_EXPECTED=true` wherever the scheduler runs (with `BACKUP_ENABLED=true` on the worker) so the alert can
 page. Suggested Prometheus rule (mirrors the in-app alert):
 
 ```yaml
@@ -249,7 +249,7 @@ backup heartbeat has been CRITICAL for more than two windows.
 
 **First 15 minutes**
 
-1. **Stop writes, keep evidence.** `docker compose stop api worker` (or scale to 0). Do not restart
+1. **Stop writes, keep evidence.** Stop the api and worker processes (Ctrl+C, or kill their node processes). Do not restart
    the database yet; preserve the current state for diagnosis.
 2. **Declare and assign.** Incident commander, scribe (timestamps!), one operator per action. Open
    a channel; record the last-known-good time (the RPO decision point).
@@ -298,7 +298,7 @@ database → integrity probes compare source/restore → verification detects a 
 cleanup. It self-skips when the tools/database are absent.
 
 ```bash
-# Local: against the docker-compose Postgres (never production).
+# Local: against the native local PostgreSQL (never production).
 RECOVERY_TEST_DATABASE_URL=postgresql://college_erp:college_erp_dev_password@localhost:5432/college_erp \
   pnpm test:recovery
 
@@ -314,7 +314,7 @@ connection-string handling, TOC parsing and Redis persistence assessment — the
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `BACKUP_ENABLED` (worker) | `false` (compose: `true`) | master switch for scheduled backup jobs |
+| `BACKUP_ENABLED` (worker) | `false` (local dev: `false`) | master switch for scheduled backup jobs |
 | `BACKUP_ENVIRONMENT` | `NODE_ENV` | environment segment in object keys |
 | `BACKUP_S3_PREFIX` | `backups` | object-key prefix |
 | `BACKUP_INTERVAL_HOURS` | `24` | full-backup cadence (RPO driver) |
@@ -329,7 +329,7 @@ connection-string handling, TOC parsing and Redis persistence assessment — the
 | `BACKUP_REDIS_RDB_EXPORT_ENABLED` | `true` | export RDB to object storage |
 | `BACKUP_REDIS_CLI_PATH` | PATH | explicit `redis-cli` path |
 | `BACKUP_REDIS_MAX_AGE_HOURS` | `26` | snapshot freshness budget (worker assessment) |
-| `BACKUP_EXPECTED` (api) | `false` (compose: `true`) | whether `backup_stale` alerts |
+| `BACKUP_EXPECTED` (api) | `false` | whether `backup_stale` alerts |
 | `BACKUP_MAX_AGE_HOURS` (api) | `26` | RPO budget the alert compares against |
 
 Operator commands (run from the repo root):

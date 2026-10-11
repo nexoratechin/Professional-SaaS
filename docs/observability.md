@@ -3,7 +3,7 @@
 Structured logs, metrics, health probes, error tracking and alerting for the API and the worker.
 Implemented by `@college-erp/observability` (a dependency-free shared package) with thin per-app
 wiring — no new infrastructure services: everything rides on PostgreSQL, Redis and the existing
-containers.
+local services.
 
 ```
                  ┌────────────────────────── api (:3000) ─────────────────────────┐
@@ -16,7 +16,7 @@ containers.
                         │                 ▲
                  ┌──────┴─────────────────┴──────── worker (:3100) ──────────────┐
   Prometheus ──▶ │ /metrics           same registry, worker-side series         │
-  Docker     ──▶ │ /health/live,ready Redis heartbeat + db/redis probes         │
+  Probes     ──▶ │ /health/live,ready Redis heartbeat + db/redis probes         │
                  │ queue-events bridge → metrics, queue_failures window, errors │
                  └──────────────────────────────────────────────────────────────┘
 ```
@@ -27,7 +27,7 @@ containers.
   line (`LOG_FORMAT=json`, production default) or compact text (dev default). Every record carries
   `level`, `time`, `service`, `version`, `environment`, `message` and any structured fields
   (`requestId`, `tenantId`, `tenantSlug`, `userId`, `jobId`, `queue`, `durationMs`, `error`).
-- `warn`/`error` go to **stderr**; `info`/`debug` to **stdout** (split streams per container).
+- `warn`/`error` go to **stderr**; `info`/`debug` to **stdout** (split streams per process).
 - The API and worker call `configureObservability()` before boot, then `app.useLogger()` routes
   every Nest internal log through the same pipeline — no `console.log` remains in either app.
 - Request correlation already existed: `RequestIdMiddleware` reuses/creates `X-Request-Id`, echoes
@@ -86,7 +86,7 @@ Every probe is timeout-bounded (`HEALTH_CHECK_TIMEOUT_MS`) and recorded into
 `college_erp_health_status` / `_health_check_duration_seconds`. Liveness never touches
 dependencies on purpose: a database outage must not cause a restart storm.
 
-Docker Compose now healthchecks both containers (`/health/live`), and the worker exposes `:3100`.
+The API and worker each expose `/health/live` for health probes, and the worker exposes `:3100`.
 
 ## 4. Error tracking
 

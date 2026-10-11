@@ -8,7 +8,7 @@
  *  3. The worker fleet's heartbeats — regenerated within one heartbeat interval.
  *
  * The recovery position is therefore "persist what you can, prove you can, and be able to rebuild
- * what you lose": AOF+RDB persistence is enforced on the Redis container (docker-compose), this
+ * what you lose": AOF+RDB persistence is enabled in the local Redis server configuration, this
  * module audits that persistence is actually on and fresh, triggers explicit `BGSAVE` snapshots
  * recorded in backup manifests, and exports the RDB to object storage when `redis-cli` is
  * available. See docs/backup-recovery.md § Redis recovery.

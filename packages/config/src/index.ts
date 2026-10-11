@@ -289,10 +289,10 @@ export const workerEnvSchema = z.object({
    *  scans clean unless the payload opts into a simulated infection), `clamav` (clamd TCP
    *  protocol), or `http` (generic scanning API returning { clean: boolean }). */
   VIRUS_SCAN_PROVIDER: z.enum(['mock', 'clamav', 'http']).default('mock'),
-  CLAMAV_HOST: z.string().default('clamav'),
+  CLAMAV_HOST: z.string().default('localhost'),
   CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
   /** Optional generic scanning API (used when VIRUS_SCAN_PROVIDER=http). Empty string (e.g. an
-   *  unset compose var) is treated as unset. */
+   *  unset var) is treated as unset. */
   VIRUS_SCAN_API_URL: z
     .union([z.string().url(), z.literal('')])
     .optional()
@@ -323,7 +323,7 @@ export const workerEnvSchema = z.object({
   SLOW_QUERY_MS: z.coerce.number().int().positive().default(500),
   /** Timeout for each dependency probe behind /health/ready (milliseconds). */
   HEALTH_CHECK_TIMEOUT_MS: z.coerce.number().int().positive().default(3_000),
-  /** Enables the worker's health/metrics HTTP server (needed by container healthchecks). */
+  /** Enables the worker's health/metrics HTTP server (needed by health probes). */
   WORKER_HEALTH_ENABLED: boolFromStringDefaultTrue,
   /** Port for the worker health/metrics server (not exposed publicly by default). */
   WORKER_HEALTH_PORT: z.coerce.number().int().positive().default(3100),
@@ -339,8 +339,8 @@ export const workerEnvSchema = z.object({
   // --- Backup & recovery ----------------------------------------------------------------------
   // Scheduled PostgreSQL backups + verification + retention, Redis snapshots, and the
   // last-success heartbeat the API's backup_stale alert reads. Off by default so a plain
-  // `pnpm dev` worker (no pg_dump on PATH) never fails jobs; docker-compose sets it true.
-  // See docs/backup-recovery.md for RPO/RTO and the restore runbook.
+  // `pnpm dev` worker (no pg_dump on PATH) never fails jobs; enable it only where the client
+  // tools are installed. See docs/backup-recovery.md for RPO/RTO and the restore runbook.
 
   /** Master switch for the scheduled postgres-backup / backup-prune / redis-snapshot jobs. */
   BACKUP_ENABLED: boolFromString,

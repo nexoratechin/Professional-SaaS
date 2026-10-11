@@ -45,11 +45,14 @@ npx web-push generate-vapid-keys
 
 Without keys, `GET /push/config` reports `enabled: false` and the in-app push toggle stays hidden.
 
-## Production image
+## Production build (native)
 
 ```bash
-docker compose --profile prod up --build web-prod   # http://localhost:8080
+# Build the static PWA and serve it locally with Vite's preview server.
+pnpm --filter @college-erp/web build
+pnpm --filter @college-erp/web preview -- --port 5173
 ```
 
-Set `CORS_ORIGIN=http://localhost:8080` and build with `WEB_PROD_API_URL=https://api.example.com`
-for a real deployment.
+`VITE_API_URL` is baked in at build time (see `apps/web/.env`). For a real deployment, build with
+the production API URL and serve `apps/web/dist` from any static host (nginx, Caddy, CDN), setting
+the API's `CORS_ORIGIN` to the site origin.
