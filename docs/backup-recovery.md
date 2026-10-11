@@ -3,7 +3,13 @@
 Production backup, verification, restore and rollback strategy for the College ERP SaaS. Implemented
 by `@college-erp/backup` (framework-agnostic primitives) and the worker's `backup` queue (scheduling,
 object storage, heartbeat, retention) — no new infrastructure services: backups ride on PostgreSQL,
-Redis and the existing S3/MinIO bucket.
+Redis and the existing S3-compatible object storage bucket.
+
+> **Local development:** with `STORAGE_DRIVER=local` (the default committed in
+> `apps/api/.env.example` / `apps/worker/.env.example`) the worker writes backup archives and
+> manifests under `.data/storage/backups/…` on local disk instead of an S3/MinIO bucket — no MinIO
+> server is required. The S3 references in this document describe the production target. Redis is
+> still required: the heartbeat, retention sweep and (by default) the Redis snapshot all use it.
 
 ```
 ┌─ worker ──────────────────────────────────────────────────────────────────────────────┐

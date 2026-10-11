@@ -16,6 +16,7 @@ import { bumpWindow, recordStorageOperation, WINDOW_COUNTERS } from '@college-er
 import type Redis from 'ioredis';
 import { AppConfigService } from '../../config/app-config.service';
 import { WORKER_REDIS_CLIENT } from '../observability/redis.constants';
+import { WorkerLocalStore } from './worker-local-store';
 
 /** Server-side HEAD of a stored object (see WorkerStorageService.getObjectMetadata). */
 export interface WorkerObjectMetadata {
@@ -37,23 +38,35 @@ export interface WorkerObjectMetadata {
  */
 @Injectable()
 export class WorkerStorageService {
-  private readonly client: S3Client;
+  private readonly driver: 's3' | 'local';
+  private readonly client?: S3Client;
   private readonly bucket: string;
+  private readonly local?: WorkerLocalStore;
 
   constructor(
     private readonly config: AppConfigService,
     @Optional() @Inject(WORKER_REDIS_CLIENT) private readonly redis?: Redis,
   ) {
     this.bucket = config.get('S3_BUCKET');
-    this.client = new S3Client({
-      endpoint: config.get('S3_ENDPOINT'),
-      region: config.get('S3_REGION'),
-      forcePathStyle: config.get('S3_FORCE_PATH_STYLE'),
-      credentials: {
-        accessKeyId: config.get('S3_ACCESS_KEY'),
-        secretAccessKey: config.get('S3_SECRET_KEY'),
-      },
-    });
+    this.driver = config.get('STORAGE_DRIVER') ?? 's3';
+    if (this.driver === 'local') {
+      this.local = new WorkerLocalStore(config.get('STORAGE_LOCAL_DIR'), this.bucket);
+    } else {
+      this.client = new S3Client({
+        endpoint: config.get('S3_ENDPOINT'),
+        region: config.get('S3_REGION'),
+        forcePathStyle: config.get('S3_FORCE_PATH_STYLE'),
+        credentials: {
+          accessKeyId: config.get('S3_ACCESS_KEY'),
+          secretAccessKey: config.get('S3_SECRET_KEY'),
+        },
+      });
+    }
+  }
+
+  private s3(): S3Client {
+    if (!this.client) throw new Error('S3 storage driver not initialised.');
+    return this.client;
   }
 
   tenantPrefix(tenantId: string): string {
@@ -80,9 +93,14 @@ export class WorkerStorageService {
   /** Streams a system object to storage from a local file (backup archives are multi-GB). */
   async uploadSystemFile(key: string, filePath: string, contentType: string): Promise<void> {
     this.assertSystemKey(key);
+    if (this.local) {
+      await this.local.ensureReady();
+      await this.local.putFile(key, filePath);
+      return;
+    }
     const fileStat = await stat(filePath);
     await this.send('putSystemObject', () =>
-      this.client.send(
+      this.s3().send(
         new PutObjectCommand({
           Bucket: this.bucket,
           Key: key,
@@ -96,16 +114,25 @@ export class WorkerStorageService {
 
   async uploadSystemBuffer(key: string, body: Buffer, contentType: string): Promise<void> {
     this.assertSystemKey(key);
+    if (this.local) {
+      await this.local.ensureReady();
+      await this.local.putBuffer(key, body);
+      return;
+    }
     await this.send('putSystemObject', () =>
-      this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType })),
+      this.s3().send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType })),
     );
   }
 
   /** Streams a system object back to a local file (restore-verification downloads). */
   async downloadSystemToFile(key: string, filePath: string): Promise<void> {
     this.assertSystemKey(key);
+    if (this.local) {
+      await this.local.copyToFile(key, filePath);
+      return;
+    }
     const result = await this.send('getSystemObject', () =>
-      this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
+      this.s3().send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
     );
     if (!result.Body) throw new Error(`System object ${key} has no body.`);
     await pipeline(result.Body as Readable, createWriteStream(filePath));
@@ -113,9 +140,13 @@ export class WorkerStorageService {
 
   async deleteSystemObject(key: string): Promise<void> {
     this.assertSystemKey(key);
+    if (this.local) {
+      await this.local.remove(key);
+      return;
+    }
     try {
       await this.send('deleteSystemObject', () =>
-        this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })),
+        this.s3().send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })),
       );
     } catch {
       // Missing objects are a successful delete.
@@ -126,12 +157,15 @@ export class WorkerStorageService {
   async listSystemObjects(
     prefix: string,
   ): Promise<Array<{ key: string; sizeBytes: number; lastModified: Date | null }>> {
+    if (this.local) {
+      return this.local.list(prefix);
+    }
     let continuationToken: string | undefined;
     const objects: Array<{ key: string; sizeBytes: number; lastModified: Date | null }> = [];
     do {
       const result = await this.send('listSystemObjects', async () => {
         // The SDK type for ContinuationToken is `string | undefined`; capture it for the loop.
-        return this.client.send(
+        return this.s3().send(
           new ListObjectsV2Command({
             Bucket: this.bucket,
             Prefix: prefix,
@@ -154,14 +188,22 @@ export class WorkerStorageService {
 
   /** Readiness probe — verifies the configured bucket is reachable. */
   async checkConnectivity(): Promise<void> {
-    await this.send('headBucket', () => this.client.send(new HeadBucketCommand({ Bucket: this.bucket })));
+    if (this.local) {
+      await this.local.ensureReady();
+      return;
+    }
+    await this.send('headBucket', () => this.s3().send(new HeadBucketCommand({ Bucket: this.bucket })));
   }
 
   /** Writes a backend-generated artifact (report export) under the tenant prefix. */
   async uploadBuffer(tenantId: string, key: string, body: Buffer, contentType: string): Promise<void> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    if (this.local) {
+      await this.local.putBuffer(key, body);
+      return;
+    }
     await this.send('putObject', () =>
-      this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType })),
+      this.s3().send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType })),
     );
   }
 
@@ -169,9 +211,13 @@ export class WorkerStorageService {
    *  naturally idempotent across retries). */
   async deleteObject(tenantId: string, key: string): Promise<void> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    if (this.local) {
+      await this.local.remove(key);
+      return;
+    }
     try {
       await this.send('deleteObject', () =>
-        this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })),
+        this.s3().send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })),
       );
     } catch {
       // Ignore 404-style failures — nothing to delete is a successful delete.
@@ -181,8 +227,11 @@ export class WorkerStorageService {
   /** Reads the whole object into memory (uploaded import files are size-bounded). */
   async downloadBuffer(tenantId: string, key: string): Promise<Buffer> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    if (this.local) {
+      return this.local.getBuffer(key);
+    }
     const result = await this.send('getObject', () =>
-      this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
+      this.s3().send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
     );
     const chunks: Uint8Array[] = [];
     if (result.Body) {
@@ -197,8 +246,11 @@ export class WorkerStorageService {
    * http). Throws when the object does not exist. */
   async streamObject(tenantId: string, key: string): Promise<AsyncIterable<Uint8Array>> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    if (this.local) {
+      return this.local.readStream(key);
+    }
     const result = await this.send('getObject', () =>
-      this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
+      this.s3().send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
     );
     if (!result.Body) {
       throw new Error(`Object ${key} has no body.`);
@@ -208,10 +260,13 @@ export class WorkerStorageService {
 
   async objectExists(tenantId: string, key: string): Promise<boolean> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    if (this.local) {
+      return this.local.exists(key);
+    }
     try {
       await this.send(
         'headObject',
-        () => this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key })),
+        () => this.s3().send(new HeadObjectCommand({ Bucket: this.bucket, Key: key })),
         { count404AsError: false },
       );
       return true;
@@ -222,8 +277,11 @@ export class WorkerStorageService {
 
   async getObjectMetadata(tenantId: string, key: string): Promise<WorkerObjectMetadata> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    if (this.local) {
+      return this.local.metadata(key);
+    }
     const result = await this.send('headObject', () =>
-      this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key })),
+      this.s3().send(new HeadObjectCommand({ Bucket: this.bucket, Key: key })),
     );
     return {
       sizeBytes: result.ContentLength ?? 0,

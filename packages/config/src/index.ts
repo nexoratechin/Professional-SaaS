@@ -118,11 +118,29 @@ export const apiEnvSchema = z.object({
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined)),
 
-  S3_ENDPOINT: z.string().min(1),
+  // --- Object storage ------------------------------------------------------------------------
+  // `local` writes documents to a directory on this machine — no S3/MinIO server is needed for
+  // local development. `s3` talks to any S3-compatible endpoint (MinIO locally, or a managed
+  // provider in production). Production deployments should use `s3` (local disk is not durable
+  // across hosts/restarts); the API and worker must agree on the driver and directory.
+  STORAGE_DRIVER: z.enum(['s3', 'local']).default('s3'),
+  /** Directory backing the local driver. A relative path resolves against the workspace root so
+   *  the API and worker share one store. Ignored when STORAGE_DRIVER=s3. */
+  STORAGE_LOCAL_DIR: z.string().min(1).default('.data/storage'),
+  /** Optional absolute base URL used to build local upload/download URLs; defaults to
+   *  http://localhost:${PORT}. Ignored when STORAGE_DRIVER=s3. */
+  STORAGE_LOCAL_URL_BASE: optionalString,
+  /** Optional dedicated secret signing local storage URLs. When unset, one is derived from the
+   *  JWT keypair. Ignored when STORAGE_DRIVER=s3. */
+  STORAGE_LOCAL_SIGNING_SECRET: optionalString,
+
+  // S3 settings. Defaults match the stock local MinIO from the docs so `s3` mode still works
+  // out of the box; production MUST override these with real provider credentials.
+  S3_ENDPOINT: z.string().min(1).default('http://localhost:9000'),
   S3_REGION: z.string().default('us-east-1'),
-  S3_ACCESS_KEY: z.string().min(1),
-  S3_SECRET_KEY: z.string().min(1),
-  S3_BUCKET: z.string().min(1),
+  S3_ACCESS_KEY: z.string().min(1).default('college_erp_minio'),
+  S3_SECRET_KEY: z.string().min(1).default('college_erp_minio_password'),
+  S3_BUCKET: z.string().min(1).default('college-erp-documents'),
   S3_FORCE_PATH_STYLE: boolFromString,
 
   /** Global cap on a single document file upload in bytes (25 MiB). Overridable per
@@ -257,13 +275,20 @@ export const workerEnvSchema = z.object({
     .transform((v) => (v && v.length > 0 ? v : undefined)),
   VAPID_SUBJECT: z.string().default('mailto:admin@college-erp.local'),
 
+  /** Object-storage driver (`local` directory or `s3`). MUST match apps/api's STORAGE_DRIVER and
+   *  STORAGE_LOCAL_DIR: the worker deletes/quarantines the same objects the API signs URLs into. */
+  STORAGE_DRIVER: z.enum(['s3', 'local']).default('s3'),
+  /** Directory backing the local driver (relative paths resolve against the workspace root). */
+  STORAGE_LOCAL_DIR: z.string().min(1).default('.data/storage'),
+
   /** Object-storage credentials for the document virus-scan + retention processors, which
-   *  delete/quarantine infected or expired objects (the same bucket the API signs URLs into). */
-  S3_ENDPOINT: z.string().min(1),
+   *  delete/quarantine infected or expired objects (the same bucket the API signs URLs into).
+   *  Defaults match the stock local MinIO; production MUST override them when STORAGE_DRIVER=s3. */
+  S3_ENDPOINT: z.string().min(1).default('http://localhost:9000'),
   S3_REGION: z.string().default('us-east-1'),
-  S3_ACCESS_KEY: z.string().min(1),
-  S3_SECRET_KEY: z.string().min(1),
-  S3_BUCKET: z.string().min(1),
+  S3_ACCESS_KEY: z.string().min(1).default('college_erp_minio'),
+  S3_SECRET_KEY: z.string().min(1).default('college_erp_minio_password'),
+  S3_BUCKET: z.string().min(1).default('college-erp-documents'),
   S3_FORCE_PATH_STYLE: boolFromString,
 
   /** Same AI provider settings as the API — the worker runs the OCR/classification step and must

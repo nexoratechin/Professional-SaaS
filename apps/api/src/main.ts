@@ -71,7 +71,7 @@ async function bootstrap() {
     .setTitle('College ERP SaaS API')
     .setDescription(
       [
-        'Multi-tenant college ERP REST platform built on NestJS, Prisma, PostgreSQL, Redis/BullMQ and MinIO.',
+        'Multi-tenant college ERP REST platform built on NestJS, Prisma, PostgreSQL, Redis/BullMQ and S3-compatible object storage.',
         '',
         '**Versioning** — the current version is **v1**. The version is negotiated via the `X-API-Version` header: ' +
           'omit it entirely (defaults to v1) or send `X-API-Version: 1` explicitly. Future v2+ handlers declare ' +

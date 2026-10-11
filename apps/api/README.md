@@ -1,7 +1,7 @@
 # College ERP SaaS — REST API (`apps/api`)
 
 Multi-tenant college ERP REST platform built on NestJS, Prisma, PostgreSQL, Redis/BullMQ and
-MinIO. This document covers the cross-cutting platform contract every endpoint shares: versioning,
+S3-compatible object storage (local filesystem by default in development). This document covers the cross-cutting platform contract every endpoint shares: versioning,
 authentication/authorization, tenant enforcement, requests, responses, pagination, idempotency and
 rate limiting. Interactive docs live at `/api/docs` (Swagger UI) once the server is running.
 

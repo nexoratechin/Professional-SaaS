@@ -165,7 +165,7 @@ export class TenantsService {
 
   /** Tenant usage — active/total users, a proxy student count (no Student entity exists yet; see
    * below), storage consumption (summed from Document.sizeBytes — already tracked, no separate
-   * MinIO bucket scan needed), org-unit counts, and the most recent raw UsageEvent rows. Always
+   * object-store bucket scan needed), org-unit counts, and the most recent raw UsageEvent rows. Always
    * explicit-tenantId, read via the unscoped PlatformPrismaService — this is the platform admin
    * looking INTO a tenant with explicit context, never an implicit "current tenant". */
   async getUsage(tenantId: string) {

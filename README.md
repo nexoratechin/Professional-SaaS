@@ -10,12 +10,13 @@ A configurable, multi-tenant College ERP SaaS platform for managing admissions, 
 - **Worker** (`apps/worker`): BullMQ background jobs
 - **Database** (`packages/database`): Prisma + PostgreSQL
 - **Shared packages:** auth, queue, payments, notifications, integrations, reporting, analytics, observability, certificates, imports, gps, types, ui
-- **Redis** for queues/cache · **S3-compatible** object storage (MinIO locally) for documents
+- **Redis** for queues/cache · **object storage**: local filesystem by default (no MinIO needed), S3-compatible in production for documents
 
 ## Local development
 
 Runs natively on your machine — **no Docker**. See [`docs/local-development.md`](docs/local-development.md)
-for full setup (PostgreSQL, Redis, MinIO, environment files).
+for full setup (PostgreSQL, Redis, environment files). Documents use a local directory by default,
+so no MinIO is needed for development.
 
 Quick start:
 

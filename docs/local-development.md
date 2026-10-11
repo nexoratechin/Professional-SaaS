@@ -13,7 +13,7 @@ The stack:
 | `packages/database` (Prisma) | Prisma CLI | PostgreSQL |
 | PostgreSQL | Native Windows service | `localhost:5432` |
 | Redis | Memurai / WSL / native Redis | `localhost:6379` |
-| Object storage (documents) | Native MinIO server | `localhost:9000` (console `:9001`) |
+| Object storage (documents) | Local filesystem (default) — no server needed | `.data/storage` in the repo |
 
 Node.js `>=20` and pnpm are required. The repo declares `packageManager: pnpm@9.12.0`; enable
 Corepack so the pinned version is used:
@@ -92,32 +92,40 @@ The URL lives in `apps/api/.env` and `apps/worker/.env` (`REDIS_URL=redis://loca
 > BullMQ-backed feature and the worker need it. The API is not silently mocked if Redis is down:
 > `/health/ready` reports Redis as critical.
 
-## 4. Object storage — MinIO / S3 (needed for document features)
+## 4. Object storage (no MinIO needed for local development)
 
-Document upload/download, HR payslips, report exports, brand assets and backups use the shared
-S3-compatible `StorageService`. The API/worker talk to a real S3-compatible endpoint; there is no
-local-filesystem storage driver, so run MinIO natively to exercise those features.
+Document uploads/downloads, HR payslips, report exports and brand assets go through the shared
+`StorageService`. Which backing store it uses is selected by `STORAGE_DRIVER`:
 
-**Windows** — download `minio.exe` (and `mc.exe`) from <https://min.io/docs/minio/container/index.html>
-or the MinIO downloads page, then:
+- **`local` (default in the committed `.env.example`)** — objects are written to a directory on
+  your machine (`.data/storage/<bucket>/…`, relative to the repo root). **No MinIO or S3 server is
+  required.** The API mints short-lived signed URLs that stream bytes through its own
+  `/storage/local/*` endpoint; the worker reads/writes the same directory. This is ideal for local
+  development but is not durable across machines or redeploys.
+- **`s3`** — talks to any S3-compatible endpoint. Use a local MinIO for development if you want to
+  exercise the S3 path, or point it at a managed provider (AWS S3, R2, …) in production. Production
+  should always use `s3`; local disk is not durable there.
 
-```powershell
-# Console/credentials default to localhost:9000 / :9001
-$env:MINIO_ROOT_USER="college_erp_minio"
-$env:MINIO_ROOT_PASSWORD="college_erp_minio_password"
-.\minio.exe server C:\minio-data --console-address ":9001"
+Nothing else in the stack changes between drivers — the tenant-prefix isolation, signed URLs and
+document metadata checks are the same.
 
-# In another shell, create the bucket:
-.\mc.exe alias set local http://localhost:9000 college_erp_minio college_erp_minio_password
-.\mc.exe mb local/college-erp-documents
+```bash
+# Local filesystem (default) — nothing to install:
+STORAGE_DRIVER=local
+STORAGE_LOCAL_DIR=.data/storage
+
+# S3-compatible (e.g. MinIO locally, a managed provider in production):
+STORAGE_DRIVER=s3
+S3_ENDPOINT=https://your-endpoint
+S3_ACCESS_KEY=…
+S3_SECRET_KEY=…
+S3_BUCKET=college-erp-documents
+S3_FORCE_PATH_STYLE=true
 ```
 
-macOS/Linux: `brew install minio/stable/minio mc` or the official binary, then the same
-`minio server` + `mc mb` steps.
+Settings live in `apps/api/.env` and `apps/worker/.env`. The two apps must use the same driver (and
+the same `STORAGE_LOCAL_DIR` when local), because the worker processes the objects the API stores.
 
-Settings live in `apps/api/.env` and `apps/worker/.env` (`S3_ENDPOINT`, `S3_ACCESS_KEY`,
-`S3_SECRET_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE=true`). For production, point these at your
-managed S3-compatible provider — the abstraction is unchanged.
 
 ## 5. Environment files
 
@@ -193,5 +201,6 @@ PostgreSQL and Redis first.
 - **`prisma migrate` can't connect** — confirm PostgreSQL is running and `DATABASE_URL` matches,
   and that the `college_erp` role/database exist (§2).
 - **API `/health/ready` reports Redis down** — start Redis (§3). The API still boots without it.
-- **Document upload fails** — start MinIO and create the `college-erp-documents` bucket (§4).
+- **Document upload fails** — with `STORAGE_DRIVER=local` check that `.data/storage` is writable;
+  with `STORAGE_DRIVER=s3` check the `S3_*` settings and that the bucket exists.
 - **`pnpm` uses the wrong version** — run `corepack enable` so the pinned `pnpm@9.12.0` is used.

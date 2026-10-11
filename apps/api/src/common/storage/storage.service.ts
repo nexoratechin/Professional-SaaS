@@ -13,6 +13,7 @@ import { bumpWindow, recordStorageOperation, WINDOW_COUNTERS } from '@college-er
 import type Redis from 'ioredis';
 import { AppConfigService } from '../../config/app-config.service';
 import { REDIS_CLIENT } from '../redis/redis.constants';
+import { LocalObjectStore, localSigningSecret, signLocalToken } from './local-storage';
 
 const UPLOAD_URL_TTL_SECONDS = 300;
 const DOWNLOAD_URL_TTL_SECONDS = 300;
@@ -38,23 +39,45 @@ export interface ObjectMetadata {
  */
 @Injectable()
 export class StorageService {
-  private readonly client: S3Client;
+  private readonly driver: 's3' | 'local';
+  private readonly client?: S3Client;
   private readonly bucket: string;
+  private readonly local?: LocalObjectStore;
+  private readonly localUrlBase: string;
+  private readonly signingSecret: string;
 
   constructor(
     private readonly config: AppConfigService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {
     this.bucket = config.get('S3_BUCKET');
-    this.client = new S3Client({
-      endpoint: config.get('S3_ENDPOINT'),
-      region: config.get('S3_REGION'),
-      forcePathStyle: config.get('S3_FORCE_PATH_STYLE'),
-      credentials: {
-        accessKeyId: config.get('S3_ACCESS_KEY'),
-        secretAccessKey: config.get('S3_SECRET_KEY'),
-      },
-    });
+    this.driver = config.get('STORAGE_DRIVER') ?? 's3';
+    if (this.driver === 'local') {
+      this.local = new LocalObjectStore(config.get('STORAGE_LOCAL_DIR'), this.bucket);
+      const configuredBase = config.get('STORAGE_LOCAL_URL_BASE');
+      this.localUrlBase = (configuredBase ?? `http://localhost:${config.get('PORT')}`).replace(/\/+$/, '');
+      this.signingSecret = localSigningSecret((key) =>
+        (config as unknown as { get(k: string): unknown }).get(key),
+      );
+    } else {
+      this.client = new S3Client({
+        endpoint: config.get('S3_ENDPOINT'),
+        region: config.get('S3_REGION'),
+        forcePathStyle: config.get('S3_FORCE_PATH_STYLE'),
+        credentials: {
+          accessKeyId: config.get('S3_ACCESS_KEY'),
+          secretAccessKey: config.get('S3_SECRET_KEY'),
+        },
+      });
+      this.localUrlBase = '';
+      this.signingSecret = '';
+    }
+  }
+
+  /** The S3 client, guaranteed present on the s3 driver. */
+  private s3(): S3Client {
+    if (!this.client) throw new Error('S3 storage driver not initialised.');
+    return this.client;
   }
 
   tenantPrefix(tenantId: string): string {
@@ -92,21 +115,36 @@ export class StorageService {
 
   /** Readiness probe used by /health/ready — verifies the bucket is reachable. */
   async checkConnectivity(): Promise<void> {
-    await this.send('headBucket', () => this.client.send(new HeadBucketCommand({ Bucket: this.bucket })));
+    if (this.local) {
+      await this.local.ensureReady();
+      return;
+    }
+    await this.send('headBucket', () => this.s3().send(new HeadBucketCommand({ Bucket: this.bucket })));
   }
 
   async getUploadUrl(tenantId: string, key: string, contentType: string): Promise<string> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    if (this.local) {
+      const token = signLocalToken(
+        { k: key, m: 'put', ct: contentType, e: expiry(UPLOAD_URL_TTL_SECONDS) },
+        this.signingSecret,
+      );
+      return `${this.localUrlBase}/storage/local/${token}`;
+    }
     const command = new PutObjectCommand({ Bucket: this.bucket, Key: key, ContentType: contentType });
-    return getSignedUrl(this.client, command, { expiresIn: UPLOAD_URL_TTL_SECONDS });
+    return getSignedUrl(this.s3(), command, { expiresIn: UPLOAD_URL_TTL_SECONDS });
   }
 
   /** Server-side write for backend-generated artifacts (e.g. invoice PDFs). The key must still
    * live under the owning tenant's prefix — the same isolation rule as every other stored path,
    * so a downloaded artifact can never point outside its tenant. */
   async uploadBuffer(key: string, body: Buffer, contentType: string): Promise<void> {
+    if (this.local) {
+      await this.local.putBuffer(key, body);
+      return;
+    }
     await this.send('putObject', () =>
-      this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType })),
+      this.s3().send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType })),
     );
   }
 
@@ -118,6 +156,22 @@ export class StorageService {
     this.assertKeyBelongsToTenant(tenantId, key);
     const inlineType = safeInlineContentType(options?.contentType);
     const responseContentType = options?.contentType ? (inlineType ?? 'application/octet-stream') : undefined;
+    const disposition = options?.filename
+      ? buildContentDisposition(options.filename, inlineType !== null)
+      : undefined;
+    if (this.local) {
+      const token = signLocalToken(
+        {
+          k: key,
+          m: 'get',
+          e: expiry(DOWNLOAD_URL_TTL_SECONDS),
+          ...(responseContentType ? { ct: responseContentType } : {}),
+          ...(disposition ? { cd: disposition } : {}),
+        },
+        this.signingSecret,
+      );
+      return `${this.localUrlBase}/storage/local/${token}`;
+    }
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -126,26 +180,31 @@ export class StorageService {
       // so a stored document can never be served as an active document from the storage origin
       // (stored XSS / content-type confusion).
       ...(responseContentType ? { ResponseContentType: responseContentType } : {}),
-      ...(options?.filename
-        ? { ResponseContentDisposition: buildContentDisposition(options.filename, inlineType !== null) }
-        : {}),
+      ...(disposition ? { ResponseContentDisposition: disposition } : {}),
     });
-    return getSignedUrl(this.client, command, { expiresIn: DOWNLOAD_URL_TTL_SECONDS });
+    return getSignedUrl(this.s3(), command, { expiresIn: DOWNLOAD_URL_TTL_SECONDS });
   }
 
   async delete(tenantId: string, key: string): Promise<void> {
     this.assertKeyBelongsToTenant(tenantId, key);
-    await this.send('deleteObject', () => this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })));
+    if (this.local) {
+      await this.local.remove(key);
+      return;
+    }
+    await this.send('deleteObject', () => this.s3().send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })));
   }
 
   /** True if an object exists at key — used by confirm-upload to reject confirms for files that
    *  never actually reached storage. A 404 is an expected answer here, not a failure. */
   async objectExists(tenantId: string, key: string): Promise<boolean> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    if (this.local) {
+      return this.local.exists(key);
+    }
     try {
       await this.send(
         'headObject',
-        () => this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key })),
+        () => this.s3().send(new HeadObjectCommand({ Bucket: this.bucket, Key: key })),
         { count404AsError: false },
       );
       return true;
@@ -155,11 +214,15 @@ export class StorageService {
   }
 
   /** Server-side HEAD of an uploaded object — the trusted size/MIME source at confirm time. The
-   *  frontend's Content-Length/MIME claims are never trusted; only what MinIO reports back is. */
+   *  frontend's Content-Length/MIME claims are never trusted; only what the storage backend reports
+   *  back is. */
   async getObjectMetadata(tenantId: string, key: string): Promise<ObjectMetadata> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    if (this.local) {
+      return this.local.metadata(key);
+    }
     const result = await this.send('headObject', () =>
-      this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key })),
+      this.s3().send(new HeadObjectCommand({ Bucket: this.bucket, Key: key })),
     );
     return {
       sizeBytes: result.ContentLength ?? 0,
@@ -173,8 +236,11 @@ export class StorageService {
    *  controller's size limit) so the parser can operate on a Buffer. */
   async downloadBuffer(tenantId: string, key: string): Promise<Buffer> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    if (this.local) {
+      return this.local.getBuffer(key);
+    }
     const result = await this.send('getObject', () =>
-      this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
+      this.s3().send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
     );
     const chunks: Uint8Array[] = [];
     if (result.Body) {
@@ -189,8 +255,11 @@ export class StorageService {
    *  DocumentVersion and used to detect upload/replacement corruption and tampering. */
   async computeObjectSha256(tenantId: string, key: string): Promise<string> {
     this.assertKeyBelongsToTenant(tenantId, key);
+    if (this.local) {
+      return this.local.sha256(key);
+    }
     const result = await this.send('getObject', () =>
-      this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
+      this.s3().send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
     );
     const hash = createHash('sha256');
     if (result.Body) {
@@ -226,6 +295,10 @@ export class StorageService {
 
 function elapsedMs(startedAt: bigint): number {
   return Number(process.hrtime.bigint() - startedAt) / 1e6;
+}
+
+function expiry(ttlSeconds: number): number {
+  return Math.floor(Date.now() / 1000) + ttlSeconds;
 }
 
 function isNotFound(error: unknown): boolean {

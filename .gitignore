@@ -30,3 +30,6 @@ coverage/
 
 # prisma
 packages/database/generated/
+
+# local object storage (STORAGE_DRIVER=local)
+.data/

@@ -142,6 +142,9 @@ export class AppModule implements NestModule {
       .exclude(
         { path: 'health', method: RequestMethod.ALL },
         { path: 'health/(.*)', method: RequestMethod.ALL },
+        // Local storage transfer endpoint: the URL is a server-signed single-purpose token (see
+        // LocalStorageController), so there is no tenant header/subdomain to resolve.
+        { path: 'storage/(.*)', method: RequestMethod.ALL },
         { path: 'metrics', method: RequestMethod.ALL },
         { path: 'api/docs', method: RequestMethod.ALL },
         { path: 'api/docs/(.*)', method: RequestMethod.ALL },
