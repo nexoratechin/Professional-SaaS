@@ -17,6 +17,8 @@
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -142,7 +144,9 @@ export class IntegrationsService {
     private readonly tenantPrisma: TenantScopedPrismaService,
     private readonly tenantContext: TenantContextService,
     private readonly auditService: AuditService,
+    @Inject(forwardRef(() => IntegrationsDispatchService))
     private readonly dispatchService: IntegrationsDispatchService,
+    @Inject(forwardRef(() => IntegrationsSyncService))
     private readonly syncService: IntegrationsSyncService,
     private readonly appConfig: AppConfigService,
     private readonly registry: IntegrationAdapterRegistry,

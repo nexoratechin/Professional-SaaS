@@ -24,7 +24,7 @@
  * operation, so at least the retries of one dispatch stay identical.
  */
 
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
@@ -56,6 +56,7 @@ const JOB_OPTIONS = {
 @Injectable()
 export class IntegrationsDispatchService {
   constructor(
+    @Inject(forwardRef(() => IntegrationsService))
     private readonly integrationsService: IntegrationsService,
     private readonly registry: IntegrationAdapterRegistry,
     private readonly auditService: AuditService,

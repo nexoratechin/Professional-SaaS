@@ -39,7 +39,7 @@ CREATE TYPE "AiDocumentClassificationStatus" AS ENUM ('PENDING', 'CLASSIFIED', '
 
 -- CreateTable
 CREATE TABLE "ai_conversations" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "owner_id" UUID NOT NULL,
     "title" TEXT NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE "ai_conversations" (
 
 -- CreateTable
 CREATE TABLE "ai_messages" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "conversation_id" UUID NOT NULL,
     "role" TEXT NOT NULL,
@@ -74,7 +74,7 @@ CREATE TABLE "ai_messages" (
 
 -- CreateTable
 CREATE TABLE "ai_query_logs" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "conversation_id" UUID,
     "message_id" UUID,
@@ -95,7 +95,7 @@ CREATE TABLE "ai_query_logs" (
 
 -- CreateTable
 CREATE TABLE "ai_feedback" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "message_id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE "ai_feedback" (
 
 -- CreateTable
 CREATE TABLE "ai_document_classifications" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "document_id" UUID NOT NULL,
     "document_version_id" UUID NOT NULL,

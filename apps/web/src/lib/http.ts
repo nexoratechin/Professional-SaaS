@@ -33,6 +33,7 @@ function resolveTenantSlug(explicit?: string): string | undefined {
 async function rawFetch(path: string, options: ApiFetchOptions): Promise<Response> {
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
+  headers.set('X-API-Version', '1');
 
   const tenantSlug = resolveTenantSlug(options.tenantSlug);
   if (tenantSlug) {

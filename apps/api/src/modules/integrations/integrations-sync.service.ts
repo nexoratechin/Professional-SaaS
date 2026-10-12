@@ -22,7 +22,7 @@
  * request; it never re-derives those rules.
  */
 
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import {
@@ -48,6 +48,7 @@ export interface CreateRunInput {
 @Injectable()
 export class IntegrationsSyncService {
   constructor(
+    @Inject(forwardRef(() => IntegrationsService))
     private readonly integrationsService: IntegrationsService,
     private readonly registry: IntegrationAdapterRegistry,
     @InjectQueue(QUEUE_NAMES.INTEGRATION_SYNC)

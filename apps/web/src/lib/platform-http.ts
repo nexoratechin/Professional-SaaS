@@ -35,6 +35,7 @@ interface PlatformApiFetchOptions extends RequestInit {
 async function rawFetch(path: string, options: PlatformApiFetchOptions): Promise<Response> {
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
+  headers.set('X-API-Version', '1');
   if (platformAccessToken && !options.skipAuth) {
     headers.set('Authorization', `Bearer ${platformAccessToken}`);
   }

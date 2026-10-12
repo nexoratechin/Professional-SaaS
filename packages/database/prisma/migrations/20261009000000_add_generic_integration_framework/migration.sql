@@ -94,7 +94,7 @@ CREATE TYPE "WebhookSignatureAlgorithm" AS ENUM (
 
 -- CreateTable
 CREATE TABLE "integrations" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "key" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -126,7 +126,7 @@ CREATE TABLE "integrations" (
 
 -- CreateTable
 CREATE TABLE "integration_webhook_endpoints" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "integration_id" UUID NOT NULL,
     "name" TEXT NOT NULL,
@@ -150,7 +150,7 @@ CREATE TABLE "integration_webhook_endpoints" (
 
 -- CreateTable
 CREATE TABLE "integration_webhook_events" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "integration_id" UUID,
     "webhook_endpoint_id" UUID NOT NULL,
@@ -171,7 +171,7 @@ CREATE TABLE "integration_webhook_events" (
 
 -- CreateTable
 CREATE TABLE "integration_operations" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "integration_id" UUID NOT NULL,
     "operation" TEXT NOT NULL,
@@ -195,7 +195,7 @@ CREATE TABLE "integration_operations" (
 
 -- CreateTable
 CREATE TABLE "integration_sync_runs" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "integration_id" UUID NOT NULL,
     "direction" "IntegrationDirection" NOT NULL,
@@ -220,7 +220,7 @@ CREATE TABLE "integration_sync_runs" (
 
 -- CreateTable
 CREATE TABLE "integration_sync_records" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "integration_id" UUID NOT NULL,
     "sync_run_id" UUID,
@@ -244,7 +244,7 @@ CREATE TABLE "integration_sync_records" (
 
 -- CreateTable
 CREATE TABLE "integration_failures" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "tenant_id" UUID NOT NULL,
     "integration_id" UUID,
     "operation_id" UUID,

@@ -59,11 +59,11 @@ ADD COLUMN     "meritScore" DOUBLE PRECISION;
 -- AlterTable
 ALTER TABLE "course_offerings" ALTER COLUMN "waitlist_capacity" DROP NOT NULL;
 
--- AlterTable
-ALTER TABLE "library_books" ALTER COLUMN "language" DROP NOT NULL;
+-- AlterTable (guarded: the library tables are created by a later migration in this repo)
+DO $$ BEGIN IF to_regclass('public.library_books') IS NOT NULL THEN ALTER TABLE "library_books" ALTER COLUMN "language" DROP NOT NULL; END IF; END $$;
 
 -- AlterTable
-ALTER TABLE "library_publishers" ALTER COLUMN "country" DROP NOT NULL;
+DO $$ BEGIN IF to_regclass('public.library_publishers') IS NOT NULL THEN ALTER TABLE "library_publishers" ALTER COLUMN "country" DROP NOT NULL; END IF; END $$;
 
 -- AlterTable
 ALTER TABLE "student_fees" ADD COLUMN     "hostel_booking_id" UUID;
