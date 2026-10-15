@@ -119,7 +119,7 @@ export class AlertingService implements OnModuleInit, OnModuleDestroy {
       ),
       // Written by the worker's backup service after every successful PostgreSQL backup; absent
       // (null) means "never recorded" and fires backup_stale when backups are expected.
-      this.redis.get(BACKUP_LAST_SUCCESS_KEYS.postgres).catch(() => null),
+      this.redis.get(BACKUP_LAST_SUCCESS_KEYS.mysql).catch(() => null),
     ]);
 
     const queues = queueOverview?.queues ?? [];
@@ -160,7 +160,7 @@ export class AlertingService implements OnModuleInit, OnModuleDestroy {
       storageFailures60m: longWindows[WINDOW_COUNTERS.storageFailures] ?? 0,
       trackedErrors15m: shortWindows[WINDOW_COUNTERS.trackedErrors] ?? 0,
       backupExpected: this.config.get('BACKUP_EXPECTED'),
-      lastPostgresBackupAt: parseEpochSeconds(lastBackupAtRaw),
+      lastMysqlBackupAt: parseEpochSeconds(lastBackupAtRaw),
       backupMaxAgeHours: this.config.get('BACKUP_MAX_AGE_HOURS'),
     };
   }

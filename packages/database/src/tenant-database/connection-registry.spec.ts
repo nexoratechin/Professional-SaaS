@@ -12,7 +12,7 @@ describe('TenantConnectionRegistry', () => {
     registry.upsert({
       tenantId: 't1',
       mode: 'DEDICATED_SCHEMA',
-      connectionUrl: 'postgresql://u:p@h/db?schema=tenant_x',
+      connectionUrl: 'mysql://u:p@h/tenant_x',
       schemaName: 'tenant_x',
       databaseName: null,
     });
@@ -52,14 +52,14 @@ describe('descriptorToTarget', () => {
       status: 'READY' as const,
       schemaName: null,
       databaseName: 'db',
-      connectionUrlEncrypted: cipher.encrypt('postgresql://u:p@h/db') as string | null,
+      connectionUrlEncrypted: cipher.encrypt('mysql://u:p@h/db') as string | null,
     };
     expect(descriptorToTarget({ ...base, status: 'PROVISIONING' }, cipher)).toBeNull();
     expect(descriptorToTarget({ ...base, connectionUrlEncrypted: null }, cipher)).toBeNull();
   });
 
   it('decrypts a READY descriptor', () => {
-    const url = 'postgresql://u:p@h/tenant_db';
+    const url = 'mysql://u:p@h/tenant_db';
     const target = descriptorToTarget(
       {
         tenantId: 't1',
@@ -84,7 +84,7 @@ describe('descriptorToTarget', () => {
           status: 'READY',
           schemaName: 's',
           databaseName: null,
-          connectionUrlEncrypted: cipher.encrypt('postgresql://u:p@h/db?schema=s'),
+          connectionUrlEncrypted: cipher.encrypt('mysql://u:p@h/db'),
         },
       ],
       cipher,

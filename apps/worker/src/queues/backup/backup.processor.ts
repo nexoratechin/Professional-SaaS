@@ -2,13 +2,13 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { processorOptions } from '@college-erp/queue';
-import type { BackupPruneJobData, PostgresBackupJobData, RedisSnapshotJobData } from '@college-erp/types';
+import type { BackupPruneJobData, MysqlBackupJobData, RedisSnapshotJobData } from '@college-erp/types';
 import { QUEUE_NAMES } from '@college-erp/types';
 import { BackupService } from './backup.service';
 
 /**
  * Backup queue processor. Job names:
- *  - `postgres-backup`   pg_dump + verify + upload + heartbeat (+ retention)
+ *  - `mysql-backup`      mysqldump + verify + upload + heartbeat (+ retention)
  *  - `redis-snapshot`    BGSAVE + persistence assessment + optional RDB export
  *  - `backup-prune`      GFS retention sweep only (scheduler-owned)
  *
@@ -23,12 +23,12 @@ export class BackupProcessor extends WorkerHost {
   }
 
   override async process(
-    job: Job<PostgresBackupJobData | RedisSnapshotJobData | BackupPruneJobData>,
+    job: Job<MysqlBackupJobData | RedisSnapshotJobData | BackupPruneJobData>,
   ): Promise<unknown> {
     switch (job.name) {
-      case 'postgres-backup': {
-        const data = (job.data ?? {}) as PostgresBackupJobData;
-        return this.backup.runPostgresBackup({
+      case 'mysql-backup': {
+        const data = (job.data ?? {}) as MysqlBackupJobData;
+        return this.backup.runMysqlBackup({
           requestedBy: data.requestedBy ?? 'schedule',
           ...(data.verifyRestore !== undefined ? { verifyRestore: data.verifyRestore } : {}),
         });

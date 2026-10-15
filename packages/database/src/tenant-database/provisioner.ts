@@ -5,7 +5,8 @@
  * TenantDatabaseService and the operator CLI) never branch on the mode themselves:
  *
  *   SHARED             no physical provisioning — the tenant keeps using the shared database.
- *   DEDICATED_SCHEMA   CREATE SCHEMA in the shared database, then a schema-scoped URL.
+ *   DEDICATED_SCHEMA   a dedicated MySQL database in the shared server (MySQL treats SCHEMA and
+ *                      DATABASE as synonyms), then a URL pointing at it.
  *   DEDICATED_DATABASE CREATE DATABASE, then a URL pointing at it.
  *
  * Both dedicated modes are then reconciled to the current Prisma schema via the injected
@@ -22,7 +23,6 @@ import {
   deriveSchemaName,
   quoteIdentifier,
   withDatabaseName,
-  withSchemaParam,
 } from './identifiers';
 import type {
   TenantConnectionTarget,
@@ -44,7 +44,7 @@ export type TenantAdminSqlRunnerFactory = (adminUrl: string) => TenantAdminSqlRu
 export interface TenantDatabaseProvisionerOptions {
   /** The shared database URL (also the base for DEDICATED_SCHEMA). */
   sharedUrl: string;
-  /** Privileged URL used to CREATE DATABASE / CREATE SCHEMA; defaults to `sharedUrl`. */
+  /** Privileged URL used to CREATE DATABASE; defaults to `sharedUrl`. */
   adminUrl?: string;
   schemaPrefix: string;
   databasePrefix: string;
@@ -151,12 +151,16 @@ export class TenantDatabaseProvisioner {
     );
     const admin = this.adminSqlRunnerFactory(this.adminUrl);
     try {
-      await admin.execute(`CREATE SCHEMA IF NOT EXISTS ${quoteIdentifier(schemaName)}`);
+      // MySQL treats CREATE SCHEMA as a synonym for CREATE DATABASE; each isolated "schema" is its
+      // own database. CREATE DATABASE cannot run inside a transaction block in MySQL either, and
+      // the raw runner executes it standalone. Identifiers are validated + quoted, never
+      // interpolated raw.
+      await admin.execute(`CREATE DATABASE IF NOT EXISTS ${quoteIdentifier(schemaName)}`);
     } finally {
       await admin.dispose();
     }
 
-    const connectionUrl = withSchemaParam(this.sharedUrl, schemaName);
+    const connectionUrl = withDatabaseName(this.sharedUrl, schemaName);
     const migration = await this.runMigrations(connectionUrl);
     return {
       mode: 'DEDICATED_SCHEMA',
@@ -178,7 +182,7 @@ export class TenantDatabaseProvisioner {
     const admin = this.adminSqlRunnerFactory(this.adminUrl);
     try {
       const exists = await admin.queryExists(
-        'SELECT 1 FROM pg_database WHERE datname = $1',
+        'SELECT 1 FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?',
         databaseName,
       );
       if (!exists) {

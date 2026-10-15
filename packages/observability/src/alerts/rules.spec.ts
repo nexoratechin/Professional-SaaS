@@ -24,7 +24,7 @@ function healthySnapshot(): AlertSignalSnapshot {
     storageFailures60m: 0,
     trackedErrors15m: 0,
     backupExpected: false,
-    lastPostgresBackupAt: null,
+    lastMysqlBackupAt: null,
     backupMaxAgeHours: 26,
   };
 }
@@ -138,31 +138,31 @@ describe('alert rules', () => {
     const fresh = nowSeconds - 3600;
 
     it('does not fire when backups are not expected in this environment', () => {
-      expect(keysFor({ backupExpected: false, lastPostgresBackupAt: null })).not.toContain('backup_stale');
+      expect(keysFor({ backupExpected: false, lastMysqlBackupAt: null })).not.toContain('backup_stale');
     });
 
     it('does not fire when the last backup is within the RPO budget', () => {
-      expect(keysFor({ backupExpected: true, lastPostgresBackupAt: fresh })).not.toContain('backup_stale');
+      expect(keysFor({ backupExpected: true, lastMysqlBackupAt: fresh })).not.toContain('backup_stale');
     });
 
     it('fires a warning after one missed window and a critical after two', () => {
       const warning = evaluateAlertRules({
         ...healthySnapshot(),
         backupExpected: true,
-        lastPostgresBackupAt: nowSeconds - 26 * 3600 - 120,
+        lastMysqlBackupAt: nowSeconds - 26 * 3600 - 120,
       });
       expect(warning.find((alert) => alert.ruleKey === 'backup_stale')?.severity).toBe('WARNING');
 
       const critical = evaluateAlertRules({
         ...healthySnapshot(),
         backupExpected: true,
-        lastPostgresBackupAt: nowSeconds - 53 * 3600,
+        lastMysqlBackupAt: nowSeconds - 53 * 3600,
       });
       expect(critical.find((alert) => alert.ruleKey === 'backup_stale')?.severity).toBe('CRITICAL');
     });
 
     it('fires critical when backups are expected but none were ever recorded', () => {
-      const alerts = evaluateAlertRules({ ...healthySnapshot(), backupExpected: true, lastPostgresBackupAt: null });
+      const alerts = evaluateAlertRules({ ...healthySnapshot(), backupExpected: true, lastMysqlBackupAt: null });
       const backup = alerts.find((alert) => alert.ruleKey === 'backup_stale');
       expect(backup?.severity).toBe('CRITICAL');
       expect(backup?.description).toMatch(/no successful backup/i);

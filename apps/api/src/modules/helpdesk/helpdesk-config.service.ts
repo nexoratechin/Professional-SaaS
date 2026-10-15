@@ -94,8 +94,8 @@ export class HelpdeskConfigService {
     const where: any = {};
     if (q.search) {
       where.OR = [
-        { name: { contains: q.search, mode: 'insensitive' } },
-        { code: { contains: q.search, mode: 'insensitive' } },
+        { name: { contains: q.search } },
+        { code: { contains: q.search } },
       ];
     }
     return this.page(this.db.helpdeskDepartment, where, { name: 'asc' }, q.skip ?? 0, q.take ?? 50, {
@@ -158,8 +158,8 @@ export class HelpdeskConfigService {
     const where: any = {};
     if (q.search) {
       where.OR = [
-        { name: { contains: q.search, mode: 'insensitive' } },
-        { code: { contains: q.search, mode: 'insensitive' } },
+        { name: { contains: q.search } },
+        { code: { contains: q.search } },
       ];
     }
     return this.page(this.db.helpdeskCategory, where, [{ sequenceOrder: 'asc' }, { name: 'asc' }], q.skip ?? 0, q.take ?? 100, {
@@ -237,8 +237,8 @@ export class HelpdeskConfigService {
     const where: any = {};
     if (q.search) {
       where.OR = [
-        { name: { contains: q.search, mode: 'insensitive' } },
-        { code: { contains: q.search, mode: 'insensitive' } },
+        { name: { contains: q.search } },
+        { code: { contains: q.search } },
       ];
     }
     return this.page(this.db.helpdeskSlaPolicy, where, { name: 'asc' }, q.skip ?? 0, q.take ?? 50, {

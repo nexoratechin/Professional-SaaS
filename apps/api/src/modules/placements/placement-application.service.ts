@@ -747,8 +747,8 @@ export class PlacementApplicationService {
     if (query.status) where.status = query.status;
     if (query.search) {
       where.OR = [
-        { offerLetterNumber: { contains: query.search, mode: 'insensitive' } },
-        { student: { fullName: { contains: query.search, mode: 'insensitive' } } },
+        { offerLetterNumber: { contains: query.search } },
+        { student: { fullName: { contains: query.search } } },
       ];
     }
     if (studentWhere) where.student = studentWhere;

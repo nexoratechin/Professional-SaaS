@@ -2,7 +2,7 @@
 
 Structured logs, metrics, health probes, error tracking and alerting for the API and the worker.
 Implemented by `@college-erp/observability` (a dependency-free shared package) with thin per-app
-wiring — no new infrastructure services: everything rides on PostgreSQL, Redis and the existing
+wiring — no new infrastructure services: everything rides on MySQL, Redis and the existing
 local services.
 
 ```
@@ -181,7 +181,7 @@ Suggested first alerts on top of the exported series (belt-and-braces to the bui
 `up == 0` per job, `rate(college_erp_http_request_duration_seconds_sum[5m]) /
 rate(college_erp_http_request_duration_seconds_count[5m]) > 1`,
 `college_erp_queue_dead_letter_backlog > 0`,
-`time() - college_erp_backup_last_success_timestamp_seconds{kind="postgres"} > 26*3600`.
+`time() - college_erp_backup_last_success_timestamp_seconds{kind="mysql"} > 26*3600`.
 
 ## 8. Runbook cheat-sheet
 

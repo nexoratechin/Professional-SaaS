@@ -260,7 +260,7 @@ export class TenantDatabaseService {
         `Choose a target store name (schema or database) for tenant "${tenant.slug}".`,
         'Run POST /tenants/:id/database/provision after setting the isolation mode (empty tenants only).',
         hasBusinessData
-          ? 'This tenant already holds data: provision the store, then copy its rows with your Postgres tooling during a maintenance window (the API will not move them automatically).'
+          ? 'This tenant already holds data: provision the store, then copy its rows with your MySQL tooling during a maintenance window (the API will not move them automatically).'
           : 'This tenant holds no business data: it can be provisioned directly.',
         'Re-run POST /tenants/:id/database/migrate after each release that changes schema.prisma.',
       ],

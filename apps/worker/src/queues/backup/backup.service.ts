@@ -18,16 +18,16 @@ import {
   buildScratchDatabaseName,
   computeBufferSha256,
   createBackupManifest,
-  createPostgresBackup,
-  defaultPostgresProbes,
+  createMysqlBackup,
+  defaultMysqlProbes,
   dropDatabase,
   parseBackupIdTimestamp,
   planRetention,
-  restorePostgresBackup,
+  restoreMysqlBackup,
   runIntegrityProbes,
   serializeBackupManifest,
   toAdminDatabaseUrl,
-  verifyPostgresArchive,
+  verifyMysqlDump,
   type BackupManifest,
   type BackupProbeResult,
   type BackupVerification,
@@ -37,16 +37,16 @@ import { WORKER_REDIS_CLIENT } from '../../common/observability/redis.constants'
 import { WorkerStorageService } from '../../common/storage/worker-storage.service';
 import { AppConfigService } from '../../config/app-config.service';
 
-type BackupKindLabel = 'postgres' | 'redis';
+type BackupKindLabel = 'mysql' | 'redis';
 
 /**
  * Backup orchestration for the worker.
  *
- * The heavy lifting (pg_dump, TOC verification, restore into a scratch database, Redis snapshots,
- * GFS retention) lives in `@college-erp/backup`; this service binds it to configuration, object
- * storage, Redis and the metrics/alerting pipeline:
+ * The heavy lifting (mysqldump, dump verification, restore into a scratch database, Redis
+ * snapshots, GFS retention) lives in `@college-erp/backup`; this service binds it to configuration,
+ * object storage, Redis and the metrics/alerting pipeline:
  *
- *   pg_dump -> TOC verify -> [optional restore verify] -> upload archive + manifest to S3
+ *   mysqldump -> structure verify -> [optional restore verify] -> upload dump + manifest to S3
  *          -> record last-success heartbeat (the API's backup_stale alert reads it)
  *          -> prune archives per the GFS retention policy
  *
@@ -63,31 +63,29 @@ export class BackupService {
     @Inject(WORKER_REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
-  /** Full PostgreSQL backup + verification + upload + heartbeat + retention. */
-  async runPostgresBackup(options: { verifyRestore?: boolean; requestedBy?: string } = {}): Promise<BackupManifest> {
+  /** Full MySQL backup + verification + upload + heartbeat + retention. */
+  async runMysqlBackup(options: { verifyRestore?: boolean; requestedBy?: string } = {}): Promise<BackupManifest> {
     const startedAt = Date.now();
     const environment = this.environment();
     const prefix = this.config.get('BACKUP_S3_PREFIX');
     const id = buildBackupId();
-    const objectKey = buildBackupObjectKey({ prefix, environment, kind: 'POSTGRES_FULL', id, extension: 'dump' });
-    const manifestKey = buildManifestObjectKey({ prefix, environment, kind: 'POSTGRES_FULL', id });
+    const objectKey = buildBackupObjectKey({ prefix, environment, kind: 'MYSQL_FULL', id, extension: 'sql' });
+    const manifestKey = buildManifestObjectKey({ prefix, environment, kind: 'MYSQL_FULL', id });
     const workDir = await mkdtemp(join(tmpdir(), 'college-erp-backup-'));
-    const archivePath = join(workDir, `${id}.dump`);
+    const archivePath = join(workDir, `${id}.sql`);
 
     try {
-      this.logger.log(`PostgreSQL backup ${id} starting (environment=${environment}, requestedBy=${options.requestedBy ?? 'schedule'}).`);
-      const backup = await createPostgresBackup({
+      this.logger.log(`MySQL backup ${id} starting (environment=${environment}, requestedBy=${options.requestedBy ?? 'schedule'}).`);
+      const backup = await createMysqlBackup({
         databaseUrl: this.config.get('DATABASE_URL'),
         outputPath: archivePath,
-        ...(this.config.get('BACKUP_PG_DUMP_PATH') ? { pgDumpPath: this.config.get('BACKUP_PG_DUMP_PATH') } : {}),
+        ...(this.config.get('BACKUP_MYSQLDUMP_PATH') ? { mysqldumpPath: this.config.get('BACKUP_MYSQLDUMP_PATH') } : {}),
+        ...(this.config.get('BACKUP_MYSQL_PATH') ? { mysqlPath: this.config.get('BACKUP_MYSQL_PATH') } : {}),
         timeoutMs: this.config.get('BACKUP_TIMEOUT_MS'),
       });
 
-      const toc = await verifyPostgresArchive({
-        archivePath,
-        ...(this.config.get('BACKUP_PG_RESTORE_PATH') ? { pgRestorePath: this.config.get('BACKUP_PG_RESTORE_PATH') } : {}),
-      });
-      recordBackupVerification('postgres', 'toc', toc.ok);
+      const toc = await verifyMysqlDump({ dumpPath: archivePath });
+      recordBackupVerification('mysql', 'toc', toc.ok);
       if (!toc.ok) {
         throw new Error(`Backup ${id} failed structure verification: ${toc.error ?? 'unknown reason'}`);
       }
@@ -105,8 +103,8 @@ export class BackupService {
 
       const manifest = createBackupManifest({
         id,
-        kind: 'POSTGRES_FULL',
-        format: 'pg-custom',
+        kind: 'MYSQL_FULL',
+        format: 'mysql-sql',
         environment,
         databaseName: backup.databaseName,
         objectKey,
@@ -124,22 +122,22 @@ export class BackupService {
       await this.storage.uploadSystemBuffer(manifestKey, Buffer.from(serializeBackupManifest(manifest)), 'application/json');
 
       const nowSeconds = Math.floor(Date.now() / 1000);
-      await this.redis.set(BACKUP_LAST_SUCCESS_KEYS.postgres, String(nowSeconds), 'EX', BACKUP_LAST_SUCCESS_TTL_SECONDS);
-      recordBackupEvent('postgres', 'success', backup.sizeBytes);
-      setBackupLastSuccess('postgres', nowSeconds);
+      await this.redis.set(BACKUP_LAST_SUCCESS_KEYS.mysql, String(nowSeconds), 'EX', BACKUP_LAST_SUCCESS_TTL_SECONDS);
+      recordBackupEvent('mysql', 'success', backup.sizeBytes);
+      setBackupLastSuccess('mysql', nowSeconds);
       this.logger.log(
-        `PostgreSQL backup ${id} complete: ${(backup.sizeBytes / 1024 / 1024).toFixed(2)} MiB, ` +
+        `MySQL backup ${id} complete: ${(backup.sizeBytes / 1024 / 1024).toFixed(2)} MiB, ` +
           `${toc.tableCount} table(s), verification=${verification.method}/${verification.ok ? 'ok' : 'failed'}, ` +
           `duration=${((Date.now() - startedAt) / 1000).toFixed(1)}s.`,
       );
 
-      await this.pruneRetention('postgres').catch((error: unknown) => {
+      await this.pruneRetention('mysql').catch((error: unknown) => {
         this.logger.warn(`Retention prune failed after backup ${id}: ${describe(error)}`);
       });
       return manifest;
     } catch (error) {
-      recordBackupEvent('postgres', 'failure');
-      this.logger.error(`PostgreSQL backup ${id} FAILED: ${describe(error)}`);
+      recordBackupEvent('mysql', 'failure');
+      this.logger.error(`MySQL backup ${id} FAILED: ${describe(error)}`);
       throw error;
     } finally {
       await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
@@ -242,14 +240,14 @@ export class BackupService {
 
   /** GFS retention for both archive kinds. */
   async pruneAll(): Promise<void> {
-    await this.pruneRetention('postgres');
+    await this.pruneRetention('mysql');
     await this.pruneRetention('redis');
   }
 
   private async pruneRetention(kind: BackupKindLabel): Promise<void> {
     const prefix = `${this.config.get('BACKUP_S3_PREFIX')}/${this.environment()}/${kind}/`;
     const objects = await this.storage.listSystemObjects(prefix);
-    const extension = kind === 'postgres' ? '.dump' : '.rdb';
+    const extension = kind === 'mysql' ? '.sql' : '.rdb';
     const archives = objects.filter((object) => object.key.endsWith(extension));
     const entries = archives.map((object) => ({
       key: object.key,
@@ -289,22 +287,21 @@ export class BackupService {
 
     let verificationRecorded = false;
     try {
-      await restorePostgresBackup({
-        archivePath,
+      await restoreMysqlBackup({
+        dumpPath: archivePath,
         targetDatabaseUrl: targetUrl,
         create: true,
         adminDatabaseUrl: adminUrl,
-        ...(this.config.get('BACKUP_PG_RESTORE_PATH') ? { pgRestorePath: this.config.get('BACKUP_PG_RESTORE_PATH') } : {}),
-        ...(this.config.get('BACKUP_PSQL_PATH') ? { psqlPath: this.config.get('BACKUP_PSQL_PATH') } : {}),
+        ...(this.config.get('BACKUP_MYSQL_PATH') ? { mysqlPath: this.config.get('BACKUP_MYSQL_PATH') } : {}),
         timeoutMs: this.config.get('BACKUP_TIMEOUT_MS'),
       });
       const probes = await runIntegrityProbes({
         databaseUrl: targetUrl,
-        probes: defaultPostgresProbes(),
-        ...(this.config.get('BACKUP_PSQL_PATH') ? { psqlPath: this.config.get('BACKUP_PSQL_PATH') } : {}),
+        probes: defaultMysqlProbes(),
+        ...(this.config.get('BACKUP_MYSQL_PATH') ? { mysqlPath: this.config.get('BACKUP_MYSQL_PATH') } : {}),
       });
       const ok = probes.every((probe) => probe.ok);
-      recordBackupVerification('postgres', 'restore', ok);
+      recordBackupVerification('mysql', 'restore', ok);
       verificationRecorded = true;
       const result: BackupProbeResult[] = probes.map((probe) => ({
         name: probe.name,
@@ -334,14 +331,14 @@ export class BackupService {
       };
     } catch (error) {
       if (!verificationRecorded) {
-        recordBackupVerification('postgres', 'restore', false);
+        recordBackupVerification('mysql', 'restore', false);
       }
       throw error;
     } finally {
       await dropDatabase({
         adminDatabaseUrl: adminUrl,
         name: scratchName,
-        ...(this.config.get('BACKUP_PSQL_PATH') ? { psqlPath: this.config.get('BACKUP_PSQL_PATH') } : {}),
+        ...(this.config.get('BACKUP_MYSQL_PATH') ? { mysqlPath: this.config.get('BACKUP_MYSQL_PATH') } : {}),
       }).catch((error: unknown) => {
         this.logger.warn(`Could not drop scratch database ${scratchName}: ${describe(error)}`);
       });

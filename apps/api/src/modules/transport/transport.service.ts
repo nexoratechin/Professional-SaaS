@@ -219,8 +219,8 @@ export class TransportService {
         { tenantId },
         ...(search?.trim()
           ? [{ OR: [
-              { fullName: { contains: search.trim(), mode: 'insensitive' } },
-              { email: { contains: search.trim(), mode: 'insensitive' } },
+              { fullName: { contains: search.trim() } },
+              { email: { contains: search.trim() } },
             ] }]
           : []),
       ],
@@ -240,9 +240,9 @@ export class TransportService {
       const q = search.trim();
       where.AND.push({
         OR: [
-          { fullName: { contains: q, mode: 'insensitive' } },
-          { admissionNumber: { contains: q, mode: 'insensitive' } },
-          { rollNumber: { contains: q, mode: 'insensitive' } },
+          { fullName: { contains: q } },
+          { admissionNumber: { contains: q } },
+          { rollNumber: { contains: q } },
         ],
       });
     }
@@ -265,9 +265,9 @@ export class TransportService {
     };
     if (query.search?.trim()) {
       where.OR = [
-        { registrationNumber: { contains: query.search.trim(), mode: 'insensitive' } },
-        { make: { contains: query.search.trim(), mode: 'insensitive' } },
-        { model: { contains: query.search.trim(), mode: 'insensitive' } },
+        { registrationNumber: { contains: query.search.trim() } },
+        { make: { contains: query.search.trim() } },
+        { model: { contains: query.search.trim() } },
       ];
     }
     const [data, total] = await Promise.all([
@@ -472,9 +472,9 @@ export class TransportService {
     };
     if (query.search?.trim()) {
       where.OR = [
-        { name: { contains: query.search.trim(), mode: 'insensitive' } },
-        { licenseNumber: { contains: query.search.trim(), mode: 'insensitive' } },
-        { phone: { contains: query.search.trim(), mode: 'insensitive' } },
+        { name: { contains: query.search.trim() } },
+        { licenseNumber: { contains: query.search.trim() } },
+        { phone: { contains: query.search.trim() } },
       ];
     }
     const [data, total] = await Promise.all([
@@ -620,8 +620,8 @@ export class TransportService {
     };
     if (query.search?.trim()) {
       where.OR = [
-        { code: { contains: query.search.trim(), mode: 'insensitive' } },
-        { name: { contains: query.search.trim(), mode: 'insensitive' } },
+        { code: { contains: query.search.trim() } },
+        { name: { contains: query.search.trim() } },
       ];
     }
     const include: any = {

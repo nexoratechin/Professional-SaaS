@@ -3,7 +3,7 @@ import {
   type TenantAdminSqlRunner,
 } from './provisioner';
 
-const SHARED_URL = 'postgresql://u:p@localhost:5432/shared';
+const SHARED_URL = 'mysql://u:p@localhost:3306/shared';
 
 function makeProvisioner(overrides: {
   migrationMode?: 'auto' | 'manual';
@@ -43,16 +43,16 @@ describe('TenantDatabaseProvisioner', () => {
     expect(applied).toHaveLength(0);
   });
 
-  it('creates a schema and applies migrations for DEDICATED_SCHEMA', async () => {
+  it('creates a dedicated database and applies migrations for DEDICATED_SCHEMA', async () => {
     const { provisioner, executed, applied } = makeProvisioner({});
     const result = await provisioner.provision({
       tenantId: 't1',
       slug: 'acme-college',
       mode: 'DEDICATED_SCHEMA',
     });
-    expect(executed[0]).toBe('CREATE SCHEMA IF NOT EXISTS "tenant_acme_college"');
+    expect(executed[0]).toBe('CREATE DATABASE IF NOT EXISTS `tenant_acme_college`');
     expect(result.schemaName).toBe('tenant_acme_college');
-    expect(new URL(result.connectionUrl).searchParams.get('schema')).toBe('tenant_acme_college');
+    expect(new URL(result.connectionUrl).pathname).toBe('/tenant_acme_college');
     expect(applied).toHaveLength(1);
     expect(result.migrationsApplied).toBe(true);
   });
@@ -75,7 +75,7 @@ describe('TenantDatabaseProvisioner', () => {
       slug: 'acme',
       mode: 'DEDICATED_SCHEMA',
     });
-    expect(executed[0]).toContain('CREATE SCHEMA');
+    expect(executed[0]).toContain('CREATE DATABASE');
     expect(applied).toHaveLength(0);
     expect(result.migrationsApplied).toBe(false);
   });

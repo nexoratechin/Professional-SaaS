@@ -104,7 +104,7 @@ export class GlobalSearchService {
 
     // 1. The caller's own past queries, prefix-matched — cheapest and usually most useful.
     const recents = await this.tenantPrisma.client.searchHistory.findMany({
-      where: { userId, query: { startsWith: query, mode: 'insensitive' } },
+      where: { userId, query: { startsWith: query } },
       orderBy: { lastSearchedAt: 'desc' },
       take: limit,
       select: { id: true, query: true },
@@ -159,7 +159,10 @@ export class GlobalSearchService {
     const data: RecentSearchDto[] = rows.map((row) => ({
       id: row.id,
       query: row.query,
-      types: row.types.length > 0 ? (row.types as GlobalSearchEntityType[]) : null,
+      types:
+        Array.isArray(row.types) && row.types.length > 0
+          ? (row.types as GlobalSearchEntityType[])
+          : null,
       resultCount: row.resultCount,
       createdAt: row.createdAt.toISOString(),
     }));
@@ -196,7 +199,7 @@ export class GlobalSearchService {
   ): Promise<void> {
     try {
       const existing = await this.tenantPrisma.client.searchHistory.findFirst({
-        where: { userId, query: { equals: query, mode: 'insensitive' } },
+        where: { userId, query: { equals: query } },
         select: { id: true },
       });
 

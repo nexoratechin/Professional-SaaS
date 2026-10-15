@@ -11,9 +11,9 @@ import { createReadStream } from 'node:fs';
 export const BACKUP_MANIFEST_VERSION = 1 as const;
 export const DEFAULT_BACKUP_PREFIX = 'backups';
 
-export type BackupKind = 'POSTGRES_FULL' | 'REDIS_SNAPSHOT';
+export type BackupKind = 'MYSQL_FULL' | 'REDIS_SNAPSHOT';
 
-export type BackupFormat = 'pg-custom' | 'redis-rdb' | 'redis-info';
+export type BackupFormat = 'mysql-sql' | 'redis-rdb' | 'redis-info';
 
 /** One integrity probe result recorded by a restore verification run. */
 export interface BackupProbeResult {
@@ -53,7 +53,7 @@ export interface BackupManifest {
   sizeBytes: number;
   /** SHA-256 of the archive bytes — verified before every restore. */
   sha256: string;
-  /** `pg_dump --version` output where applicable. */
+  /** `mysqldump --version` output where applicable. */
   toolVersion?: string;
   /** `server_version` reported by the database where applicable. */
   serverVersion?: string;
@@ -103,7 +103,7 @@ export function sanitizeEnvironmentName(name: string): string {
 }
 
 function kindSegment(kind: BackupKind): string {
-  return kind === 'POSTGRES_FULL' ? 'postgres' : 'redis';
+  return kind === 'MYSQL_FULL' ? 'mysql' : 'redis';
 }
 
 export interface BackupObjectKeyInput {
@@ -117,7 +117,7 @@ export interface BackupObjectKeyInput {
 
 /**
  * Object key for one backup archive:
- * `backups/<environment>/<postgres|redis>/<yyyy>/<mm>/<dd>/<id>.<ext>`
+ * `backups/<environment>/<mysql|redis>/<yyyy>/<mm>/<dd>/<id>.<ext>`
  *
  * Date-partitioned so retention listing and lifecycle rules can act on prefixes; the id keeps the
  * archive and its manifest adjacent.
@@ -178,7 +178,7 @@ export function parseBackupManifest(json: string): BackupManifest {
       throw new Error(`Backup manifest is missing required string field "${field}".`);
     }
   }
-  if (candidate.kind !== 'POSTGRES_FULL' && candidate.kind !== 'REDIS_SNAPSHOT') {
+  if (candidate.kind !== 'MYSQL_FULL' && candidate.kind !== 'REDIS_SNAPSHOT') {
     throw new Error(`Unknown backup kind "${String(candidate.kind)}".`);
   }
   if (!SHA256_PATTERN.test(candidate.sha256 as string)) {

@@ -103,7 +103,7 @@ export class TenantsService {
     const where: Prisma.TenantWhereInput = {
       status: query.status,
       ...(query.q
-        ? { OR: [{ slug: { contains: query.q, mode: 'insensitive' } }, { name: { contains: query.q, mode: 'insensitive' } }] }
+        ? { OR: [{ slug: { contains: query.q } }, { name: { contains: query.q } }] }
         : {}),
     };
 

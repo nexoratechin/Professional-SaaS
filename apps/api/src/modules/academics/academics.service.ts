@@ -221,7 +221,7 @@ export class AcademicsService {
       ...(scope ?? {}),
     };
     if (query.search) {
-      where.OR = [{ code: { contains: query.search, mode: 'insensitive' } }, { name: { contains: query.search, mode: 'insensitive' } }];
+      where.OR = [{ code: { contains: query.search } }, { name: { contains: query.search } }];
     }
     const [items, total] = await Promise.all([
       (this.tenantPrisma.client as Client).course.findMany({
@@ -366,7 +366,7 @@ export class AcademicsService {
       ...(scope ?? {}),
     };
     if (query.search) {
-      where.OR = [{ code: { contains: query.search, mode: 'insensitive' } }, { name: { contains: query.search, mode: 'insensitive' } }];
+      where.OR = [{ code: { contains: query.search } }, { name: { contains: query.search } }];
     }
     const [items, total] = await Promise.all([
       (this.tenantPrisma.client as Client).curriculum.findMany({
@@ -673,9 +673,9 @@ export class AcademicsService {
     };
     if (query.search) {
       where.OR = [
-        { code: { contains: query.search, mode: 'insensitive' } },
-        { course: { name: { contains: query.search, mode: 'insensitive' } } },
-        { course: { code: { contains: query.search, mode: 'insensitive' } } },
+        { code: { contains: query.search } },
+        { course: { name: { contains: query.search } } },
+        { course: { code: { contains: query.search } } },
       ];
     }
     const [items, total] = await Promise.all([
@@ -1195,9 +1195,9 @@ export class AcademicsService {
     };
     if (query.search) {
       where.OR = [
-        { student: { fullName: { contains: query.search, mode: 'insensitive' } } },
-        { courseOffering: { code: { contains: query.search, mode: 'insensitive' } } },
-        { courseOffering: { course: { name: { contains: query.search, mode: 'insensitive' } } } },
+        { student: { fullName: { contains: query.search } } },
+        { courseOffering: { code: { contains: query.search } } },
+        { courseOffering: { course: { name: { contains: query.search } } } },
       ];
     }
     const [items, total] = await Promise.all([

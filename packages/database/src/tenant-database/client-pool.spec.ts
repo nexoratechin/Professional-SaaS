@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { TenantPrismaClientPool } from './client-pool';
 
-const SHARED_URL = 'postgresql://u:p@localhost:5432/shared';
+const SHARED_URL = 'mysql://u:p@localhost:3306/shared';
 
 function fakeSharedClient(): PrismaClient {
   return { $disconnect: async () => undefined } as unknown as PrismaClient;
@@ -17,7 +17,7 @@ describe('TenantPrismaClientPool', () => {
 
   it('caches a dedicated client per URL', () => {
     const pool = new TenantPrismaClientPool({ sharedClient: fakeSharedClient(), sharedUrl: SHARED_URL });
-    const url = 'postgresql://u:p@localhost:5432/tenant_a';
+    const url = 'mysql://u:p@localhost:3306/tenant_a';
     const first = pool.getClient(url);
     const second = pool.getClient(url);
     expect(first).toBe(second);
@@ -30,8 +30,8 @@ describe('TenantPrismaClientPool', () => {
       sharedUrl: SHARED_URL,
       maxClients: 1,
     });
-    pool.getClient('postgresql://u:p@localhost:5432/a');
-    pool.getClient('postgresql://u:p@localhost:5432/b');
+    pool.getClient('mysql://u:p@localhost:3306/a');
+    pool.getClient('mysql://u:p@localhost:3306/b');
     expect(pool.size).toBe(1);
     await pool.disconnectAll();
     expect(pool.size).toBe(0);

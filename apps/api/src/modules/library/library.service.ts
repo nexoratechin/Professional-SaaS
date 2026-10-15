@@ -441,8 +441,8 @@ export class LibraryService {
       ...(query.search
         ? {
             OR: [
-              { title: { contains: query.search, mode: 'insensitive' } },
-              { isbn: { contains: query.search, mode: 'insensitive' } },
+              { title: { contains: query.search } },
+              { isbn: { contains: query.search } },
             ],
           }
         : {}),
@@ -576,8 +576,8 @@ export class LibraryService {
       ...(query.search
         ? {
             OR: [
-              { barcode: { contains: query.search, mode: 'insensitive' } },
-              { accessionNumber: { contains: query.search, mode: 'insensitive' } },
+              { barcode: { contains: query.search } },
+              { accessionNumber: { contains: query.search } },
             ],
           }
         : {}),
@@ -768,9 +768,9 @@ export class LibraryService {
       ...(query.search
         ? {
             OR: [
-              { fullName: { contains: query.search, mode: 'insensitive' } },
-              { memberNumber: { contains: query.search, mode: 'insensitive' } },
-              { email: { contains: query.search, mode: 'insensitive' } },
+              { fullName: { contains: query.search } },
+              { memberNumber: { contains: query.search } },
+              { email: { contains: query.search } },
             ],
           }
         : {}),
@@ -925,9 +925,9 @@ export class LibraryService {
     if (query.search) {
       clauses.push({
         OR: [
-          { itemTitle: { contains: query.search, mode: 'insensitive' } },
-          { itemCode: { contains: query.search, mode: 'insensitive' } },
-          { member: { OR: [{ fullName: { contains: query.search, mode: 'insensitive' } }, { memberNumber: { contains: query.search, mode: 'insensitive' } }] } },
+          { itemTitle: { contains: query.search } },
+          { itemCode: { contains: query.search } },
+          { member: { OR: [{ fullName: { contains: query.search } }, { memberNumber: { contains: query.search } }] } },
         ],
       });
     }

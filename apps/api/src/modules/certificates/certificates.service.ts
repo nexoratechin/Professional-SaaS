@@ -153,7 +153,7 @@ export class CertificatesService {
       tenantId,
       ...(query.type ? { certificateType: query.type as CertificateType } : {}),
       ...(query.search
-        ? { OR: [{ name: { contains: query.search, mode: 'insensitive' } }, { code: { contains: query.search, mode: 'insensitive' } }] }
+        ? { OR: [{ name: { contains: query.search } }, { code: { contains: query.search } }] }
         : {}),
     };
     const items = await this.client().certificateTemplate.findMany({
@@ -784,14 +784,14 @@ export class CertificatesService {
       ...(query.search
         ? {
             OR: [
-              { certificateNumber: { contains: query.search, mode: 'insensitive' } },
-              { title: { contains: query.search, mode: 'insensitive' } },
+              { certificateNumber: { contains: query.search } },
+              { title: { contains: query.search } },
               {
                 student: {
                   OR: [
-                    { fullName: { contains: query.search, mode: 'insensitive' } },
-                    { admissionNumber: { contains: query.search, mode: 'insensitive' } },
-                    { rollNumber: { contains: query.search, mode: 'insensitive' } },
+                    { fullName: { contains: query.search } },
+                    { admissionNumber: { contains: query.search } },
+                    { rollNumber: { contains: query.search } },
                   ],
                 },
               },

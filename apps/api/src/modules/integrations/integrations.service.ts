@@ -189,9 +189,9 @@ export class IntegrationsService {
       ...(query.search
         ? {
             OR: [
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { key: { contains: query.search, mode: 'insensitive' } },
-              { provider: { contains: query.search, mode: 'insensitive' } },
+              { name: { contains: query.search } },
+              { key: { contains: query.search } },
+              { provider: { contains: query.search } },
             ],
           }
         : {}),
@@ -1020,7 +1020,8 @@ export class IntegrationsService {
       integrationId: string;
       name: string;
       pathToken: string;
-      eventTypes: string[];
+      // Stored as JSON (MySQL has no native string arrays); coerced back to string[] below.
+      eventTypes: Prisma.JsonValue;
       signatureHeader: string;
       signatureAlgorithm: string;
       signatureToleranceSecs: number;
@@ -1039,7 +1040,7 @@ export class IntegrationsService {
       // The full public URL an operator pastes into the provider's dashboard. pathToken is random,
       // so publishing it is the intended disclosure — the signing secret is what protects it.
       pathToken: row.pathToken,
-      eventTypes: row.eventTypes,
+      eventTypes: Array.isArray(row.eventTypes) ? (row.eventTypes as string[]) : [],
       signatureHeader: row.signatureHeader,
       signatureAlgorithm: row.signatureAlgorithm,
       signatureToleranceSecs: row.signatureToleranceSecs,

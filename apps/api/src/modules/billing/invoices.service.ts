@@ -43,7 +43,7 @@ export class InvoicesService {
   ) {}
 
   /** Atomic, race-free invoice number allocation: UPDATE … increment returns the new sequence
-   *  value, and the caller uses newValue - 1 as this invoice's sequence. Postgres row-locks the
+   *  value, and the caller uses newValue - 1 as this invoice's sequence. MySQL row-locks the
    *  billing_config row, so two concurrent generators can never claim the same number. */
   private async allocateInvoiceNumber(tx: Prisma.TransactionClient, now: Date): Promise<string> {
     const updated = await tx.billingConfig.update({

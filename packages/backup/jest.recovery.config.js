@@ -1,7 +1,7 @@
 /**
- * Automated recovery tests: real pg_dump -> pg_restore -> integrity verification against a live
- * PostgreSQL server. Separate from the default (unit) suite because it needs `pg_dump`, `pg_restore`
- * and `psql` on PATH plus a database it may write to (`RECOVERY_TEST_DATABASE_URL`, falling back to
+ * Automated recovery tests: real mysqldump -> mysql restore -> integrity verification against a live
+ * MySQL server. Separate from the default (unit) suite because it needs `mysqldump` and `mysql`
+ * on PATH plus a database it may write to (`RECOVERY_TEST_DATABASE_URL`, falling back to
  * `DATABASE_URL`). Tests self-skip when either is missing — see docs/backup-recovery.md.
  *
  * @type {import('jest').Config}

@@ -1,6 +1,6 @@
 # Enterprise database isolation
 
-The platform's default data-isolation model is **shared PostgreSQL + `tenant_id`**: every
+The platform's default data-isolation model is **shared MySQL + `tenant_id`**: every
 tenant-owned table carries a required, indexed, FK'd `tenant_id`, and
 `packages/database/src/client.ts` enforces that filter mechanically (a Prisma extension derived
 from the Prisma DMMF, not per-model hand-written code).
@@ -11,8 +11,8 @@ and does **not** change the default for anyone:
 | Mode | Physical store | When to use |
 | --- | --- | --- |
 | `SHARED` (default) | Shared database, rows filtered by `tenant_id` | Everyone, unless they ask otherwise |
-| `DEDICATED_SCHEMA` | The tenant's tables live in their own Postgres schema in the shared database | Enterprise tenants who need logical isolation without a separate DB |
-| `DEDICATED_DATABASE` | The tenant's tables live in their own Postgres database | Enterprise tenants with a regulatory/contractual requirement for physical separation |
+| `DEDICATED_SCHEMA` | The tenant's tables live in their own MySQL database in the shared server (MySQL treats *schema* and *database* as synonyms) | Enterprise tenants who need logical isolation without a separate server |
+| `DEDICATED_DATABASE` | The tenant's tables live in their own MySQL database | Enterprise tenants with a regulatory/contractual requirement for physical separation |
 
 The mode is stored on `tenants.data_isolation_mode` (fast path for request routing) and the
 physical-store metadata on the `tenant_databases` table (connection URL encrypted at rest,
@@ -24,7 +24,7 @@ provisioning status, last migration).
 and directly by the worker) consults `TenantConnectionRegistry`:
 
 - No entry (or `SHARED`) → the shared client, exactly as before.
-- A `DEDICATED_*` entry → a pooled `PrismaClient` bound to that tenant's schema/database, still
+- A `DEDICATED_*` entry → a pooled `PrismaClient` bound to that tenant's database, still
   wrapped with the same tenant-guard extension (defence in depth: the guard keeps applying even
   when the store holds a single tenant).
 
@@ -44,8 +44,8 @@ The registry is populated:
 Provisioning is the `TenantDatabaseProvisioner` abstraction in `packages/database`:
 
 1. `SHARED` → no-op.
-2. `DEDICATED_SCHEMA` → `CREATE SCHEMA IF NOT EXISTS`, then a schema-scoped connection URL.
-3. `DEDICATED_DATABASE` → `CREATE DATABASE`, then a connection URL pointing at the new database.
+2. `DEDICATED_SCHEMA` → `CREATE DATABASE IF NOT EXISTS <tenant db>` (MySQL schema = database), then a connection URL pointing at it.
+3. `DEDICATED_DATABASE` → `CREATE DATABASE <tenant db>` (guarded by an `information_schema.SCHEMATA` existence check), then a connection URL pointing at it.
 
 Both dedicated modes are then brought up to the current Prisma schema and seeded with the global
 catalog (permissions, feature flags, plans, plan modules, billing config) plus the tenant's own
@@ -54,8 +54,8 @@ catalog (permissions, feature flags, plans, plan modules, billing config) plus t
 ## Migration strategy for enterprise stores
 
 Enterprise stores do **not** replay the historical `prisma/migrations` files. That history is
-`public`-schema-qualified in places (e.g. `20260928000000_fix_actor_id_columns`) and is written
-for the shared database. Instead the store is reconciled against the current `schema.prisma`:
+written for the shared database and is not schema-qualified for a per-tenant store. Instead the
+store is reconciled against the current `schema.prisma`:
 
 - **Baseline / apply** — `prisma migrate diff --from-url <store> --to-schema-datamodel
   prisma/schema.prisma --script` produces exactly the DDL the store is missing (the full schema
@@ -72,7 +72,7 @@ for the shared database. Instead the store is reconciled against the current `sc
 Existing tenants remain `SHARED` forever unless an operator explicitly provisions a store for
 them. `GET /tenants/:id/data-isolation/plan` returns a read-only cutover plan. Moving a tenant
 that already holds business data to a dedicated store is a deliberate, operator-run procedure
-(provision the store, then copy the tenant's rows with the operator's Postgres tooling during a
+(provision the store, then copy the tenant's rows with the operator's MySQL tooling during a
 maintenance window) — the API refuses to flip an existing tenant with data automatically so it
 can never half-move a live tenant.
 

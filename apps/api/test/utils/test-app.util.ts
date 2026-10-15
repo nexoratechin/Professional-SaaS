@@ -4,7 +4,7 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from '../../src/app.module';
 
 /** Boots the full Nest app the same way main.ts does (minus listen()), against whatever
- * DATABASE_URL/REDIS_URL/JWT_* the test process has — a real Postgres + Redis (local or CI) is
+ * DATABASE_URL/REDIS_URL/JWT_* the test process has — a real MySQL + Redis (local or CI) is
  * required, matching the blueprint's tenant-isolation/workflow test levels. */
 export async function createTestApp(): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();

@@ -17,7 +17,7 @@ export type AnalyticsScope = (typeof ANALYTICS_SCOPES)[number];
 /**
  * The `scopeKey` used for PLATFORM-scope snapshot rows.
  *
- * The column is non-null by design: Postgres treats NULLs as distinct, so a nullable-only
+ * The column is non-null by design: MySQL treats NULLs as distinct, so a nullable-only
  * discriminator would leave the `(scope, scopeKey, granularity, periodStart)` unique constraint
  * unenforceable for platform rows and every refresh would insert a duplicate.
  */

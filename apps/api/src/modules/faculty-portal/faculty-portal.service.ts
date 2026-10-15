@@ -351,9 +351,9 @@ export class FacultyPortalService {
         ? {
             student: {
               OR: [
-                { fullName: { contains: query.search, mode: 'insensitive' } },
-                { admissionNumber: { contains: query.search, mode: 'insensitive' } },
-                { rollNumber: { contains: query.search, mode: 'insensitive' } },
+                { fullName: { contains: query.search } },
+                { admissionNumber: { contains: query.search } },
+                { rollNumber: { contains: query.search } },
               ],
             },
           }

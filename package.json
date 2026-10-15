@@ -30,7 +30,7 @@
     "db:validate": "pnpm --filter @college-erp/database prisma:validate",
     "db:deploy:safe": "pnpm --filter @college-erp/database db:deploy:safe",
     "db:migration:rollback": "pnpm --filter @college-erp/database db:migration:rollback",
-    "backup:postgres": "pnpm --filter @college-erp/backup backup:postgres",
+    "backup:mysql": "pnpm --filter @college-erp/backup backup:mysql",
     "backup:verify": "pnpm --filter @college-erp/backup backup:verify",
     "backup:restore": "pnpm --filter @college-erp/backup backup:restore",
     "backup:redis": "pnpm --filter @college-erp/backup backup:redis",

@@ -18,11 +18,11 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import {
-  defaultPostgresProbes,
+  defaultMysqlProbes,
   parseDatabaseUrl,
-  restorePostgresBackup,
+  restoreMysqlBackup,
   runIntegrityProbes,
-  verifyPostgresArchive,
+  verifyMysqlDump,
 } from '@college-erp/backup';
 
 const DATABASE_PACKAGE_DIR = join(__dirname, '..');
@@ -78,10 +78,7 @@ async function main(): Promise<void> {
   const connection = parseDatabaseUrl(targetUrl);
 
   process.stdout.write(`[db:migration:rollback] Verifying archive ${backup} ...\n`);
-  const structure = await verifyPostgresArchive({
-    archivePath: backup,
-    ...(process.env.BACKUP_PG_RESTORE_PATH ? { pgRestorePath: process.env.BACKUP_PG_RESTORE_PATH } : {}),
-  });
+  const structure = await verifyMysqlDump({ dumpPath: backup });
   if (!structure.ok) {
     throw new Error(`Archive failed verification (${structure.error ?? 'unknown'}); refusing to restore.`);
   }
@@ -89,17 +86,17 @@ async function main(): Promise<void> {
   process.stdout.write(
     `[db:migration:rollback] Restoring into ${connection.database}@${connection.host} (clean restore)...\n`,
   );
-  const restore = await restorePostgresBackup({
-    archivePath: backup,
+  const restore = await restoreMysqlBackup({
+    dumpPath: backup,
     targetDatabaseUrl: targetUrl,
     clean: true,
-    ...(process.env.BACKUP_PG_RESTORE_PATH ? { pgRestorePath: process.env.BACKUP_PG_RESTORE_PATH } : {}),
+    ...(process.env.BACKUP_MYSQL_PATH ? { mysqlPath: process.env.BACKUP_MYSQL_PATH } : {}),
   });
 
   const probes = await runIntegrityProbes({
     databaseUrl: targetUrl,
-    probes: defaultPostgresProbes(),
-    ...(process.env.BACKUP_PSQL_PATH ? { psqlPath: process.env.BACKUP_PSQL_PATH } : {}),
+    probes: defaultMysqlProbes(),
+    ...(process.env.BACKUP_MYSQL_PATH ? { mysqlPath: process.env.BACKUP_MYSQL_PATH } : {}),
   });
   const ok = probes.every((probe) => probe.ok);
   process.stdout.write(

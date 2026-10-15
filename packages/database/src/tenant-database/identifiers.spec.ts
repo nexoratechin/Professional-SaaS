@@ -8,7 +8,6 @@ import {
   quoteIdentifier,
   slugToIdentifier,
   withDatabaseName,
-  withSchemaParam,
 } from './identifiers';
 
 describe('tenant database identifiers', () => {
@@ -33,22 +32,17 @@ describe('tenant database identifiers', () => {
     expect(deriveDatabaseName('college_erp_tenant_', 'acme')).toBe('college_erp_tenant_acme');
   });
 
-  it('quotes identifiers defensively', () => {
-    expect(quoteIdentifier('tenant_x')).toBe('"tenant_x"');
-    expect(quoteIdentifier('we"ird')).toBe('"we""ird"');
+  it('quotes identifiers defensively (MySQL backticks)', () => {
+    expect(quoteIdentifier('tenant_x')).toBe('`tenant_x`');
+    expect(quoteIdentifier('we`ird')).toBe('`we``ird`');
   });
 
-  it('sets the schema parameter without losing credentials or query params', () => {
-    const url = withSchemaParam('postgresql://u:p@localhost:5432/db?sslmode=require', 'tenant_x');
+  it('swaps the database name without losing credentials or query params', () => {
+    const url = withDatabaseName('mysql://u:p@localhost:3306/shared_db?connection_limit=5', 'tenant_db');
     const parsed = new URL(url);
-    expect(parsed.searchParams.get('schema')).toBe('tenant_x');
-    expect(parsed.searchParams.get('sslmode')).toBe('require');
+    expect(databaseNameFromUrl(url)).toBe('tenant_db');
+    expect(parsed.searchParams.get('connection_limit')).toBe('5');
     expect(parsed.username).toBe('u');
     expect(parsed.password).toBe('p');
-  });
-
-  it('swaps the database name', () => {
-    const url = withDatabaseName('postgresql://u:p@localhost:5432/shared_db', 'tenant_db');
-    expect(databaseNameFromUrl(url)).toBe('tenant_db');
   });
 });

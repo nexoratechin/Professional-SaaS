@@ -8,14 +8,14 @@ A configurable, multi-tenant College ERP SaaS platform for managing admissions, 
 - **Web** (`apps/web`): React + Vite + `vite-plugin-pwa`
 - **API** (`apps/api`): NestJS REST platform
 - **Worker** (`apps/worker`): BullMQ background jobs
-- **Database** (`packages/database`): Prisma + PostgreSQL
+- **Database** (`packages/database`): Prisma + MySQL
 - **Shared packages:** auth, queue, payments, notifications, integrations, reporting, analytics, observability, certificates, imports, gps, types, ui
 - **Redis** for queues/cache · **object storage**: local filesystem by default (no MinIO needed), S3-compatible in production for documents
 
 ## Local development
 
 Runs natively on your machine — **no Docker**. See [`docs/local-development.md`](docs/local-development.md)
-for full setup (PostgreSQL, Redis, environment files). Documents use a local directory by default,
+for full setup (MySQL, Redis, environment files). Documents use a local directory by default,
 so no MinIO is needed for development.
 
 Quick start:
@@ -40,7 +40,7 @@ Run each app on its own: `pnpm dev:web`, `pnpm dev:api`, `pnpm dev:worker`.
 | `pnpm dev` | Run web + api + worker (Turbo, parallel) |
 | `pnpm build` | Build the whole workspace |
 | `pnpm lint` / `pnpm typecheck` / `pnpm test` | Quality gates |
-| `pnpm test:e2e` | API end-to-end suite (needs PostgreSQL + Redis) |
+| `pnpm test:e2e` | API end-to-end suite (needs MySQL + Redis) |
 | `pnpm db:generate` | Generate Prisma Client |
 | `pnpm db:migrate` | Apply migrations (development) |
 | `pnpm db:deploy:safe` | Pre-migration backup + `prisma migrate deploy` |

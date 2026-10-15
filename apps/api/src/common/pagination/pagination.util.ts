@@ -102,5 +102,5 @@ export function toOrderBy<T extends string>(key: T | undefined, order: SortOrder
 /** Shorthand for the extremely common "search a few text columns" filter building block. */
 export function searchContains(search: string | undefined, fields: string[]): Array<Record<string, unknown>> | undefined {
   if (!search) return undefined;
-  return fields.map((field) => ({ [field]: { contains: search, mode: 'insensitive' as const } }));
+  return fields.map((field) => ({ [field]: { contains: search } }));
 }

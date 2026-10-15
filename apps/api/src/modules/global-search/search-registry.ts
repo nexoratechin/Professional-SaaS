@@ -52,7 +52,7 @@ export interface SearchEntityDescriptor {
 
 /** Case-insensitive OR over the given columns. */
 function contains(query: string, fields: string[]): Record<string, any> {
-  return { OR: fields.map((field) => ({ [field]: { contains: query, mode: 'insensitive' } })) };
+  return { OR: fields.map((field) => ({ [field]: { contains: query } })) };
 }
 
 /** Newest-first page plus the uncapped match count, in one round trip pair. */

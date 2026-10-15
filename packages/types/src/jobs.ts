@@ -304,12 +304,12 @@ export interface DeadLetterJobData {
 }
 
 /**
- * Scheduled PostgreSQL backup. A platform-wide maintenance job — the logical dump covers the whole
+ * Scheduled MySQL backup. A platform-wide maintenance job — the logical dump covers the whole
  * shared database, so (like the other cross-tenant sweeps) it deliberately does NOT extend
- * TenantJobData. Verification of the produced archive runs inline; the optional scratch-database
+ * TenantJobData. Verification of the produced dump runs inline; the optional scratch-database
  * restore verification is gated by BACKUP_VERIFY_RESTORE_ENABLED or `verifyRestore: true`.
  */
-export interface PostgresBackupJobData {
+export interface MysqlBackupJobData {
   requestedBy?: 'schedule' | 'manual';
   /** Force restore-verification for this run even when the env default is off. */
   verifyRestore?: boolean;

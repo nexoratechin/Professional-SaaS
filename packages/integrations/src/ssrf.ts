@@ -149,7 +149,7 @@ export async function assertSafeOutboundUrl(rawUrl: string | URL, options: SsrfG
     return url;
   }
 
-  if (BLOCKED_HOSTNAMES.has(host) || host.endsWith('.localhost')) {
+  if (BLOCKED_HOSTNAMES.has(host) || host.endsWith('.localhost') || host.endsWith('.internal')) {
     throw new SsrfError(`Outbound URL host "${host}" is not allowed.`);
   }
 

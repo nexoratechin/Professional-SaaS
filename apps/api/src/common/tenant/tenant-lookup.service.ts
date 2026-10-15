@@ -10,7 +10,7 @@ function cacheKey(slug: string): string {
   return `tenant:${slug}`;
 }
 
-/** Resolves a tenant slug to its id/status, Redis-cached (60s TTL). Falls back to Postgres via
+/** Resolves a tenant slug to its id/status, Redis-cached (60s TTL). Falls back to MySQL via
  * the unscoped PlatformPrismaService — the one legitimate unscoped-lookup use case, since a
  * tenant can't be found "within" a tenant scope that doesn't exist yet. */
 @Injectable()

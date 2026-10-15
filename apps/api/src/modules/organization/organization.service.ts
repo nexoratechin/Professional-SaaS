@@ -29,7 +29,7 @@ type Client = PrismaClient;
 /** Build a Prisma `where` clause for free-text search on code + name + (description if present). */
 function searchWhere(q: string | undefined, meta: OrganizationEntityMeta): Record<string, unknown> | undefined {
   if (!q) return undefined;
-  const contains = { contains: q, mode: 'insensitive' as const };
+  const contains = { contains: q };
   const fields: Array<Record<string, unknown>> = [{ code: contains }, { name: contains }];
   if (meta.csvColumns.some(([, f]) => f === 'description')) {
     fields.push({ description: contains });

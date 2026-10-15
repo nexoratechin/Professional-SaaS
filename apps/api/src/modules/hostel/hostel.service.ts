@@ -297,8 +297,8 @@ export class HostelService {
           ? [
               {
                 OR: [
-                  { fullName: { contains: search.trim(), mode: 'insensitive' } },
-                  { email: { contains: search.trim(), mode: 'insensitive' } },
+                  { fullName: { contains: search.trim() } },
+                  { email: { contains: search.trim() } },
                 ],
               },
             ]
@@ -321,9 +321,9 @@ export class HostelService {
       const q = search.trim();
       where.AND.push({
         OR: [
-          { fullName: { contains: q, mode: 'insensitive' } },
-          { admissionNumber: { contains: q, mode: 'insensitive' } },
-          { rollNumber: { contains: q, mode: 'insensitive' } },
+          { fullName: { contains: q } },
+          { admissionNumber: { contains: q } },
+          { rollNumber: { contains: q } },
         ],
       });
     }
@@ -341,8 +341,8 @@ export class HostelService {
     const where: any = { deletedAt: null, ...(query.includeInactive ? {} : { isActive: true }), ...(query.campusId ? { campusId: query.campusId } : {}) };
     if (query.search?.trim()) {
       where.OR = [
-        { name: { contains: query.search.trim(), mode: 'insensitive' } },
-        { code: { contains: query.search.trim(), mode: 'insensitive' } },
+        { name: { contains: query.search.trim() } },
+        { code: { contains: query.search.trim() } },
       ];
     }
     return this.db.hostel.findMany({
@@ -796,7 +796,7 @@ export class HostelService {
       ...(query.status ? { status: query.status } : {}),
     };
     if (query.search?.trim()) {
-      where.student = { ...(where.student ?? {}), OR: [{ fullName: { contains: query.search.trim(), mode: 'insensitive' } }, { admissionNumber: { contains: query.search.trim(), mode: 'insensitive' } }] };
+      where.student = { ...(where.student ?? {}), OR: [{ fullName: { contains: query.search.trim() } }, { admissionNumber: { contains: query.search.trim() } }] };
     }
     const [data, total] = await Promise.all([
       this.db.studentHostelBooking.findMany({

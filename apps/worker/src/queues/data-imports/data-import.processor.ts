@@ -310,7 +310,7 @@ export class DataImportProcessor extends WorkerHost {
       resolveRef: async (ref: ImportFieldRef, codes: string[]) => {
         if (codes.length === 0) return new Map();
         const rows = await db[ref.model].findMany({
-          where: { [ref.codeField]: { in: codes, mode: 'insensitive' }, ...(ref.filter ?? {}) },
+          where: { [ref.codeField]: { in: codes }, ...(ref.filter ?? {}) },
           select: { id: true, [ref.codeField]: true },
         });
         return new Map(rows.map((r: Record<string, unknown>) => [String(r[ref.codeField]), String(r.id)]));
@@ -319,7 +319,7 @@ export class DataImportProcessor extends WorkerHost {
         if (entity.strategy !== 'generic' || keys.length === 0) return new Set<string>();
         const fields = [...entity.duplicateKey, ...(entity.duplicateKeyFallback ? [entity.duplicateKeyFallback] : [])];
         const rows = await db[entity.model].findMany({
-          where: { OR: fields.map((f) => ({ [f]: { in: keys, mode: 'insensitive' } })) },
+          where: { OR: fields.map((f) => ({ [f]: { in: keys } })) },
           select: Object.fromEntries(fields.map((f) => [f, true])),
         });
         const found = new Set<string>();

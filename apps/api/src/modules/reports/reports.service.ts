@@ -276,7 +276,7 @@ export class ReportsService {
     const where: Prisma.SavedReportWhereInput = {
       ...(manage ? {} : { ownerId: user.id }),
       ...(dto.reportType ? { reportType: dto.reportType as DbReportType } : {}),
-      ...(dto.q ? { name: { contains: dto.q, mode: 'insensitive' } } : {}),
+      ...(dto.q ? { name: { contains: dto.q } } : {}),
     };
     const [items, total] = await Promise.all([
       this.tenantPrisma.client.savedReport.findMany({
@@ -331,7 +331,7 @@ export class ReportsService {
   async listTemplates(user: AuthenticatedUser, dto: ListReportTemplatesDto) {
     const where: Prisma.ReportTemplateWhereInput = {
       ...(dto.reportType ? { reportType: dto.reportType as DbReportType } : {}),
-      ...(dto.q ? { name: { contains: dto.q, mode: 'insensitive' } } : {}),
+      ...(dto.q ? { name: { contains: dto.q } } : {}),
     };
     const [items, total] = await Promise.all([
       this.tenantPrisma.client.reportTemplate.findMany({ where, orderBy: { updatedAt: 'desc' }, skip: dto.skip ?? 0, take: dto.take ?? 50 }),
@@ -396,7 +396,7 @@ export class ReportsService {
       ...(manage ? {} : { createdById: user.id }),
       ...(dto.reportType ? { reportType: dto.reportType as DbReportType } : {}),
       ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
-      ...(dto.q ? { name: { contains: dto.q, mode: 'insensitive' } } : {}),
+      ...(dto.q ? { name: { contains: dto.q } } : {}),
     };
     const [items, total] = await Promise.all([
       this.tenantPrisma.client.reportSchedule.findMany({ where, orderBy: { nextRunAt: 'asc' }, skip: dto.skip ?? 0, take: dto.take ?? 50 }),

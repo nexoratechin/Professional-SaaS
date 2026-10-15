@@ -35,7 +35,7 @@ export type TenantDatabaseMigrationMode = (typeof TENANT_DATABASE_MIGRATION_MODE
 export interface TenantConnectionTarget {
   tenantId: string;
   mode: TenantIsolationMode;
-  /** Connection URL the tenant's Prisma client must use (includes ?schema= for schema mode). */
+  /** Connection URL the tenant's Prisma client must use (points at the tenant's own database). */
   connectionUrl: string;
   schemaName: string | null;
   databaseName: string | null;

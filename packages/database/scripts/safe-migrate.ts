@@ -13,7 +13,7 @@
  * Rollback, if needed (see docs/backup-recovery.md § Migration rollback):
  *   pnpm db:migration:rollback -- --backup <file> --yes
  *
- * Requires DATABASE_URL and the PostgreSQL client tools (pg_dump/pg_restore) on PATH.
+ * Requires DATABASE_URL and the MySQL client tools (mysqldump/mysql) on PATH.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -21,10 +21,10 @@ import { join } from 'node:path';
 import {
   buildBackupId,
   createBackupManifest,
-  createPostgresBackup,
+  createMysqlBackup,
   parseDatabaseUrl,
   serializeBackupManifest,
-  verifyPostgresArchive,
+  verifyMysqlDump,
 } from '@college-erp/backup';
 
 const REPO_ROOT = join(__dirname, '..', '..', '..');
@@ -47,24 +47,22 @@ async function main(): Promise<void> {
   mkdirSync(outputDir, { recursive: true });
 
   const id = buildBackupId();
-  const outputPath = join(outputDir, `pre-migration-${id}.dump`);
+  const outputPath = join(outputDir, `pre-migration-${id}.sql`);
   const connection = parseDatabaseUrl(databaseUrl);
   const environment = process.env.BACKUP_ENVIRONMENT ?? process.env.NODE_ENV ?? 'development';
 
   process.stdout.write(`[db:deploy:safe] Taking pre-migration backup -> ${outputPath}\n`);
-  const backup = await createPostgresBackup({
+  const backup = await createMysqlBackup({
     databaseUrl,
     outputPath,
-    ...(process.env.BACKUP_PG_DUMP_PATH ? { pgDumpPath: process.env.BACKUP_PG_DUMP_PATH } : {}),
+    ...(process.env.BACKUP_MYSQLDUMP_PATH ? { mysqldumpPath: process.env.BACKUP_MYSQLDUMP_PATH } : {}),
+    ...(process.env.BACKUP_MYSQL_PATH ? { mysqlPath: process.env.BACKUP_MYSQL_PATH } : {}),
   });
   process.stdout.write(
     `[db:deploy:safe] Backup complete: ${(backup.sizeBytes / 1024 / 1024).toFixed(2)} MiB, sha256=${backup.sha256}\n`,
   );
 
-  const verification = await verifyPostgresArchive({
-    archivePath: outputPath,
-    ...(process.env.BACKUP_PG_RESTORE_PATH ? { pgRestorePath: process.env.BACKUP_PG_RESTORE_PATH } : {}),
-  });
+  const verification = await verifyMysqlDump({ dumpPath: outputPath });
   if (!verification.ok) {
     throw new Error(
       `[db:deploy:safe] ABORTING: pre-migration backup failed verification (${verification.error ?? 'unknown'}). ` +
@@ -72,13 +70,13 @@ async function main(): Promise<void> {
     );
   }
   process.stdout.write(
-    `[db:deploy:safe] Backup verified: ${verification.tableCount} table(s), ${verification.tableDataEntries} table-data entries.\n`,
+    `[db:deploy:safe] Backup verified: ${verification.tableCount} table(s), ${verification.insertCount} insert statement(s).\n`,
   );
 
   const manifest = createBackupManifest({
     id,
-    kind: 'POSTGRES_FULL',
-    format: 'pg-custom',
+    kind: 'MYSQL_FULL',
+    format: 'mysql-sql',
     environment,
     databaseName: connection.database,
     objectKey: outputPath,

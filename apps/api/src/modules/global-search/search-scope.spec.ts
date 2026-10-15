@@ -36,7 +36,7 @@ describe('global-search search-scope', () => {
     });
 
     it('returns the single fragment unchanged', () => {
-      const only = { OR: [{ fullName: { contains: 'ravi', mode: 'insensitive' } }] };
+      const only = { OR: [{ fullName: { contains: 'ravi' } }] };
       expect(combineSearchWhere(only)).toBe(only);
     });
 

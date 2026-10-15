@@ -362,12 +362,12 @@ export const workerEnvSchema = z.object({
   ERROR_TRACKING_PERSIST: boolFromStringDefaultTrue,
 
   // --- Backup & recovery ----------------------------------------------------------------------
-  // Scheduled PostgreSQL backups + verification + retention, Redis snapshots, and the
-  // last-success heartbeat the API's backup_stale alert reads. Off by default so a plain
-  // `pnpm dev` worker (no pg_dump on PATH) never fails jobs; enable it only where the client
-  // tools are installed. See docs/backup-recovery.md for RPO/RTO and the restore runbook.
+  // Scheduled MySQL backups + verification + retention, Redis snapshots, and the last-success
+  // heartbeat the API's backup_stale alert reads. Off by default so a plain `pnpm dev` worker (no
+  // mysqldump on PATH) never fails jobs; enable it only where the client tools are installed. See
+  // docs/backup-recovery.md for RPO/RTO and the restore runbook.
 
-  /** Master switch for the scheduled postgres-backup / backup-prune / redis-snapshot jobs. */
+  /** Master switch for the scheduled mysql-backup / backup-prune / redis-snapshot jobs. */
   BACKUP_ENABLED: boolFromString,
   /** Environment segment of backup object keys; defaults to NODE_ENV. */
   BACKUP_ENVIRONMENT: optionalString,
@@ -387,12 +387,11 @@ export const workerEnvSchema = z.object({
   BACKUP_RETENTION_DAILY: z.coerce.number().int().min(0).default(7),
   BACKUP_RETENTION_WEEKLY: z.coerce.number().int().min(0).default(4),
   BACKUP_RETENTION_MONTHLY: z.coerce.number().int().min(0).default(12),
-  /** Hard timeout for a single pg_dump/pg_restore run. */
+  /** Hard timeout for a single mysqldump/restore run. */
   BACKUP_TIMEOUT_MS: z.coerce.number().int().positive().default(1_800_000),
   /** Explicit tool paths, for images/hosts where they are not on PATH. */
-  BACKUP_PG_DUMP_PATH: optionalString,
-  BACKUP_PG_RESTORE_PATH: optionalString,
-  BACKUP_PSQL_PATH: optionalString,
+  BACKUP_MYSQLDUMP_PATH: optionalString,
+  BACKUP_MYSQL_PATH: optionalString,
   /** Redis snapshot jobs: BGSAVE heartbeat + (optionally) an RDB export to object storage. */
   BACKUP_REDIS_ENABLED: boolFromStringDefaultTrue,
   BACKUP_REDIS_INTERVAL_HOURS: z.coerce.number().positive().default(6),

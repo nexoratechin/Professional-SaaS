@@ -20,7 +20,7 @@ import {
   WEBHOOK_SIGNATURE_ALGORITHM_OPTIONS,
 } from '@college-erp/integrations';
 // Prisma's generated enum OBJECTS rather than duplicated string arrays: validating a filter against the
-// same enum the schema declares means the accepted values can never drift from what Postgres will
+// same enum the schema declares means the accepted values can never drift from what the database will
 // take, and a typo becomes a 400 instead of a 500 from the driver.
 import {
   IntegrationFailureCategory,

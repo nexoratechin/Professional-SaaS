@@ -3,7 +3,7 @@
  *
  * Redis in this platform holds three classes of state, in order of importance:
  *  1. BullMQ queues (jobs waiting/delayed/active) — *derived* work: enqueue rows live in
- *     PostgreSQL, so a lost queue can be rebuilt by re-enqueueing, never restored row-by-row.
+ *     MySQL, so a lost queue can be rebuilt by re-enqueueing, never restored row-by-row.
  *  2. Caches, rate-limit/idempotency keys, and observability windows — safely reconstructible.
  *  3. The worker fleet's heartbeats — regenerated within one heartbeat interval.
  *
@@ -16,7 +16,7 @@
 import { stat } from 'node:fs/promises';
 import Redis from 'ioredis';
 import { computeFileSha256 } from '../manifest';
-import { resolveCommand, runCommand } from '../postgres/pg-tools';
+import { resolveCommand, runCommand } from '../tools';
 
 export interface RedisPersistenceInfo {
   /** RDB snapshotting configured (save points present) or performed at least once. */

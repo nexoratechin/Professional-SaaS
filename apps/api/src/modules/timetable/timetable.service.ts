@@ -237,8 +237,8 @@ export class TimetableService {
       where.AND = [
         {
           OR: [
-            { name: { contains: query.search, mode: 'insensitive' } },
-            { code: { contains: query.search, mode: 'insensitive' } },
+            { name: { contains: query.search } },
+            { code: { contains: query.search } },
           ],
         },
       ];

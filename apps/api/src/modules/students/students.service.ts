@@ -182,7 +182,7 @@ export class StudentsService {
     const out: Record<string, any> = {};
 
     if (query.search) {
-      const contains = { contains: query.search, mode: 'insensitive' as const };
+      const contains = { contains: query.search };
       out.OR = [
         { fullName: contains },
         { firstName: contains },

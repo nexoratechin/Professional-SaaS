@@ -38,7 +38,7 @@ export interface AlertSignalSnapshot {
   /** Backup posture: whether backups are expected at all, when PostgreSQL last backed up
    *  (epoch seconds, null = never/unknown), and the RPO budget the rule compares against. */
   backupExpected: boolean;
-  lastPostgresBackupAt: number | null;
+  lastMysqlBackupAt: number | null;
   backupMaxAgeHours: number;
 }
 

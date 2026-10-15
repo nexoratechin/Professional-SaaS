@@ -1,13 +1,16 @@
 /**
  * Identifier + connection-URL helpers for enterprise tenant stores.
  *
- * Postgres identifiers (schema/database names) are derived from a tenant slug, so they must be
- * validated against a strict allow-list before ever being interpolated into DDL, and quoted when
- * used. Connection URLs are manipulated with the WHATWG URL parser rather than string surgery so
- * credentials, query parameters and the port survive intact.
+ * MySQL identifiers (database names) are derived from a tenant slug, so they must be validated
+ * against a strict allow-list before ever being interpolated into DDL, and quoted (backticks)
+ * when used. Connection URLs are manipulated with the WHATWG URL parser rather than string
+ * surgery so credentials, query parameters and the port survive intact.
+ *
+ * MySQL has no separate schema namespace: `SCHEMA` and `DATABASE` are synonyms, so an
+ * "isolated schema" is physically its own database. See DEDICATED_SCHEMA in provisioner.ts.
  */
 
-/** Derived/entered schema names: lowercase, digits and underscores, must start with a letter. */
+/** Derived/entered database names: lowercase, digits and underscores, must start with a letter. */
 const IDENTIFIER_PATTERN = /^[a-z][a-z0-9_]{0,62}$/;
 
 export class InvalidTenantDatabaseIdentifierError extends Error {
@@ -44,9 +47,9 @@ export function deriveDatabaseName(prefix: string, slug: string): string {
   return assertValidDatabaseName(`${prefix}${slugToIdentifier(slug)}`);
 }
 
-/** Quotes a validated identifier for interpolation into DDL. */
+/** Quotes a validated identifier for interpolation into DDL (MySQL uses backticks). */
 export function quoteIdentifier(name: string): string {
-  return `"${name.replace(/"/g, '""')}"`;
+  return `\`${name.replace(/`/g, '``')}\``;
 }
 
 function parse(url: string): URL {
@@ -57,15 +60,7 @@ function parse(url: string): URL {
   }
 }
 
-/** Returns the same URL with `?schema=<schema>` set (used by DEDICATED_SCHEMA). */
-export function withSchemaParam(url: string, schema: string): string {
-  assertValidSchemaName(schema);
-  const parsed = parse(url);
-  parsed.searchParams.set('schema', schema);
-  return parsed.toString();
-}
-
-/** Returns the same URL pointed at a different database (used by DEDICATED_DATABASE). */
+/** Returns the same URL pointed at a different database (used by both dedicated modes). */
 export function withDatabaseName(url: string, databaseName: string): string {
   assertValidDatabaseName(databaseName);
   const parsed = parse(url);

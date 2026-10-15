@@ -11,7 +11,7 @@
     "test": "jest --config jest.config.js --passWithNoTests",
     "test:recovery": "jest --config jest.recovery.config.js --runInBand",
     "clean": "rimraf dist .turbo",
-    "backup:postgres": "ts-node --transpile-only scripts/backup-cli.ts postgres",
+    "backup:mysql": "ts-node --transpile-only scripts/backup-cli.ts mysql",
     "backup:verify": "ts-node --transpile-only scripts/backup-cli.ts verify",
     "backup:restore": "ts-node --transpile-only scripts/backup-cli.ts restore",
     "backup:redis": "ts-node --transpile-only scripts/backup-cli.ts redis"

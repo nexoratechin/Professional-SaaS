@@ -9,7 +9,7 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://college_erp:college_erp_ci_password@localhost:5432/college_erp
+      DATABASE_URL: mysql://college_erp:college_erp_ci_password@localhost:3306/college_erp
       REDIS_URL: redis://localhost:6379
       # Object storage uses the local filesystem driver on the runner — no MinIO/S3 service needed.
       STORAGE_DRIVER: local
@@ -19,16 +19,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Native PostgreSQL + Redis on the runner — no Docker service containers.
-      - name: Install and start PostgreSQL + Redis
+      # Native MySQL + Redis on the runner — no Docker service containers.
+      - name: Install and start MySQL + Redis
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql postgresql-client redis-server
-          sudo systemctl enable --now postgresql
+          sudo apt-get install -y mysql-server mysql-client redis-server
+          sudo systemctl enable --now mysql
           sudo systemctl enable --now redis-server
-          sudo -u postgres psql -c "CREATE ROLE college_erp LOGIN PASSWORD 'college_erp_ci_password' CREATEDB;"
-          sudo -u postgres psql -c "CREATE DATABASE college_erp OWNER college_erp;"
-          pg_isready -h localhost -p 5432
+          sudo mysql -e "CREATE DATABASE college_erp;"
+          sudo mysql -e "CREATE USER 'college_erp'@'%' IDENTIFIED BY 'college_erp_ci_password';"
+          sudo mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'college_erp'@'%'; FLUSH PRIVILEGES;"
+          mysqladmin ping -h 127.0.0.1 -u college_erp -pcollege_erp_ci_password
           redis-cli ping
 
       - uses: pnpm/action-setup@v4
@@ -53,7 +54,7 @@ jobs:
 
       - name: Automated recovery test (backup → verify → restore)
         env:
-          RECOVERY_TEST_DATABASE_URL: postgresql://college_erp:college_erp_ci_password@localhost:5432/college_erp
+          RECOVERY_TEST_DATABASE_URL: mysql://college_erp:college_erp_ci_password@localhost:3306/college_erp
         run: pnpm --filter @college-erp/backup test:recovery
 
       - name: Typecheck

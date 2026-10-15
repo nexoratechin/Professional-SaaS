@@ -4,7 +4,7 @@ import type { Queue } from 'bullmq';
 import { defaultJobOptions } from '@college-erp/queue';
 import { QUEUE_NAMES } from '@college-erp/types';
 import { AppConfigService } from '../../config/app-config.service';
-import type { BackupPruneJobData, PostgresBackupJobData, RedisSnapshotJobData } from '@college-erp/types';
+import type { BackupPruneJobData, MysqlBackupJobData, RedisSnapshotJobData } from '@college-erp/types';
 
 const HOUR_MS = 60 * 60 * 1000;
 const PRUNE_INTERVAL_MS = 24 * HOUR_MS;
@@ -22,7 +22,7 @@ export class BackupSchedulerService implements OnModuleInit {
   private readonly logger = new Logger(BackupSchedulerService.name);
 
   constructor(
-    @InjectQueue(QUEUE_NAMES.BACKUP) private readonly queue: Queue<PostgresBackupJobData | RedisSnapshotJobData | BackupPruneJobData>,
+    @InjectQueue(QUEUE_NAMES.BACKUP) private readonly queue: Queue<MysqlBackupJobData | RedisSnapshotJobData | BackupPruneJobData>,
     private readonly config: AppConfigService,
   ) {}
 
@@ -34,9 +34,9 @@ export class BackupSchedulerService implements OnModuleInit {
 
     const backupIntervalMs = this.config.get('BACKUP_INTERVAL_HOURS') * HOUR_MS;
     await this.queue.add(
-      'postgres-backup',
+      'mysql-backup',
       { requestedBy: 'schedule' },
-      { ...defaultJobOptions(QUEUE_NAMES.BACKUP), repeat: { every: backupIntervalMs }, jobId: 'backup-postgres-scheduled' },
+      { ...defaultJobOptions(QUEUE_NAMES.BACKUP), repeat: { every: backupIntervalMs }, jobId: 'backup-mysql-scheduled' },
     );
     await this.queue.add(
       'backup-prune',
@@ -60,7 +60,7 @@ export class BackupSchedulerService implements OnModuleInit {
     }
 
     this.logger.log(
-      `Backup scheduler registered: postgres every ${this.config.get('BACKUP_INTERVAL_HOURS')}h ` +
+      `Backup scheduler registered: mysql every ${this.config.get('BACKUP_INTERVAL_HOURS')}h ` +
         `(restore-verify ${this.config.get('BACKUP_VERIFY_RESTORE_ENABLED') ? 'on' : 'off'}), ` +
         `redis ${redisCadence}, retention daily.`,
     );

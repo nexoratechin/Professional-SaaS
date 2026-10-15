@@ -335,10 +335,10 @@ export class HrService {
       if (term.length > 0) {
         clauses.push({
           OR: [
-            { firstName: { contains: term, mode: 'insensitive' } },
-            { lastName: { contains: term, mode: 'insensitive' } },
-            { employeeCode: { contains: term, mode: 'insensitive' } },
-            { personalEmail: { contains: term, mode: 'insensitive' } },
+            { firstName: { contains: term } },
+            { lastName: { contains: term } },
+            { employeeCode: { contains: term } },
+            { personalEmail: { contains: term } },
           ],
         });
       }

@@ -5,7 +5,7 @@ const KEY = 'a'.repeat(64);
 describe('TenantDatabaseSecretCipher', () => {
   it('round-trips a connection URL', () => {
     const cipher = new TenantDatabaseSecretCipher(KEY);
-    const url = 'postgresql://user:pass@localhost:5432/tenant_db?schema=tenant_x';
+    const url = 'mysql://user:pass@localhost:3306/tenant_db';
     const encrypted = cipher.encrypt(url);
     expect(encrypted).not.toContain('user:pass');
     expect(cipher.decrypt(encrypted)).toBe(url);

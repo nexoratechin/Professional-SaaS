@@ -240,7 +240,7 @@ export class InventoryService {
 
   async listVendors(tenantId: string, page: { skip?: number; take?: number; search?: string }) {
     const where: any = { deletedAt: null };
-    if (page.search) where.OR = [{ name: { contains: page.search, mode: 'insensitive' } }, { code: { contains: page.search, mode: 'insensitive' } }, { gstin: { contains: page.search, mode: 'insensitive' } }];
+    if (page.search) where.OR = [{ name: { contains: page.search } }, { code: { contains: page.search } }, { gstin: { contains: page.search } }];
     return this.page(this.db.inventoryVendor, where, { name: 'asc' }, page.skip ?? 0, page.take ?? 50);
   }
 
@@ -370,7 +370,7 @@ export class InventoryService {
     const where: any = { deletedAt: null };
     if (q.categoryId) where.categoryId = q.categoryId;
     if (q.isActive !== undefined) where.isActive = q.isActive;
-    if (q.search) where.OR = [{ name: { contains: q.search, mode: 'insensitive' } }, { code: { contains: q.search, mode: 'insensitive' } }, { sku: { contains: q.search, mode: 'insensitive' } }];
+    if (q.search) where.OR = [{ name: { contains: q.search } }, { code: { contains: q.search } }, { sku: { contains: q.search } }];
     return this.page(this.db.inventoryProduct, where, { name: 'asc' }, q.skip ?? 0, q.take ?? 50, {
       category: { select: { id: true, code: true, name: true } },
       _count: { select: { stockItems: true } },
@@ -449,7 +449,7 @@ export class InventoryService {
 
   async listLocations(tenantId: string, page: { skip?: number; take?: number; search?: string }) {
     const where: any = { deletedAt: null };
-    if (page.search) where.OR = [{ name: { contains: page.search, mode: 'insensitive' } }, { code: { contains: page.search, mode: 'insensitive' } }];
+    if (page.search) where.OR = [{ name: { contains: page.search } }, { code: { contains: page.search } }];
     return this.page(this.db.inventoryLocation, where, { name: 'asc' }, page.skip ?? 0, page.take ?? 50, {
       campus: { select: { id: true, name: true } },
       building: { select: { id: true, name: true } },
@@ -553,7 +553,7 @@ export class InventoryService {
 
   async listPurchaseRequests(tenantId: string, page: { skip?: number; take?: number; search?: string }) {
     const where: any = {};
-    if (page.search) where.OR = [{ requestNumber: { contains: page.search, mode: 'insensitive' } }, { requestedBy: { contains: page.search, mode: 'insensitive' } }];
+    if (page.search) where.OR = [{ requestNumber: { contains: page.search } }, { requestedBy: { contains: page.search } }];
     return this.page(this.db.inventoryPurchaseRequest, where, { createdAt: 'desc' }, page.skip ?? 0, page.take ?? 50, {
       department: { select: { id: true, name: true } },
       vendor: { select: { id: true, name: true } },
@@ -713,7 +713,7 @@ export class InventoryService {
 
   async listPurchaseOrders(tenantId: string, page: { skip?: number; take?: number; search?: string }) {
     const where: any = {};
-    if (page.search) where.OR = [{ poNumber: { contains: page.search, mode: 'insensitive' } }];
+    if (page.search) where.OR = [{ poNumber: { contains: page.search } }];
     return this.page(this.db.inventoryPurchaseOrder, where, { createdAt: 'desc' }, page.skip ?? 0, page.take ?? 50, {
       vendor: { select: { id: true, name: true, code: true } },
       purchaseRequest: { select: { id: true, requestNumber: true } },
@@ -861,7 +861,7 @@ export class InventoryService {
 
   async listGoodsReceipts(tenantId: string, page: { skip?: number; take?: number; search?: string }) {
     const where: any = {};
-    if (page.search) where.OR = [{ grnNumber: { contains: page.search, mode: 'insensitive' } }];
+    if (page.search) where.OR = [{ grnNumber: { contains: page.search } }];
     return this.page(this.db.inventoryGoodsReceipt, where, { createdAt: 'desc' }, page.skip ?? 0, page.take ?? 50, {
       vendor: { select: { id: true, name: true } },
       po: { select: { id: true, poNumber: true } },
@@ -996,7 +996,7 @@ export class InventoryService {
 
   async listStockTransfers(tenantId: string, page: { skip?: number; take?: number; search?: string }) {
     const where: any = {};
-    if (page.search) where.OR = [{ transferNumber: { contains: page.search, mode: 'insensitive' } }];
+    if (page.search) where.OR = [{ transferNumber: { contains: page.search } }];
     return this.page(this.db.inventoryStockTransfer, where, { createdAt: 'desc' }, page.skip ?? 0, page.take ?? 50, {
       fromLocation: { select: { id: true, name: true } },
       toLocation: { select: { id: true, name: true } },
@@ -1107,7 +1107,7 @@ export class InventoryService {
 
   async listStockAdjustments(tenantId: string, page: { skip?: number; take?: number; search?: string }) {
     const where: any = {};
-    if (page.search) where.OR = [{ adjustmentNumber: { contains: page.search, mode: 'insensitive' } }];
+    if (page.search) where.OR = [{ adjustmentNumber: { contains: page.search } }];
     return this.page(this.db.inventoryStockAdjustment, where, { createdAt: 'desc' }, page.skip ?? 0, page.take ?? 50, {
       location: { select: { id: true, name: true } },
       items: { include: { product: { select: { id: true, code: true, name: true, unit: true } } } },
@@ -1204,7 +1204,7 @@ export class InventoryService {
     if (q.status) where.status = q.status;
     if (q.locationId) where.locationId = q.locationId;
     if (q.assignedOnly) where.status = 'ASSIGNED';
-    if (q.search) where.OR = [{ name: { contains: q.search, mode: 'insensitive' } }, { assetCode: { contains: q.search, mode: 'insensitive' } }, { tagNumber: { contains: q.search, mode: 'insensitive' } }, { serialNumber: { contains: q.search, mode: 'insensitive' } }];
+    if (q.search) where.OR = [{ name: { contains: q.search } }, { assetCode: { contains: q.search } }, { tagNumber: { contains: q.search } }, { serialNumber: { contains: q.search } }];
     return this.page(this.db.inventoryAsset, where, { createdAt: 'desc' }, q.skip ?? 0, q.take ?? 50, {
       category: { select: { id: true, code: true, name: true } },
       location: { select: { id: true, name: true } },

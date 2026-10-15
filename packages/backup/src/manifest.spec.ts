@@ -47,13 +47,13 @@ describe('object keys', () => {
   it('partitions archives by environment/kind/date and keeps the manifest adjacent', () => {
     const archive = buildBackupObjectKey({
       environment: 'production',
-      kind: 'POSTGRES_FULL',
+      kind: 'MYSQL_FULL',
       id,
-      extension: 'dump',
+      extension: 'sql',
     });
-    expect(archive).toBe('backups/production/postgres/2026/10/09/20261009T021530Z-deadbeef.dump');
-    const manifest = buildManifestObjectKey({ environment: 'production', kind: 'POSTGRES_FULL', id });
-    expect(manifest).toBe('backups/production/postgres/2026/10/09/20261009T021530Z-deadbeef.manifest.json');
+    expect(archive).toBe('backups/production/mysql/2026/10/09/20261009T021530Z-deadbeef.sql');
+    const manifest = buildManifestObjectKey({ environment: 'production', kind: 'MYSQL_FULL', id });
+    expect(manifest).toBe('backups/production/mysql/2026/10/09/20261009T021530Z-deadbeef.manifest.json');
   });
 
   it('respects a custom prefix and the redis kind segment', () => {
@@ -71,12 +71,12 @@ describe('object keys', () => {
 describe('manifests', () => {
   const base = createBackupManifest({
     id: '20261009T021530Z-deadbeef',
-    kind: 'POSTGRES_FULL',
-    format: 'pg-custom',
+    kind: 'MYSQL_FULL',
+    format: 'mysql-sql',
     createdAt: '2026-10-09T02:15:30.000Z',
     environment: 'production',
     databaseName: 'college_erp',
-    objectKey: 'backups/production/postgres/2026/10/09/20261009T021530Z-deadbeef.dump',
+    objectKey: 'backups/production/mysql/2026/10/09/20261009T021530Z-deadbeef.sql',
     sizeBytes: 1024,
     sha256: 'a'.repeat(64),
   });

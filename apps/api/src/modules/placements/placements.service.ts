@@ -115,10 +115,10 @@ export class PlacementsService {
     if (query.companyType) where.companyType = query.companyType;
     if (query.search) {
       where.OR = [
-        { name: { contains: query.search, mode: 'insensitive' } },
-        { code: { contains: query.search, mode: 'insensitive' } },
-        { industry: { contains: query.search, mode: 'insensitive' } },
-        { city: { contains: query.search, mode: 'insensitive' } },
+        { name: { contains: query.search } },
+        { code: { contains: query.search } },
+        { industry: { contains: query.search } },
+        { city: { contains: query.search } },
       ];
     }
 
@@ -263,9 +263,9 @@ export class PlacementsService {
     if (query.companyId) where.companyId = query.companyId;
     if (query.search) {
       where.OR = [
-        { fullName: { contains: query.search, mode: 'insensitive' } },
-        { email: { contains: query.search, mode: 'insensitive' } },
-        { designation: { contains: query.search, mode: 'insensitive' } },
+        { fullName: { contains: query.search } },
+        { email: { contains: query.search } },
+        { designation: { contains: query.search } },
       ];
     }
 

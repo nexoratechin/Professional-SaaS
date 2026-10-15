@@ -529,8 +529,8 @@ export class ParentPortalService {
     const where: Prisma.StudentDocumentWhereInput = { studentId: child.studentId };
     if (query.search) {
       where.OR = [
-        { documentName: { contains: query.search, mode: 'insensitive' } },
-        { category: { contains: query.search, mode: 'insensitive' } },
+        { documentName: { contains: query.search } },
+        { category: { contains: query.search } },
       ];
     }
     const { skip, take } = this.page(query);

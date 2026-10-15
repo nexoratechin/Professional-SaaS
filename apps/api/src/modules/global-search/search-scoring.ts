@@ -1,6 +1,6 @@
 /**
  * Client-side relevance for search rows. The API returns a small, capped page per entity type and
- * ranks it in memory by how a row's labels match the query, because Postgres/Prisma cannot express
+ * ranks it in memory by how a row's labels match the query, because MySQL/Prisma cannot express
  * "prefix beats substring" in a single ORDER BY across heterogeneous label columns.
  *
  *   exact match            → 1.00

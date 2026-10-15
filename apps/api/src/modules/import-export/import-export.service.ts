@@ -600,7 +600,7 @@ export class ImportExportService {
       resolveRef: async (ref, codes) => {
         if (codes.length === 0) return new Map();
         const rows = await client[ref.model].findMany({
-          where: { [ref.codeField]: { in: codes, mode: 'insensitive' }, ...(ref.filter ?? {}) },
+          where: { [ref.codeField]: { in: codes }, ...(ref.filter ?? {}) },
           select: { id: true, [ref.codeField]: true },
         });
         const map = new Map<string, string>();
@@ -614,7 +614,7 @@ export class ImportExportService {
         if (entity.strategy !== 'generic' || keys.length === 0) return new Set();
         const fields = [...entity.duplicateKey, ...(entity.duplicateKeyFallback ? [entity.duplicateKeyFallback] : [])];
         const rows = await client[entity.model].findMany({
-          where: { OR: fields.map((f) => ({ [f]: { in: keys, mode: 'insensitive' } })) },
+          where: { OR: fields.map((f) => ({ [f]: { in: keys } })) },
           select: Object.fromEntries(fields.map((f) => [f, true])),
         });
         const found = new Set<string>();

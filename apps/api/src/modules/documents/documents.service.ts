@@ -317,9 +317,9 @@ export class DocumentsService {
       ...(query.search
         ? {
             OR: [
-              { title: { contains: query.search, mode: 'insensitive' as const } },
-              { originalFilename: { contains: query.search, mode: 'insensitive' as const } },
-              ...(query.search.trim().length ? [{ description: { contains: query.search, mode: 'insensitive' as const } }] : []),
+              { title: { contains: query.search } },
+              { originalFilename: { contains: query.search } },
+              ...(query.search.trim().length ? [{ description: { contains: query.search } }] : []),
             ],
           }
         : {}),

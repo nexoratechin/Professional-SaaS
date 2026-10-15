@@ -2,10 +2,10 @@
  * Operator CLI for backup/restore/recovery — the manual counterpart to the worker's scheduled
  * backup jobs. Run through package scripts so DATABASE_URL / REDIS_URL come from the environment:
  *
- *   pnpm backup:postgres                          # dump DATABASE_URL to .backups/
- *   pnpm backup:verify -- --archive .backups/x.dump
- *   pnpm backup:verify -- --archive x.dump --restore --target-url postgresql://.../scratch --create-db
- *   pnpm backup:restore -- --archive x.dump --target-url postgresql://.../college_erp --clean --yes
+ *   pnpm backup:mysql                             # dump DATABASE_URL to .backups/
+ *   pnpm backup:verify -- --archive .backups/x.sql
+ *   pnpm backup:verify -- --archive x.sql --restore --target-url mysql://.../scratch --create-db
+ *   pnpm backup:restore -- --archive x.sql --target-url mysql://.../college_erp --clean --yes
  *   pnpm backup:redis -- --out .backups/redis.rdb
  *
  * See docs/backup-recovery.md for the full runbook.
@@ -14,14 +14,14 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   buildBackupId,
-  createPostgresBackup,
+  createMysqlBackup,
   dropDatabase,
   parseDatabaseUrl,
   RedisRecoveryManager,
-  restorePostgresBackup,
+  restoreMysqlBackup,
   runIntegrityProbes,
-  defaultPostgresProbes,
-  verifyPostgresArchive,
+  defaultMysqlProbes,
+  verifyMysqlDump,
 } from '../src';
 
 interface Flags {
@@ -70,25 +70,29 @@ function printJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
+/** Optional explicit `mysql` client path from --mysql-path or BACKUP_MYSQL_PATH. */
+function mysqlPathFlag(flags: Flags): { mysqlPath?: string } {
+  const value = stringFlag(flags, 'mysql-path') ?? process.env.BACKUP_MYSQL_PATH;
+  return value ? { mysqlPath: value } : {};
+}
+
 async function main(): Promise<void> {
   const { command, flags } = parseArgs(process.argv.slice(2));
 
-  if (command === 'postgres') {
+  if (command === 'mysql') {
     const databaseUrl = requireFlag(flags, 'url', 'DATABASE_URL');
     const outDir = stringFlag(flags, 'out-dir') ?? process.env.BACKUP_LOCAL_DIR ?? '.backups';
     await mkdir(outDir, { recursive: true });
-    const outputPath = stringFlag(flags, 'out') ?? join(outDir, `postgres-${buildBackupId()}.dump`);
-    const backup = await createPostgresBackup({
+    const outputPath = stringFlag(flags, 'out') ?? join(outDir, `mysql-${buildBackupId()}.sql`);
+    const backup = await createMysqlBackup({
       databaseUrl,
       outputPath,
-      ...(stringFlag(flags, 'pg-dump-path') ?? process.env.BACKUP_PG_DUMP_PATH
-        ? { pgDumpPath: stringFlag(flags, 'pg-dump-path') ?? process.env.BACKUP_PG_DUMP_PATH }
+      ...(stringFlag(flags, 'mysqldump-path') ?? process.env.BACKUP_MYSQLDUMP_PATH
+        ? { mysqldumpPath: stringFlag(flags, 'mysqldump-path') ?? process.env.BACKUP_MYSQLDUMP_PATH }
         : {}),
+      ...mysqlPathFlag(flags),
     });
-    const verification = await verifyPostgresArchive({
-      archivePath: backup.outputPath,
-      ...(process.env.BACKUP_PG_RESTORE_PATH ? { pgRestorePath: process.env.BACKUP_PG_RESTORE_PATH } : {}),
-    });
+    const verification = await verifyMysqlDump({ dumpPath: backup.outputPath });
     printJson({ backup, verification });
     if (!verification.ok) {
       process.exitCode = 2;
@@ -99,12 +103,7 @@ async function main(): Promise<void> {
 
   if (command === 'verify') {
     const archive = requireFlag(flags, 'archive');
-    const structure = await verifyPostgresArchive({
-      archivePath: archive,
-      ...(stringFlag(flags, 'pg-restore-path') ?? process.env.BACKUP_PG_RESTORE_PATH
-        ? { pgRestorePath: stringFlag(flags, 'pg-restore-path') ?? process.env.BACKUP_PG_RESTORE_PATH }
-        : {}),
-    });
+    const structure = await verifyMysqlDump({ dumpPath: archive });
     if (!booleanFlag(flags, 'restore')) {
       printJson({ structure });
       if (!structure.ok) process.exitCode = 2;
@@ -112,26 +111,19 @@ async function main(): Promise<void> {
     }
     const targetUrl = requireFlag(flags, 'target-url');
     const create = booleanFlag(flags, 'create-db');
-    const probes = defaultPostgresProbes();
+    const probes = defaultMysqlProbes();
     const connection = parseDatabaseUrl(targetUrl);
-    const restore = await restorePostgresBackup({
-      archivePath: archive,
+    const restore = await restoreMysqlBackup({
+      dumpPath: archive,
       targetDatabaseUrl: targetUrl,
       create,
       ...(create ? { adminDatabaseUrl: stringFlag(flags, 'admin-url') } : {}),
-      ...(stringFlag(flags, 'pg-restore-path') ?? process.env.BACKUP_PG_RESTORE_PATH
-        ? { pgRestorePath: stringFlag(flags, 'pg-restore-path') ?? process.env.BACKUP_PG_RESTORE_PATH }
-        : {}),
-      ...(stringFlag(flags, 'psql-path') ?? process.env.BACKUP_PSQL_PATH
-        ? { psqlPath: stringFlag(flags, 'psql-path') ?? process.env.BACKUP_PSQL_PATH }
-        : {}),
+      ...mysqlPathFlag(flags),
     });
     const probeResults = await runIntegrityProbes({
       databaseUrl: targetUrl,
       probes,
-      ...(stringFlag(flags, 'psql-path') ?? process.env.BACKUP_PSQL_PATH
-        ? { psqlPath: stringFlag(flags, 'psql-path') ?? process.env.BACKUP_PSQL_PATH }
-        : {}),
+      ...mysqlPathFlag(flags),
     });
     const ok = probeResults.every((probe) => probe.ok);
     if (create && !booleanFlag(flags, 'keep-scratch')) {
@@ -139,15 +131,13 @@ async function main(): Promise<void> {
         stringFlag(flags, 'admin-url') ??
         (() => {
           const url = new URL(targetUrl);
-          url.pathname = '/postgres';
+          url.pathname = '/information_schema';
           return url.toString();
         })();
       await dropDatabase({
         adminDatabaseUrl: adminUrl,
         name: connection.database,
-        ...(stringFlag(flags, 'psql-path') ?? process.env.BACKUP_PSQL_PATH
-          ? { psqlPath: stringFlag(flags, 'psql-path') ?? process.env.BACKUP_PSQL_PATH }
-          : {}),
+        ...mysqlPathFlag(flags),
       });
     }
     printJson({ structure, restore, probes: probeResults, ok });
@@ -162,31 +152,28 @@ async function main(): Promise<void> {
     if (!confirmed) {
       process.stderr.write(
         'Refusing to restore without --yes: this OVERWRITES the target database. ' +
-          'Take a safety backup first (pnpm backup:postgres) if it holds live data.\n',
+          'Take a safety backup first (pnpm backup:mysql) if it holds live data.\n',
       );
       process.exitCode = 1;
       return;
     }
-    const structure = await verifyPostgresArchive({
-      archivePath: archive,
-      ...(process.env.BACKUP_PG_RESTORE_PATH ? { pgRestorePath: process.env.BACKUP_PG_RESTORE_PATH } : {}),
-    });
+    const structure = await verifyMysqlDump({ dumpPath: archive });
     if (!structure.ok) {
       printJson({ structure });
       process.stderr.write(`Archive failed structure verification; refusing to restore: ${structure.error}\n`);
       process.exitCode = 2;
       return;
     }
-    const restore = await restorePostgresBackup({
-      archivePath: archive,
+    const restore = await restoreMysqlBackup({
+      dumpPath: archive,
       targetDatabaseUrl: targetUrl,
       clean: !booleanFlag(flags, 'no-clean'),
-      ...(process.env.BACKUP_PG_RESTORE_PATH ? { pgRestorePath: process.env.BACKUP_PG_RESTORE_PATH } : {}),
+      ...mysqlPathFlag(flags),
     });
     const probes = await runIntegrityProbes({
       databaseUrl: targetUrl,
-      probes: defaultPostgresProbes(),
-      ...(process.env.BACKUP_PSQL_PATH ? { psqlPath: process.env.BACKUP_PSQL_PATH } : {}),
+      probes: defaultMysqlProbes(),
+      ...mysqlPathFlag(flags),
     });
     printJson({ restore, probes });
     process.exitCode = probes.every((probe) => probe.ok) ? 0 : 2;
@@ -216,9 +203,9 @@ async function main(): Promise<void> {
 
   process.stderr.write(
     [
-      'Usage: backup-cli.ts <postgres|verify|restore|redis> [flags]',
+      'Usage: backup-cli.ts <mysql|verify|restore|redis> [flags]',
       '',
-      '  postgres [--url <url>] [--out <file>] [--out-dir <dir>]',
+      '  mysql    [--url <url>] [--out <file>] [--out-dir <dir>]',
       '  verify   --archive <file> [--restore --target-url <url> [--create-db] [--admin-url <url>]]',
       '  restore  --archive <file> --target-url <url> --yes [--no-clean]',
       '  redis    [--url <redisUrl>] [--out <rdbFile>]',

@@ -2,9 +2,8 @@
  * Applies Prisma schema migrations to an enterprise tenant's physical store.
  *
  * Enterprise stores are reconciled against the CURRENT Prisma schema rather than by replaying the
- * historical `prisma/migrations` files — that history is `public`-schema-qualified in places and
- * written for the shared database, so replaying it into a tenant schema/database would either
- * fail or target the wrong tables. Instead:
+ * historical `prisma/migrations` files — that history is aimed at the shared database, so replaying
+ * it into a tenant's store would either fail or target the wrong tables. Instead:
  *
  *   prisma migrate diff --from-url <store> --to-schema-datamodel <schema.prisma> --script
  *

@@ -112,7 +112,7 @@ export class AuditService {
       entityType: filters.entityType,
       entityId: filters.entityId,
       requestId: filters.requestId,
-      actorEmail: filters.actorEmail ? { contains: filters.actorEmail, mode: 'insensitive' } : undefined,
+      actorEmail: filters.actorEmail ? { contains: filters.actorEmail } : undefined,
       createdAt:
         filters.dateFrom || filters.dateTo
           ? {

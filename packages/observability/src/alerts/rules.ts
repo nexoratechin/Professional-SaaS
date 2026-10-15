@@ -265,12 +265,12 @@ export const ALERT_RULES: readonly AlertRule[] = [
   {
     key: 'backup_stale',
     severity: 'WARNING',
-    title: 'PostgreSQL backups are not current',
+    title: 'MySQL backups are not current',
     evaluate: (s) => {
       if (!s.backupExpected) return null;
-      if (s.lastPostgresBackupAt === null) {
-        return firing('backup_stale', 'CRITICAL', 'No successful PostgreSQL backup recorded', {
-          dedupeKey: 'postgres',
+      if (s.lastMysqlBackupAt === null) {
+        return firing('backup_stale', 'CRITICAL', 'No successful MySQL backup recorded', {
+          dedupeKey: 'mysql',
           metricValue: 0,
           threshold: s.backupMaxAgeHours,
           description:
@@ -278,19 +278,19 @@ export const ALERT_RULES: readonly AlertRule[] = [
             'Check the worker backup queue and the dead-letter queue — the RPO is unprotected.',
         });
       }
-      const ageHours = Math.max(0, (Date.now() / 1000 - s.lastPostgresBackupAt) / 3600);
+      const ageHours = Math.max(0, (Date.now() / 1000 - s.lastMysqlBackupAt) / 3600);
       // One missed schedule is a warning; two full windows is a critical RPO breach.
       if (ageHours >= s.backupMaxAgeHours * 2) {
-        return firing('backup_stale', 'CRITICAL', 'PostgreSQL backups are far behind schedule', {
-          dedupeKey: 'postgres',
+        return firing('backup_stale', 'CRITICAL', 'MySQL backups are far behind schedule', {
+          dedupeKey: 'mysql',
           metricValue: round2(ageHours),
           threshold: s.backupMaxAgeHours,
           description: `The last successful backup is ${round2(ageHours)}h old (RPO budget ${s.backupMaxAgeHours}h). Restore protection is compromised.`,
         });
       }
       if (ageHours >= s.backupMaxAgeHours) {
-        return firing('backup_stale', 'WARNING', 'PostgreSQL backups are behind schedule', {
-          dedupeKey: 'postgres',
+        return firing('backup_stale', 'WARNING', 'MySQL backups are behind schedule', {
+          dedupeKey: 'mysql',
           metricValue: round2(ageHours),
           threshold: s.backupMaxAgeHours,
           description: `The last successful backup is ${round2(ageHours)}h old (RPO budget ${s.backupMaxAgeHours}h).`,

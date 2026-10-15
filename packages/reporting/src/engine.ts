@@ -112,7 +112,7 @@ function dateClause(field: string, filters: ReportFilters): unknown | undefined 
 }
 
 function searchClause(fields: string[], term: string): unknown {
-  return { OR: fields.map((field) => ({ [field]: { contains: term, mode: 'insensitive' } })) };
+  return { OR: fields.map((field) => ({ [field]: { contains: term } })) };
 }
 
 function scopeConditions(shape: Shape, grant: ReportScopeGrant, actorUserId?: string): unknown | undefined {
@@ -496,20 +496,20 @@ function baseWhere(shape: Shape, filters: ReportFilters): Array<unknown> {
       case 'ATTENDANCE':
         parts.push({
           OR: [
-            { subjectName: { contains: term, mode: 'insensitive' } },
-            { subjectCode: { contains: term, mode: 'insensitive' } },
-            { student: { fullName: { contains: term, mode: 'insensitive' } } },
-            { student: { admissionNumber: { contains: term, mode: 'insensitive' } } },
+            { subjectName: { contains: term } },
+            { subjectCode: { contains: term } },
+            { student: { fullName: { contains: term } } },
+            { student: { admissionNumber: { contains: term } } },
           ],
         });
         break;
       case 'FEES':
         parts.push({
           OR: [
-            { headName: { contains: term, mode: 'insensitive' } },
-            { headCode: { contains: term, mode: 'insensitive' } },
-            { student: { fullName: { contains: term, mode: 'insensitive' } } },
-            { student: { admissionNumber: { contains: term, mode: 'insensitive' } } },
+            { headName: { contains: term } },
+            { headCode: { contains: term } },
+            { student: { fullName: { contains: term } } },
+            { student: { admissionNumber: { contains: term } } },
           ],
         });
         break;
@@ -519,51 +519,51 @@ function baseWhere(shape: Shape, filters: ReportFilters): Array<unknown> {
       case 'PLACEMENTS':
         parts.push({
           OR: [
-            { student: { fullName: { contains: term, mode: 'insensitive' } } },
-            { student: { admissionNumber: { contains: term, mode: 'insensitive' } } },
-            { drive: { title: { contains: term, mode: 'insensitive' } } },
-            { drive: { company: { name: { contains: term, mode: 'insensitive' } } } },
+            { student: { fullName: { contains: term } } },
+            { student: { admissionNumber: { contains: term } } },
+            { drive: { title: { contains: term } } },
+            { drive: { company: { name: { contains: term } } } },
           ],
         });
         break;
       case 'LIBRARY':
         parts.push({
           OR: [
-            { itemTitle: { contains: term, mode: 'insensitive' } },
-            { itemAuthor: { contains: term, mode: 'insensitive' } },
-            { itemCode: { contains: term, mode: 'insensitive' } },
-            { member: { fullName: { contains: term, mode: 'insensitive' } } },
-            { student: { fullName: { contains: term, mode: 'insensitive' } } },
+            { itemTitle: { contains: term } },
+            { itemAuthor: { contains: term } },
+            { itemCode: { contains: term } },
+            { member: { fullName: { contains: term } } },
+            { student: { fullName: { contains: term } } },
           ],
         });
         break;
       case 'HOSTEL':
         parts.push({
           OR: [
-            { hostelName: { contains: term, mode: 'insensitive' } },
-            { roomNumber: { contains: term, mode: 'insensitive' } },
-            { student: { fullName: { contains: term, mode: 'insensitive' } } },
-            { student: { admissionNumber: { contains: term, mode: 'insensitive' } } },
+            { hostelName: { contains: term } },
+            { roomNumber: { contains: term } },
+            { student: { fullName: { contains: term } } },
+            { student: { admissionNumber: { contains: term } } },
           ],
         });
         break;
       case 'TRANSPORT':
         parts.push({
           OR: [
-            { routeName: { contains: term, mode: 'insensitive' } },
-            { routeCode: { contains: term, mode: 'insensitive' } },
-            { vehicleNumber: { contains: term, mode: 'insensitive' } },
-            { student: { fullName: { contains: term, mode: 'insensitive' } } },
+            { routeName: { contains: term } },
+            { routeCode: { contains: term } },
+            { vehicleNumber: { contains: term } },
+            { student: { fullName: { contains: term } } },
           ],
         });
         break;
       case 'INVENTORY':
         parts.push({
           OR: [
-            { product: { name: { contains: term, mode: 'insensitive' } } },
-            { product: { code: { contains: term, mode: 'insensitive' } } },
-            { location: { name: { contains: term, mode: 'insensitive' } } },
-            { location: { code: { contains: term, mode: 'insensitive' } } },
+            { product: { name: { contains: term } } },
+            { product: { code: { contains: term } } },
+            { location: { name: { contains: term } } },
+            { location: { code: { contains: term } } },
           ],
         });
         break;

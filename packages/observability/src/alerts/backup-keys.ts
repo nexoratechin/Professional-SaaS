@@ -7,7 +7,7 @@
  * like a fresh backup.
  */
 export const BACKUP_LAST_SUCCESS_KEYS = {
-  postgres: 'obs:backup:last_success:postgres',
+  mysql: 'obs:backup:last_success:mysql',
   redis: 'obs:backup:last_success:redis',
 } as const;
 

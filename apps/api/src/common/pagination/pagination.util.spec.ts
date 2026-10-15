@@ -73,8 +73,8 @@ describe('searchContains / toOrderBy', () => {
 
   it('builds OR contains clauses for searchable fields', () => {
     expect(searchContains('ravi', ['firstName', 'lastName'])).toEqual([
-      { firstName: { contains: 'ravi', mode: 'insensitive' } },
-      { lastName: { contains: 'ravi', mode: 'insensitive' } },
+      { firstName: { contains: 'ravi' } },
+      { lastName: { contains: 'ravi' } },
     ]);
     expect(searchContains(undefined, ['firstName'])).toBeUndefined();
     expect(searchContains('', ['firstName'])).toBeUndefined();

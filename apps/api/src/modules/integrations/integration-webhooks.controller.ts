@@ -179,7 +179,10 @@ export class IntegrationWebhookService {
     await this.bumpEndpointCounters(endpoint.id, false);
 
     // Endpoint-level event filter. Empty list means "accept everything", which is the common case.
-    if (endpoint.eventTypes.length > 0 && !endpoint.eventTypes.includes(event.eventType)) {
+    const acceptedEventTypes: string[] = Array.isArray(endpoint.eventTypes)
+      ? (endpoint.eventTypes as string[])
+      : [];
+    if (acceptedEventTypes.length > 0 && !acceptedEventTypes.includes(event.eventType)) {
       await tenantPrisma.integrationWebhookEvent.update({
         where: { id: event.id },
         data: { status: 'IGNORED', errorMessage: 'Event type is not accepted by this endpoint.', processedAt: new Date() },

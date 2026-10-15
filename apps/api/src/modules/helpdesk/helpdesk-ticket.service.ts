@@ -237,9 +237,9 @@ export class HelpdeskTicketService {
     }
     if (q.search) {
       const search = [
-        { ticketNumber: { contains: q.search, mode: 'insensitive' } },
-        { subject: { contains: q.search, mode: 'insensitive' } },
-        { description: { contains: q.search, mode: 'insensitive' } },
+        { ticketNumber: { contains: q.search } },
+        { subject: { contains: q.search } },
+        { description: { contains: q.search } },
       ];
       where.AND = [{ OR: search }];
     }

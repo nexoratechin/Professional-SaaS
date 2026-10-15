@@ -275,7 +275,7 @@ export class ResultsService {
       tenantId,
       deletedAt: null,
       ...(query.search
-        ? { OR: [{ name: { contains: query.search, mode: 'insensitive' } }, { code: { contains: query.search, mode: 'insensitive' } }] }
+        ? { OR: [{ name: { contains: query.search } }, { code: { contains: query.search } }] }
         : {}),
     };
     const [items, total] = await Promise.all([
@@ -1187,9 +1187,9 @@ export class ResultsService {
         ? {
             student: {
               OR: [
-                { fullName: { contains: query.search, mode: 'insensitive' } },
-                { admissionNumber: { contains: query.search, mode: 'insensitive' } },
-                { rollNumber: { contains: query.search, mode: 'insensitive' } },
+                { fullName: { contains: query.search } },
+                { admissionNumber: { contains: query.search } },
+                { rollNumber: { contains: query.search } },
               ],
             },
           }
@@ -1637,7 +1637,7 @@ export class ResultsService {
       tenantId,
       sessionId,
       ...(sessionAnchor ? { session: sessionAnchor } : {}),
-      ...(query.search ? { student: { fullName: { contains: query.search, mode: 'insensitive' } } } : {}),
+      ...(query.search ? { student: { fullName: { contains: query.search } } } : {}),
     };
     const { skip, take } = this.page(query);
     const [items, total] = await Promise.all([

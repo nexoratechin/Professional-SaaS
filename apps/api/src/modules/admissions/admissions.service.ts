@@ -282,7 +282,7 @@ export class AdmissionsService {
   async listEnquiries(tenantId: string, query: { search?: string; source?: string; sessionId?: string; skip?: number; take?: number }) {
     const where: Record<string, any> = {};
     if (query.search) {
-      const contains = { contains: query.search, mode: 'insensitive' as const };
+      const contains = { contains: query.search };
       where.OR = [{ name: contains }, { email: contains }, { phone: contains }];
     }
     if (query.source) where.source = query.source;
@@ -420,7 +420,7 @@ export class AdmissionsService {
     if (scope) Object.assign(where, scope);
 
     if (query.search) {
-      const contains = { contains: query.search, mode: 'insensitive' as const };
+      const contains = { contains: query.search };
       where.OR = [
         { applicationNumber: contains },
         { fullName: contains },
@@ -2101,7 +2101,7 @@ export class AdmissionsService {
   private async findDuplicateCandidate(candidate: any): Promise<string | null> {
     if (candidate.email) {
       const found = await (this.tenantPrisma.client as Client).admissionApplication.findFirst({
-        where: { sessionId: candidate.sessionId, email: { equals: candidate.email as string, mode: 'insensitive' } },
+        where: { sessionId: candidate.sessionId, email: { equals: candidate.email as string } },
         select: { id: true },
       });
       if (found) return found.id;

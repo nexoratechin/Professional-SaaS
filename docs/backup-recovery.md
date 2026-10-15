@@ -2,7 +2,7 @@
 
 Production backup, verification, restore and rollback strategy for the College ERP SaaS. Implemented
 by `@college-erp/backup` (framework-agnostic primitives) and the worker's `backup` queue (scheduling,
-object storage, heartbeat, retention) — no new infrastructure services: backups ride on PostgreSQL,
+object storage, heartbeat, retention) — no new infrastructure services: backups ride on MySQL,
 Redis and the existing S3-compatible object storage bucket.
 
 > **Local development:** with `STORAGE_DRIVER=local` (the default committed in
@@ -14,13 +14,13 @@ Redis and the existing S3-compatible object storage bucket.
 ```
 ┌─ worker ──────────────────────────────────────────────────────────────────────────────┐
 │  backup scheduler (BACKUP_INTERVAL_HOURS, default 24h)                                │
-│    ├─ postgres-backup  pg_dump -Fc ─▶ pg_restore --list verify ─▶ [restore-verify]    │
+│    ├─ mysql-backup     mysqldump --single-transaction ─▶ scan/verify dump ─▶ [restore-verify] │
 │    │                   ─▶ upload archive + manifest to s3://<bucket>/backups/…        │
 │    │                   ─▶ Redis heartbeat (last success) ─▶ GFS retention prune       │
 │    ├─ redis-snapshot   BGSAVE + persistence audit ─▶ redis-cli --rdb export ─▶ upload │
 │    └─ backup-prune     daily GFS retention sweep                                      │
 └──────────────────────────────────────────────────────────────────────────────────────┘
-        │ heartbeat key obs:backup:last_success:postgres
+        │ heartbeat key obs:backup:last_success:mysql
         ▼
 ┌─ API ──────────────────────────────────────────────────────────────────────────────────┐
 │  alert engine: backup_stale (WARNING past BACKUP_MAX_AGE_HOURS, CRITICAL past 2×)      │
@@ -31,11 +31,11 @@ Redis and the existing S3-compatible object storage bucket.
 
 | Metric | Target | Mechanism |
 |---|---|---|
-| **RPO — PostgreSQL** | ≤ 24 h (default; tune with `BACKUP_INTERVAL_HOURS`) | scheduled `pg_dump` to object storage |
-| **RPO — PostgreSQL (managed deployments)** | ≤ 5 min (recommended) | enable the provider's continuous WAL archiving/PITR on top of these logical backups |
+| **RPO — MySQL** | ≤ 24 h (default; tune with `BACKUP_INTERVAL_HOURS`) | scheduled `mysqldump` to object storage |
+| **RPO — MySQL (managed deployments)** | ≤ 5 min (recommended) | enable the provider's binary-log archiving/PITR on top of these logical backups |
 | **RPO — Redis** | ≤ 1 s (AOF), ≤ 6 h (off-host RDB) | AOF `everysec` + RDB save points on a persistent volume; scheduled RDB export to S3 |
 | **RPO — documents (S3/MinIO)** | 0 (source of truth) / replication lag | bucket versioning + mirror/replication (see §9) |
-| **RTO — full PostgreSQL restore** | ≤ 60 min for the current dataset sizes; re-measure per environment | restore runbook §6, documented restore tooling, tested quarterly |
+| **RTO — full MySQL restore** | ≤ 60 min for the current dataset sizes; re-measure per environment | restore runbook §6, documented restore tooling, tested quarterly |
 | **RTO — single tenant disaster** | ≤ 60 min | restore-to-scratch then extract tenant rows (§6.3) |
 | **RTO — Redis** | ≤ 15 min | restart with AOF/RDB volume, or accept rebuild (queues are re-derivable, §8) |
 | **Backup verification** | every backup (structure) + weekly restore-verify | §4 |
@@ -47,7 +47,7 @@ recovery test (§14) and adjust the table when the environment changes.
 
 | Artifact | Frequency (default) | Retention (GFS) | Where |
 |---|---|---|---|
-| PostgreSQL full dump | every `BACKUP_INTERVAL_HOURS` (24 h) | 7 daily + 4 weekly + 12 monthly (`BACKUP_RETENTION_*`) | `s3://$S3_BUCKET/backups/<env>/postgres/…` |
+| MySQL full dump | every `BACKUP_INTERVAL_HOURS` (24 h) | 7 daily + 4 weekly + 12 monthly (`BACKUP_RETENTION_*`) | `s3://$S3_BUCKET/backups/<env>/mysql/…` |
 | Backup manifest (JSON) | with every dump | with its dump | next to the archive (`*.manifest.json`) |
 | Redis snapshot (BGSAVE heartbeat, optional RDB) | every `BACKUP_REDIS_INTERVAL_HOURS` (6 h) | same GFS policy | `s3://$S3_BUCKET/backups/<env>/redis/…` |
 | Migration pre-backup | every `db:deploy:safe` run | operator-managed (`.backups/pre-migration/` or `--dir`) | local disk / ops share |
@@ -58,18 +58,21 @@ Retention is enforced by the daily `backup-prune` job using a pure GFS planner
 the last N days, then each of the last W ISO weeks, then each of the last M months. The newest
 backup overall is never deleted.
 
-## 3. How PostgreSQL backups work
+## 3. How MySQL backups work
 
-1. **Dump** — `pg_dump --format=custom --no-owner --no-privileges --compress=6` streams straight to
-   a temp file (never buffered in memory); the password travels via `PGPASSWORD`, never argv.
-2. **Structure verification** — always: `pg_restore --list` must parse the archive TOC (tables +
-   table data present). A dump that cannot be listed is a failed backup.
+1. **Dump** — `mysqldump --single-transaction --skip-lock-tables --routines --triggers
+   --no-tablespaces --default-character-set=utf8mb4` streams straight to a temp file (never
+   buffered in memory); the password travels via `MYSQL_PWD`, never argv. `--single-transaction`
+   gives a consistent repeatable-read snapshot of InnoDB tables without locking writers.
+2. **Structure verification** — always: the dump is streamed line-by-line and must contain at least
+   one `CREATE TABLE` and the trailing `-- Dump completed` marker mysqldump always appends. A dump
+   that cannot be scanned is a failed backup.
 3. **Restore verification** (optional, `BACKUP_VERIFY_RESTORE_ENABLED=true`) — restore into a
    scratch database (`college_erp_recovery_<id>`), run integrity probes
    (`_prisma_migrations` complete, no unfinished migrations, `tenants`/`users` readable), then drop
    the scratch database. Failing probes fail the job.
 4. **Upload** — archive + manifest (id, size, SHA-256, tool version, verification result) to S3.
-5. **Heartbeat** — `obs:backup:last_success:postgres` is set in Redis (90-day TTL); the API's
+5. **Heartbeat** — `obs:backup:last_success:mysql` is set in Redis (90-day TTL); the API's
    `backup_stale` alert reads it.
 6. **Prune** — GFS retention (above) including the matching manifests.
 
@@ -81,7 +84,7 @@ recomputed before every restore; a mismatch refuses the restore.
 
 | Level | Command | Cost | Cadence |
 |---|---|---|---|
-| Structure (TOC) | automatic in `postgres-backup`; manual: `pnpm backup:verify -- --archive <file>` | ms | every backup |
+| Structure (dump scan) | automatic in `mysql-backup`; manual: `pnpm backup:verify -- --archive <file>` | ms | every backup |
 | Restore + probes | `BACKUP_VERIFY_RESTORE_ENABLED=true`; manual: `pnpm backup:verify -- --archive <file> --restore --target-url <scratch> --create-db` | minutes | weekly+ recommended |
 | Automated recovery test | `pnpm test:recovery` | minutes | CI on every change; scheduled quarterly drill |
 
@@ -90,31 +93,31 @@ recomputed before every restore; a mismatch refuses the restore.
 ### 5.1 Full restore (disaster recovery)
 
 Prerequisites: the archive (download from object storage with `mc cp`, `aws s3 cp`, or a presigned
-URL), `pg_restore` on PATH, and a maintenance window.
+URL), the `mysql` client on PATH, and a maintenance window.
 
 ```bash
 # 0. Freeze the platform: stop the api and worker processes so nothing writes during the restore.
 #    (Ctrl+C in each terminal, or kill their node processes.)
 
 # 1. Identify the latest verified archive and its manifest.
-#    Object layout: backups/<env>/postgres/<yyyy>/<mm>/<dd>/<id>.dump (+ .manifest.json)
-mc ls --recursive local/college-erp-documents/backups/production/postgres/ | tail -5
-mc cp local/college-erp-documents/backups/production/postgres/2026/10/10/<id>.dump ./restore.dump
+#    Object layout: backups/<env>/mysql/<yyyy>/<mm>/<dd>/<id>.sql (+ .manifest.json)
+mc ls --recursive local/college-erp-documents/backups/production/mysql/ | tail -5
+mc cp local/college-erp-documents/backups/production/mysql/2026/10/10/<id>.sql ./restore.sql
 
-# 2. Verify BEFORE restoring (structure + checksum from the manifest).
-pnpm backup:verify -- --archive ./restore.dump   # exit code 2 = do not proceed
+# 2. Verify BEFORE restoring (structure scan + checksum from the manifest).
+pnpm backup:verify -- --archive ./restore.sql   # exit code 2 = do not proceed
 
 # 3. Take a safety snapshot of the CURRENT database (so the restore itself is reversible).
-pnpm backup:postgres -- --out ./pre-restore.dump
+pnpm backup:mysql -- --out ./pre-restore.sql
 
-# 4. Restore into the primary database (--clean drops/recreates objects; --yes confirms).
-pnpm backup:restore -- --archive ./restore.dump --target-url "$DATABASE_URL" --clean --yes
+# 4. Restore into the primary database (--clean drops/recreates objects; the target is named).
+pnpm backup:restore -- --archive ./restore.sql --target-url "$DATABASE_URL" --yes
 
 # 5. Start the platform again and complete the post-restore checklist (below).
 #    Restart the api and worker processes in their terminals.
 ```
 
-The restore command runs the default integrity probes after `pg_restore --exit-on-error`, so a
+The restore command runs the default integrity probes after the `mysql` client loads the dump, so a
 partially applied restore fails loudly instead of serving broken data.
 
 **Post-restore checklist**
@@ -126,15 +129,15 @@ partially applied restore fails loudly instead of serving broken data.
       `payment-reconciliation`/`notifications` queues; BullMQ jobs already persisted in Redis
       before the freeze will resume.
 - [ ] Re-record the recovery point (which RPO was actually met) in the incident log.
-- [ ] Trigger an immediate fresh backup (`POST` via operator CLI: `pnpm backup:postgres`) so the
+- [ ] Trigger an immediate fresh backup (`POST` via operator CLI: `pnpm backup:mysql`) so the
       RPO clock restarts from the restored state.
 
-### 5.2 Point-in-time recovery (managed PostgreSQL)
+### 5.2 Point-in-time recovery (managed MySQL)
 
-Logical dumps restore to the dump's instant. If the deployment runs on a managed PostgreSQL with
-continuous WAL archiving enabled, use the provider's PITR for minute-level RPO and keep these
-logical dumps as the last line of defence. Confirm PITR/PITR-window settings during every quarterly
-drill; they are provider-managed and not configured by this repository.
+Logical dumps restore to the dump's instant. If the deployment runs on a managed MySQL with
+binary-log archiving enabled, use the provider's PITR for minute-level RPO and keep these
+logical dumps as the last line of defence. Confirm PITR/binlog retention settings during every
+quarterly drill; they are provider-managed and not configured by this repository.
 
 ### 5.3 Single-tenant recovery (shared schema)
 
@@ -142,7 +145,8 @@ A tenant damaging its own data does not justify restoring the whole platform. In
 
 1. Restore the archive into a scratch database (`pnpm backup:verify -- --archive … --restore --create-db --target-url … --keep-scratch`).
 2. Extract the tenant's rows from the scratch database:
-   `\copy (SELECT * FROM <table> WHERE tenant_id = '<id>') TO 'tenant_rows.csv' CSV HEADER`.
+   `mysql ... -e "SELECT * FROM <table> WHERE tenant_id = '<id>'" --batch > tenant_rows.csv`
+   (or `SELECT … INTO OUTFILE`); keep `--batch` so the output is tab-separated and importable.
 3. Apply them to production through the tenant's normal imports (`@college-erp/imports` CSV flow) or
    a reviewed, tenant-scoped SQL script — never raw `COPY` into shared tables without a transaction
    and an audit note.
@@ -180,7 +184,7 @@ Redis holds derived state — the recovery position is documented rather than ro
 
 | Class | Loss impact | Recovery |
 |---|---|---|
-| BullMQ queues | jobs not yet processed are lost | Re-derivable: job state lives in PostgreSQL (import rows, invoices, documents). Re-enqueue through the source API or resubmit; inspect the dead-letter queue after availability resumes. |
+| BullMQ queues | jobs not yet processed are lost | Re-derivable: job state lives in MySQL (import rows, invoices, documents). Re-enqueue through the source API or resubmit; inspect the dead-letter queue after availability resumes. |
 | Cache / idempotency / rate-limit keys | transient duplication risk (idempotency window) | Rebuild naturally; clients retry with the same `Idempotency-Key`. |
 | Worker heartbeats, window counters | alert blind spots for one interval | Regenerated within `WORKER_HEARTBEAT_INTERVAL_MS`. |
 
@@ -199,7 +203,7 @@ Off-host recovery:
    accept that AOF is the newer state (usually what you want).
 4. Verify: `redis-cli INFO persistence` shows `loading:0`, `rdb_last_bgsave_status:ok`.
 5. If the RDB is unusable or stale, do nothing: restart Redis empty and re-enqueue pending work
-   from PostgreSQL. This is a valid recovery — say so explicitly in the incident log.
+   from MySQL. This is a valid recovery — say so explicitly in the incident log.
 
 ## 8. Document/object storage backups
 
@@ -207,7 +211,7 @@ Documents are the source of truth in the bucket; back up the bucket itself:
 
 - **Versioning** on the documents bucket (MinIO/S3) so an overwritten/deleted object is recoverable.
 - **Mirror/replication** to a second bucket or region (`mc mirror --overwrite local/college-erp-documents remote/…`
-  or the provider's bucket replication). Schedule this alongside the PostgreSQL backups.
+  or the provider's bucket replication). Schedule this alongside the MySQL backups.
 - The database dump restores the *metadata* (document rows, keys, versions); objects must come from
   the bucket backup. A restore without bucket replication gives you metadata pointing at missing
   files — practice the pair together in drills.
@@ -240,11 +244,11 @@ page. Suggested Prometheus rule (mirrors the in-app alert):
 
 ```yaml
 - alert: CollegeErpBackupStale
-  expr: time() - college_erp_backup_last_success_timestamp_seconds{kind="postgres"} > 26*3600
+  expr: time() - college_erp_backup_last_success_timestamp_seconds{kind="mysql"} > 26*3600
   for: 15m
   labels: { severity: critical }
   annotations:
-    summary: "PostgreSQL backups are behind schedule (RPO at risk)"
+    summary: "MySQL backups are behind schedule (RPO at risk)"
 ```
 
 ## 11. Emergency procedure
@@ -262,8 +266,8 @@ backup heartbeat has been CRITICAL for more than two windows.
 3. **Classify** — corrupt data (needs restore or surgical repair) vs unavailable infrastructure
    (needs failover/restart) vs application bug (fix forward). Only the first needs a restore; a
    restart is not a restore.
-4. **Snapshot before touching anything.** `pg_dump` the damaged database if it is still readable
-   (`pnpm backup:postgres -- --out ./incident-<date>.dump`) — the forensic copy may recover data
+4. **Snapshot before touching anything.** `mysqldump` the damaged database if it is still readable
+   (`pnpm backup:mysql -- --out ./incident-<date>.sql`) — the forensic copy may recover data
    the last scheduled backup missed, and you cannot dump what you overwrote.
 
 **Decision tree**
@@ -278,7 +282,7 @@ Extent?
         │
         ▼
      Restore verified? ── no ──▶ try next-oldest archive; if none verify → escalate;
-                                  reconstruct from WAL/PITR if the provider has it
+                                  reconstruct from binary logs/PITR if the provider has it
         │ yes
         ▼
      Post-restore checklist (§5.1) → resume traffic → fresh backup → write incident report
@@ -298,14 +302,14 @@ least quarterly against a production-size copy.
 
 ## 12. Automated recovery tests
 
-`packages/backup/test/recovery.e2e-spec.ts` exercises the full loop against a real PostgreSQL:
-fixture data → `pg_dump` → manifest checksum → `pg_restore --list` → restore into a scratch
+`packages/backup/test/recovery.e2e-spec.ts` exercises the full loop against a real MySQL:
+fixture data → `mysqldump` → manifest checksum → dump scan → restore into a scratch
 database → integrity probes compare source/restore → verification detects a forced mismatch →
 cleanup. It self-skips when the tools/database are absent.
 
 ```bash
-# Local: against the native local PostgreSQL (never production).
-RECOVERY_TEST_DATABASE_URL=postgresql://college_erp:college_erp_dev_password@localhost:5432/college_erp \
+# Local: against the native local MySQL (never production).
+RECOVERY_TEST_DATABASE_URL=mysql://college_erp:college_erp_dev_password@localhost:3306/college_erp \
   pnpm test:recovery
 
 # CI runs the same suite on every push/PR — see .github/workflows/ci.yml.
@@ -329,7 +333,7 @@ connection-string handling, TOC parsing and Redis persistence assessment — the
 | `BACKUP_SCRATCH_DATABASE_PREFIX` | `college_erp_recovery_` | scratch DB prefix |
 | `BACKUP_RETENTION_DAILY/WEEKLY/MONTHLY` | `7/4/12` | GFS retention |
 | `BACKUP_TIMEOUT_MS` | `1800000` | per-tool timeout |
-| `BACKUP_PG_DUMP_PATH` / `BACKUP_PG_RESTORE_PATH` / `BACKUP_PSQL_PATH` | PATH | explicit client-tool paths |
+| `BACKUP_MYSQLDUMP_PATH` / `BACKUP_MYSQL_PATH` | PATH | explicit `mysqldump` / `mysql` client paths |
 | `BACKUP_REDIS_ENABLED` | `true` | scheduled Redis snapshots |
 | `BACKUP_REDIS_INTERVAL_HOURS` | `6` | Redis snapshot cadence |
 | `BACKUP_REDIS_RDB_EXPORT_ENABLED` | `true` | export RDB to object storage |
@@ -342,9 +346,9 @@ Operator commands (run from the repo root):
 
 | Command | Effect |
 |---|---|
-| `pnpm backup:postgres` | dump `DATABASE_URL` to `.backups/` and structure-verify it |
+| `pnpm backup:mysql` | dump `DATABASE_URL` to `.backups/` and structure-verify it |
 | `pnpm backup:verify -- --archive <file> [--restore --target-url <url> --create-db]` | verify structure, optionally restore + probe |
-| `pnpm backup:restore -- --archive <file> --target-url <url> --clean --yes` | restore (overwrites target) |
+| `pnpm backup:restore -- --archive <file> --target-url <url> --yes` | restore (overwrites target) |
 | `pnpm backup:redis [-- --out <file.rdb>]` | BGSAVE + audit, optional RDB export |
 | `pnpm test:recovery` | automated recovery test |
 | `pnpm db:deploy:safe` | pre-migration backup → `prisma migrate deploy` |

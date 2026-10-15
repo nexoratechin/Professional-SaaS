@@ -52,10 +52,10 @@ export class PlacementDriveService {
     if (query.mode) where.mode = query.mode;
     if (query.search) {
       where.OR = [
-        { title: { contains: query.search, mode: 'insensitive' } },
-        { code: { contains: query.search, mode: 'insensitive' } },
-        { venue: { contains: query.search, mode: 'insensitive' } },
-        { company: { name: { contains: query.search, mode: 'insensitive' } } },
+        { title: { contains: query.search } },
+        { code: { contains: query.search } },
+        { venue: { contains: query.search } },
+        { company: { name: { contains: query.search } } },
       ];
     }
 

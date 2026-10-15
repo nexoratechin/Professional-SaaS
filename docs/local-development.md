@@ -10,8 +10,8 @@ The stack:
 | `apps/web` (React + Vite PWA) | Vite dev server | http://localhost:5173 |
 | `apps/api` (NestJS REST API) | Node (`nest start --watch`) | http://localhost:3000 |
 | `apps/worker` (BullMQ worker) | Node (`nest start --watch`) | health/metrics on http://localhost:3100 |
-| `packages/database` (Prisma) | Prisma CLI | PostgreSQL |
-| PostgreSQL | Native Windows service | `localhost:5432` |
+| `packages/database` (Prisma) | Prisma CLI | MySQL |
+| MySQL | Native Windows service | `localhost:3306` |
 | Redis | Memurai / WSL / native Redis | `localhost:6379` |
 | Object storage (documents) | Local filesystem (default) — no server needed | `.data/storage` in the repo |
 
@@ -31,36 +31,38 @@ From the repository root:
 pnpm install
 ```
 
-## 2. PostgreSQL (required)
+## 2. MySQL (required)
 
-The API, worker and Prisma all need PostgreSQL.
+The API, worker and Prisma all need MySQL 8.
 
-**Windows** — install the official installer (you already have `postgresql-x64-17` running as a
-service), then create the app role and database once. Using the bundled `psql`:
+**Windows** — install the official MySQL 8 installer (it installs the `MySQL80` service on port
+`3306`), then create the app user and database once. Using the bundled `mysql` client:
 
 ```powershell
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -h localhost -p 5432
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p
 ```
 
 ```sql
-CREATE ROLE college_erp LOGIN PASSWORD 'college_erp_dev_password' CREATEDB;
-CREATE DATABASE college_erp OWNER college_erp;
+CREATE USER 'college_erp'@'localhost' IDENTIFIED BY 'college_erp_dev_password';
+CREATE DATABASE college_erp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+GRANT ALL PRIVILEGES ON college_erp.* TO 'college_erp'@'localhost';
+FLUSH PRIVILEGES;
 ```
 
 Start / stop the service:
 
 ```powershell
-Start-Service postgresql-x64-17
-Stop-Service  postgresql-x64-17
+Start-Service MySQL80
+Stop-Service  MySQL80
 ```
 
-**macOS** (Homebrew): `brew install postgresql@16 && brew services start postgresql@16`
-**Linux** (Debian/Ubuntu): `sudo apt-get install -y postgresql && sudo systemctl start postgresql`
+**macOS** (Homebrew): `brew install mysql && brew services start mysql`
+**Linux** (Debian/Ubuntu): `sudo apt-get install -y mysql-server && sudo systemctl start mysql`
 
 Verify connectivity:
 
 ```bash
-psql "postgresql://college_erp:college_erp_dev_password@localhost:5432/college_erp" -c "select 1;"
+mysql "mysql://college_erp:college_erp_dev_password@localhost:3306/college_erp" -e "select 1;"
 ```
 
 The connection string lives in `apps/api/.env`, `apps/worker/.env` and `packages/database/.env`
@@ -155,7 +157,7 @@ pnpm db:seed         # seed the global catalog + platform admin (+ demo data off
 ```
 
 - Migrations and existing data are **never** reset or dropped by these commands.
-- `db:deploy:safe` takes a pre-migration backup first; it needs `pg_dump` on PATH.
+- `db:deploy:safe` takes a pre-migration backup first; it needs `mysqldump` and `mysql` on PATH.
 - On a fresh database use `db:migrate`; on an existing one use `db:deploy:safe` (or
   `pnpm --filter @college-erp/database exec prisma migrate deploy`).
 
@@ -189,17 +191,17 @@ pnpm start:web        # vite preview of the built PWA
 pnpm lint
 pnpm typecheck
 pnpm test
-pnpm test:e2e         # API e2e — needs PostgreSQL + Redis running
-pnpm test:recovery    # backup → verify → restore (needs pg_dump/pg_restore/psql)
+pnpm test:e2e         # API e2e — needs MySQL + Redis running
+pnpm test:recovery    # backup → verify → restore (needs mysqldump/mysql clients)
 ```
 
 Unit tests do not need external services. The API e2e suite and the recovery test do — start
-PostgreSQL and Redis first.
+MySQL and Redis first.
 
 ## Troubleshooting
 
-- **`prisma migrate` can't connect** — confirm PostgreSQL is running and `DATABASE_URL` matches,
-  and that the `college_erp` role/database exist (§2).
+- **`prisma migrate` can't connect** — confirm MySQL is running and `DATABASE_URL` matches,
+  and that the `college_erp` user/database exist (§2).
 - **API `/health/ready` reports Redis down** — start Redis (§3). The API still boots without it.
 - **Document upload fails** — with `STORAGE_DRIVER=local` check that `.data/storage` is writable;
   with `STORAGE_DRIVER=s3` check the `S3_*` settings and that the bucket exists.

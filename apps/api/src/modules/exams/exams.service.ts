@@ -292,8 +292,8 @@ export class ExamsService {
       ...(query.search
         ? {
             OR: [
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { code: { contains: query.search, mode: 'insensitive' } },
+              { name: { contains: query.search } },
+              { code: { contains: query.search } },
             ],
           }
         : {}),
@@ -438,8 +438,8 @@ export class ExamsService {
       ...(query.search
         ? {
             OR: [
-              { course: { code: { contains: query.search, mode: 'insensitive' } } },
-              { course: { name: { contains: query.search, mode: 'insensitive' } } },
+              { course: { code: { contains: query.search } } },
+              { course: { name: { contains: query.search } } },
             ],
           }
         : {}),
@@ -774,9 +774,9 @@ export class ExamsService {
       ...(query.search
         ? {
             OR: [
-              { student: { fullName: { contains: query.search, mode: 'insensitive' } } },
-              { student: { admissionNumber: { contains: query.search, mode: 'insensitive' } } },
-              { student: { rollNumber: { contains: query.search, mode: 'insensitive' } } },
+              { student: { fullName: { contains: query.search } } },
+              { student: { admissionNumber: { contains: query.search } } },
+              { student: { rollNumber: { contains: query.search } } },
             ],
           }
         : {}),
@@ -985,9 +985,9 @@ export class ExamsService {
       ...(query.search
         ? {
             OR: [
-              { ticketNumber: { contains: query.search, mode: 'insensitive' } },
-              { registration: { student: { fullName: { contains: query.search, mode: 'insensitive' } } } },
-              { registration: { student: { admissionNumber: { contains: query.search, mode: 'insensitive' } } } },
+              { ticketNumber: { contains: query.search } },
+              { registration: { student: { fullName: { contains: query.search } } } },
+              { registration: { student: { admissionNumber: { contains: query.search } } } },
             ],
           }
         : {}),
@@ -1465,9 +1465,9 @@ export class ExamsService {
       ...(query.search
         ? {
             OR: [
-              { registration: { student: { fullName: { contains: query.search, mode: 'insensitive' } } } },
-              { registration: { student: { admissionNumber: { contains: query.search, mode: 'insensitive' } } } },
-              { registration: { student: { rollNumber: { contains: query.search, mode: 'insensitive' } } } },
+              { registration: { student: { fullName: { contains: query.search } } } },
+              { registration: { student: { admissionNumber: { contains: query.search } } } },
+              { registration: { student: { rollNumber: { contains: query.search } } } },
             ],
           }
         : {}),
@@ -1765,8 +1765,8 @@ export class ExamsService {
       ...(query.search
         ? {
             OR: [
-              { registration: { student: { fullName: { contains: query.search, mode: 'insensitive' } } } },
-              { registration: { student: { admissionNumber: { contains: query.search, mode: 'insensitive' } } } },
+              { registration: { student: { fullName: { contains: query.search } } } },
+              { registration: { student: { admissionNumber: { contains: query.search } } } },
             ],
           }
         : {}),

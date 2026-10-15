@@ -3,12 +3,13 @@
  *
  * Framework-agnostic by design: the worker schedules and executes these functions via BullMQ, the
  * operator CLI calls them directly, and the recovery test suite exercises them against a real
- * PostgreSQL server. See docs/backup-recovery.md.
+ * MySQL server. See docs/backup-recovery.md.
  */
+export * from './tools';
 export * from './manifest';
 export * from './retention';
-export * from './postgres/pg-tools';
-export * from './postgres/postgres-backup';
-export * from './postgres/postgres-verify';
-export * from './postgres/psql';
+export * from './mysql/mysql-tools';
+export * from './mysql/mysql-backup';
+export * from './mysql/mysql-verify';
+export * from './mysql/mysql';
 export * from './redis/redis-recovery';
