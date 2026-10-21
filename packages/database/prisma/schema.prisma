@@ -469,6 +469,7 @@ model Tenant {
   featureOverrides                  TenantFeatureFlag[]
   usageEvents                       UsageEvent[]
   users                             User[]
+  tenantMemberships                 TenantMembership[]
   roles                             Role[]
   rolePermissions                   RolePermission[]
   userRoles                         UserRole[]
@@ -769,7 +770,7 @@ model TenantDatabase {
 }
 
 model Plan {
-  id           String       @id @default(cuid()) @db.VarChar(512)
+  id           String       @id @default(cuid()) @db.VarChar(191)
   code         String       @unique @db.VarChar(512)
   name         String       @db.Text
   description  String?      @db.Text
@@ -792,7 +793,7 @@ model Subscription {
   id                 String             @id @default(cuid()) @db.VarChar(512)
   tenantId           String             @map("tenant_id") @db.Char(36)
   tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  planId             String             @map("plan_id") @db.VarChar(512)
+  planId             String                 @map("plan_id") @db.VarChar(191)
   plan               Plan               @relation(fields: [planId], references: [id])
   status             SubscriptionStatus @default(TRIALING)
   billingCycle       BillingCycle       @map("billing_cycle")
@@ -843,7 +844,7 @@ model SubscriptionItem {
 }
 
 model FeatureFlag {
-  id          String   @id @default(cuid()) @db.VarChar(512)
+  id          String   @id @default(cuid()) @db.VarChar(191)
   key         String   @unique @db.VarChar(512)
   name        String   @db.Text
   description String?  @db.Text
@@ -859,9 +860,9 @@ model FeatureFlag {
 
 model PlanFeatureFlag {
   id            String      @id @default(cuid()) @db.VarChar(512)
-  planId        String      @map("plan_id") @db.VarChar(512)
+  planId        String      @map("plan_id") @db.VarChar(191)
   plan          Plan        @relation(fields: [planId], references: [id])
-  featureFlagId String      @map("feature_flag_id") @db.VarChar(512)
+  featureFlagId String      @map("feature_flag_id") @db.VarChar(191)
   featureFlag   FeatureFlag @relation(fields: [featureFlagId], references: [id])
 
   @@unique([planId, featureFlagId])
@@ -875,7 +876,7 @@ model PlanFeatureFlag {
 /// pure catalog data, only ever read/written through PlatformPrismaService.
 model PlanModule {
   id         String          @id @default(cuid()) @db.VarChar(512)
-  planId     String          @map("plan_id") @db.VarChar(512)
+  planId     String          @map("plan_id") @db.VarChar(191)
   plan       Plan            @relation(fields: [planId], references: [id])
   moduleKey  String          @map("module_key") @db.VarChar(191)
   name       String          @db.Text
@@ -892,7 +893,7 @@ model TenantFeatureFlag {
   id                      String      @id @default(cuid()) @db.VarChar(512)
   tenantId                String      @map("tenant_id") @db.Char(36)
   tenant                  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  featureFlagId           String      @map("feature_flag_id") @db.VarChar(512)
+  featureFlagId           String      @map("feature_flag_id") @db.VarChar(191)
   featureFlag             FeatureFlag @relation(fields: [featureFlagId], references: [id])
   enabled                 Boolean
   reason                  String?     @db.Text
@@ -1287,6 +1288,30 @@ model PlatformSession {
 
   @@index([platformUserId])
   @@map("platform_sessions")
+}
+
+/// Control-plane directory of the tenants a person (identified by their normalized email) may
+/// enter. The workspace picker reads this table instead of querying every tenant store, which is
+/// impossible for DEDICATED_* tenants and O(n) for SHARED ones.
+///
+/// Deliberately has NO relation to User: user rows live in the tenant's own store while this
+/// table lives in the control-plane database, so a foreign key would break for dedicated stores.
+/// `userId` is the tenant-local User.id and is only meaningful together with `tenantId`.
+/// Kept in sync at user creation, login (self-heal) and status changes.
+model TenantMembership {
+  id        String   @id @default(dbgenerated("(UUID())")) @db.Char(36)
+  email     String   @db.VarChar(191)
+  tenantId  String   @map("tenant_id") @db.Char(36)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String   @map("user_id") @db.Char(36)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([email, tenantId])
+  @@index([tenantId])
+  @@index([userId])
+  @@map("tenant_memberships")
 }
 
 model User {
@@ -1730,6 +1755,24 @@ model PlatformSecuritySettings {
   updatedAt                       DateTime @updatedAt @map("updated_at")
 
   @@map("platform_security_settings")
+}
+
+/// Control-plane singleton (id = 'singleton') for the platform-wide maintenance window. While
+/// `enabled` is true, tenant-realm sign-ins are refused with the operator's message so a rollout
+/// can take the whole estate offline at once. The platform realm is never blocked — an operator
+/// must always be able to sign in and turn maintenance back off.
+model PlatformMaintenanceMode {
+  id                String    @id @default("singleton") @db.VarChar(32)
+  enabled           Boolean   @default(false)
+  /// Shown to tenant users on the login screen while maintenance is active.
+  message           String?   @db.Text
+  /// Optional "we expect to be back by" timestamp for the tenant-facing notice.
+  endsAt            DateTime? @map("ends_at")
+  updatedBy         String?   @map("updated_by") @db.VarChar(512)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("platform_maintenance_mode")
 }
 
 // ---------------------------------------------------------------------------
@@ -4745,7 +4788,7 @@ model StudentFeeAssignment {
   termId        String?             @map("term_id") @db.Char(36)
   term          Term?               @relation(fields: [termId], references: [id], onDelete: SetNull)
   status        FeeAssignmentStatus @default(ACTIVE)
-  effectiveDate DateTime            @default(now()) @map("effective_date") @db.Date
+  effectiveDate DateTime            @default(dbgenerated("(CURRENT_DATE)")) @map("effective_date") @db.Date
   notes         String?             @db.Text
   assignedBy    String?             @map("assigned_by") @db.Text
   createdAt     DateTime            @default(now()) @map("created_at")

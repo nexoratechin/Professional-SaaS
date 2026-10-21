@@ -45,7 +45,7 @@ CREATE TABLE `tenant_databases` (
 
 -- CreateTable
 CREATE TABLE `plans` (
-    `id` VARCHAR(512) NOT NULL,
+    `id` VARCHAR(191) NOT NULL,
     `code` VARCHAR(512) NOT NULL,
     `name` TEXT NOT NULL,
     `description` TEXT NULL,
@@ -65,7 +65,7 @@ CREATE TABLE `plans` (
 CREATE TABLE `subscriptions` (
     `id` VARCHAR(512) NOT NULL,
     `tenant_id` CHAR(36) NOT NULL,
-    `plan_id` VARCHAR(512) NOT NULL,
+    `plan_id` VARCHAR(191) NOT NULL,
     `status` ENUM('TRIALING', 'ACTIVE', 'PAST_DUE', 'SUSPENDED', 'CANCELED', 'EXPIRED') NOT NULL DEFAULT 'TRIALING',
     `billing_cycle` ENUM('MONTHLY', 'ANNUAL', 'ONE_TIME') NOT NULL,
     `current_period_start` DATETIME(3) NOT NULL,
@@ -103,7 +103,7 @@ CREATE TABLE `subscription_items` (
 
 -- CreateTable
 CREATE TABLE `feature_flags` (
-    `id` VARCHAR(512) NOT NULL,
+    `id` VARCHAR(191) NOT NULL,
     `key` VARCHAR(512) NOT NULL,
     `name` TEXT NOT NULL,
     `description` TEXT NULL,
@@ -118,8 +118,8 @@ CREATE TABLE `feature_flags` (
 -- CreateTable
 CREATE TABLE `plan_feature_flags` (
     `id` VARCHAR(512) NOT NULL,
-    `plan_id` VARCHAR(512) NOT NULL,
-    `feature_flag_id` VARCHAR(512) NOT NULL,
+    `plan_id` VARCHAR(191) NOT NULL,
+    `feature_flag_id` VARCHAR(191) NOT NULL,
 
     UNIQUE INDEX `plan_feature_flags_plan_id_feature_flag_id_key`(`plan_id`, `feature_flag_id`),
     PRIMARY KEY (`id`)
@@ -128,7 +128,7 @@ CREATE TABLE `plan_feature_flags` (
 -- CreateTable
 CREATE TABLE `plan_modules` (
     `id` VARCHAR(512) NOT NULL,
-    `plan_id` VARCHAR(512) NOT NULL,
+    `plan_id` VARCHAR(191) NOT NULL,
     `module_key` VARCHAR(191) NOT NULL,
     `name` TEXT NOT NULL,
     `type` ENUM('BOOLEAN', 'QUANTITY') NOT NULL DEFAULT 'BOOLEAN',
@@ -143,7 +143,7 @@ CREATE TABLE `plan_modules` (
 CREATE TABLE `tenant_feature_flags` (
     `id` VARCHAR(512) NOT NULL,
     `tenant_id` CHAR(36) NOT NULL,
-    `feature_flag_id` VARCHAR(512) NOT NULL,
+    `feature_flag_id` VARCHAR(191) NOT NULL,
     `enabled` BOOLEAN NOT NULL,
     `reason` TEXT NULL,
     `created_by_platform_user_id` TEXT NULL,
@@ -2410,7 +2410,7 @@ CREATE TABLE `student_fee_assignments` (
     `structure_id` CHAR(36) NOT NULL,
     `term_id` CHAR(36) NULL,
     `status` ENUM('ACTIVE', 'COMPLETED', 'REVOKED') NOT NULL DEFAULT 'ACTIVE',
-    `effective_date` DATE NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `effective_date` DATE NOT NULL DEFAULT (CURRENT_DATE),
     `notes` TEXT NULL,
     `assigned_by` TEXT NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
