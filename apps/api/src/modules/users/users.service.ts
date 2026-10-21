@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import * as bcrypt from 'bcryptjs';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { TenantScopedPrismaService } from '../../common/prisma/tenant-scoped-prisma.service';
+import { TenantMembershipService } from '../../common/tenant/tenant-membership.service';
 import { EmailVerificationService } from '../auth/email-verification.service';
 import { AuditService } from '../audit/audit.service';
 import { PermissionsService } from '../rbac/permissions.service';
@@ -13,6 +14,7 @@ import type { UpdateUserStatusDto } from './dto/update-user-status.dto';
 export class UsersService {
   constructor(
     private readonly tenantPrisma: TenantScopedPrismaService,
+    private readonly tenantMembership: TenantMembershipService,
     private readonly permissionsService: PermissionsService,
     private readonly auditService: AuditService,
     private readonly emailVerificationService: EmailVerificationService,
@@ -35,6 +37,12 @@ export class UsersService {
     });
 
     await this.emailVerificationService.issueVerificationToken(tenantId, tenantSlug, user.id, user.email);
+
+    // Make the new account discoverable in the person's workspace directory. Best-effort: login
+    // self-heals a missing row, so a directory hiccup must not fail the invite itself.
+    await this.tenantMembership
+      .record({ tenantId, userId: user.id, email: user.email })
+      .catch(() => undefined);
 
     await this.auditService.record({
       scope: 'TENANT',
@@ -75,6 +83,8 @@ export class UsersService {
       where: { id },
       data: { status: dto.status, updatedBy: actorUserId },
     });
+
+    await this.tenantMembership.setActive(tenantId, id, dto.status === 'ACTIVE');
 
     await this.auditService.record({
       scope: 'TENANT',

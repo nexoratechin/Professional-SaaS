@@ -5,8 +5,10 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { TenantResolutionMiddleware } from './common/middleware/tenant-resolution.middleware';
 import { ObservabilityModule } from './common/observability/observability.module';
 import { CacheModule } from './common/cache/cache.module';
+import { PlatformSettingsModule } from './common/platform-settings/platform-settings.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { TenantConnectionModule } from './common/tenant/tenant-connection.module';
+import { TenantMembershipModule } from './common/tenant/tenant-membership.module';
 import { QueueModule } from './common/queue/queue.module';
 import { RedisModule } from './common/redis/redis.module';
 import { StorageModule } from './common/storage/storage.module';
@@ -28,6 +30,7 @@ import { HostelModule } from './modules/hostel/hostel.module';
 import { TransportModule } from './modules/transport/transport.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PlatformOpsModule } from './modules/platform-ops/platform-ops.module';
+import { PlatformUsersModule } from './modules/platform-users/platform-users.module';
 import { SaasModule } from './modules/saas/saas.module';
 import { SupportModule } from './modules/support/support.module';
 import { StudentsModule } from './modules/students/students.module';
@@ -65,9 +68,11 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     RedisModule,
     CacheModule,
     PrismaModule,
+    PlatformSettingsModule,
     QueueModule,
     StorageModule,
     TenantConnectionModule,
+    TenantMembershipModule,
     // Global rate limiting: per-IP window for every route, configured via env
     // (THROTTLE_TTL / THROTTLE_LIMIT). Per-endpoint overrides use @Throttle() — see the strict
     // 5/min window on /auth/login. @nestjs/throttler keys by client IP/route at the guard level.
@@ -117,6 +122,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
     BillingModule,
     SupportModule,
     PlatformOpsModule,
+    PlatformUsersModule,
     TenantConfigurationModule,
     BrandingModule,
     CampusModule,

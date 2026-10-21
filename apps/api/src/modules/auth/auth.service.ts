@@ -7,6 +7,7 @@ import { bumpWindow, recordAuthEvent, WINDOW_COUNTERS } from '@college-erp/obser
 import type Redis from 'ioredis';
 import { AppConfigService } from '../../config/app-config.service';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
+import { PlatformSettingsService } from '../../common/platform-settings/platform-settings.service';
 import { REDIS_CLIENT } from '../../common/redis/redis.constants';
 import { compareAgainstDummyHash } from '../../common/security/dummy-password-hash';
 import { AuditService } from '../audit/audit.service';
@@ -62,10 +63,15 @@ export class AuthService {
     private readonly mfaChallenge: MfaChallengeService,
     private readonly trustedDevices: TrustedDevicesService,
     private readonly passwordHistory: PasswordHistoryService,
+    private readonly platformSettings: PlatformSettingsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   async login(tenantId: string, email: string, password: string, meta: RequestMeta): Promise<LoginServiceResult> {
+    // Platform-wide maintenance window: refuse every tenant-realm sign-in before any credential
+    // work happens. The platform admin realm has its own service and is never blocked here.
+    await this.platformSettings.assertTenantLoginAllowed();
+
     const settings = await this.securitySettings.getEffective(tenantId);
     if (!settings.localAuthEnabled) {
       await this.recordLoginEvent(tenantId, email, 'FAILED_LOCAL_AUTH_DISABLED', meta);

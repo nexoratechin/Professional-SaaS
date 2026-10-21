@@ -74,6 +74,7 @@ function makeService(overrides: Mutable<Record<string, unknown>> = {}) {
     tenantFeatures as never,
     notifications as never,
     tenantLookup as never,
+    { record: jest.fn(), setActive: jest.fn() } as never,
   );
 
   const mocks = {

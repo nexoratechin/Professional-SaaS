@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Card, Input } from '@college-erp/ui';
 import type { TenantAuthMethodInfoDto } from '@college-erp/types';
 import { useAuth } from '../features/auth/auth-context';
+import { needsWorkspacePicker, readCachedWorkspaces } from '../features/auth/tenant-workspace';
 import { brandingAssetUrl, useBranding } from '../features/branding/branding-context';
 import { apiFetch } from '../lib/http';
 
@@ -10,8 +11,14 @@ export function LoginPage() {
   const { login, startSso } = useAuth();
   const { branding, previewTenant } = useBranding();
   const navigate = useNavigate();
-  const [tenantSlug, setTenantSlug] = useState(import.meta.env.VITE_DEV_TENANT_SLUG ?? '');
-  const [email, setEmail] = useState('');
+  const [searchParams] = useSearchParams();
+  // The workspace picker (and onboarding's auto-login fallback) links here with the target slug
+  // and last email, so a switch does not make the user retype either.
+  const [tenantSlug, setTenantSlug] = useState(
+    searchParams.get('tenant') ?? import.meta.env.VITE_DEV_TENANT_SLUG ?? '',
+  );
+  const [email, setEmail] = useState(searchParams.get('email') ?? '');
+  const hasCachedWorkspaces = needsWorkspacePicker(readCachedWorkspaces());
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -48,8 +55,8 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await login(tenantSlug, email, password);
-      navigate('/dashboard');
+      const workspaces = await login(tenantSlug, email, password);
+      navigate(workspaces.length > 1 ? '/select-tenant' : '/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -144,6 +151,26 @@ export function LoginPage() {
 
           {!localAuthEnabled && error && <div style={{ color: '#dc2626', fontSize: '0.85rem' }}>{error}</div>}
         </div>
+        {hasCachedWorkspaces && (
+          <div style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              onClick={() => navigate('/select-tenant')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--ui-color-primary, #1d4ed8)',
+                cursor: 'pointer',
+                padding: 0,
+                font: 'inherit',
+                fontSize: '0.85rem',
+                textDecoration: 'underline',
+              }}
+            >
+              Back to your workspaces
+            </button>
+          </div>
+        )}
         <div style={{ marginTop: 16, borderTop: '1px solid #e5e7eb', paddingTop: 12, fontSize: '0.85rem' }}>
           <span style={{ color: '#6b7280' }}>New to College ERP? </span>
           <button

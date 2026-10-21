@@ -26,6 +26,7 @@ import {
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
 import { TenantContextService } from '../../common/prisma/tenant-context.service';
 import { TenantLookupService } from '../../common/tenant/tenant-lookup.service';
+import { TenantMembershipService } from '../../common/tenant/tenant-membership.service';
 import { AuditService } from '../audit/audit.service';
 import { BrandingService } from '../branding/branding.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -116,6 +117,7 @@ export class OnboardingService {
     private readonly tenantFeatures: TenantFeaturesService,
     private readonly notifications: NotificationsService,
     private readonly tenantLookup: TenantLookupService,
+    private readonly tenantMembership: TenantMembershipService,
   ) {}
 
   // ── Public catalog ───────────────────────────────────────────────────────────
@@ -270,6 +272,12 @@ export class OnboardingService {
         ...this.progress(session, 'COLLEGE', 3),
       },
     });
+
+    // Directory entry for the onboarding admin. Inactive until completion flips the tenant and
+    // the user ACTIVE, so an unfinished college never appears as a destination.
+    await this.tenantMembership
+      .record({ tenantId: tenant.id, userId: adminUser.id, email: session.accountEmail, isActive: false })
+      .catch(() => undefined);
 
     await this.auditService.record({
       scope: 'TENANT',
@@ -662,6 +670,10 @@ export class OnboardingService {
       data: { status: 'ACTIVE' },
     });
     await this.tenantLookup.invalidate(tenant.slug);
+
+    // The administrator is now ACTIVE in an ACTIVE tenant — publish them in the workspace
+    // directory so their next sign-in offers this college.
+    await this.tenantMembership.setActive(tenantId, adminUserId, true);
 
     // 4) Welcome notification to the new administrator (in-app; the worker delivers it).
     let welcomeNotificationSent = false;

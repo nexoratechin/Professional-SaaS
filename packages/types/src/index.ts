@@ -35,6 +35,24 @@ export interface PermissionsResponseDto {
   permissions: string[];
 }
 
+/**
+ * One entry in the signed-in user's workspace directory (GET /auth/tenants).
+ *
+ * The platform identifies workspaces by `slug`, never by database id: slugs are opaque, the tenant
+ * registry is authoritative, and the web client only ever sends the slug back.
+ */
+export interface TenantWorkspaceDto {
+  slug: string;
+  name: string;
+  status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELED';
+  /** True for the tenant the current session is authenticated against. */
+  isCurrent: boolean;
+}
+
+export interface MyTenantsResponseDto {
+  tenants: TenantWorkspaceDto[];
+}
+
 export interface FeatureFlagsResponseDto {
   features: Record<string, boolean>;
 }
@@ -145,6 +163,39 @@ export interface PlatformTenantDto {
   timezone: string;
   dataIsolationMode?: TenantDataIsolationMode;
   createdAt: string;
+}
+
+/** GET /platform/users — the platform realm's own operators (never tenant users). */
+export interface PlatformOperatorDto {
+  id: string;
+  email: string;
+  fullName: string;
+  role: 'PLATFORM_ADMIN' | 'PLATFORM_SUPPORT';
+  isActive: boolean;
+  mfaEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** GET/PUT /platform/maintenance — the estate-wide maintenance window. */
+export interface PlatformMaintenanceModeDto {
+  enabled: boolean;
+  message: string | null;
+  endsAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+}
+
+/** GET /tenants/:id/users — a tenant's users, as seen from the platform console. */
+export interface PlatformTenantUserDto {
+  id: string;
+  email: string;
+  fullName: string;
+  phone: string | null;
+  status: 'INVITED' | 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED';
+  lastLoginAt: string | null;
+  createdAt: string;
+  roles: Array<{ id: string; code: string; name: string }>;
 }
 
 // ---------------------------------------------------------------------------

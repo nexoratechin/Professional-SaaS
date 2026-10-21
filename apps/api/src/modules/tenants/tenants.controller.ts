@@ -28,6 +28,8 @@ import { SetTenantFeatureOverrideDto } from './dto/set-tenant-feature-override.d
 import { TransitionTenantStatusDto } from './dto/transition-tenant-status.dto';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { UpdateTenantStatusDto } from './dto/update-tenant-status.dto';
+import { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
+import { UpdateTenantUserStatusDto } from './dto/update-tenant-user-status.dto';
 import { TenantsService } from './tenants.service';
 
 @ApiTags('tenants')
@@ -79,6 +81,38 @@ export class TenantsController {
     @CurrentPlatformUser() platformUser: AuthenticatedPlatformUser,
   ) {
     return this.tenantsService.updateStatus(id, dto, platformUser.id);
+  }
+
+  /** Edit the tenant's profile fields (name, billing email, timezone) from the platform console. */
+  @Patch('tenants/:id')
+  @UseGuards(PlatformAuthGuard, PlatformRoleGuard)
+  @RequirePlatformRole('PLATFORM_ADMIN')
+  updateProfile(
+    @Param('id') id: string,
+    @Body() dto: UpdateTenantProfileDto,
+    @CurrentPlatformUser() platformUser: AuthenticatedPlatformUser,
+  ) {
+    return this.tenantsService.updateProfile(id, dto, platformUser.id);
+  }
+
+  /** Tenant users, read-only, for the superadmin's company console. */
+  @Get('tenants/:id/users')
+  @UseGuards(PlatformAuthGuard)
+  listUsers(@Param('id') id: string) {
+    return this.tenantsService.listUsers(id);
+  }
+
+  /** Activate/suspend/deactivate a tenant user from the platform console. */
+  @Patch('tenants/:id/users/:userId/status')
+  @UseGuards(PlatformAuthGuard, PlatformRoleGuard)
+  @RequirePlatformRole('PLATFORM_ADMIN')
+  updateUserStatus(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Body() dto: UpdateTenantUserStatusDto,
+    @CurrentPlatformUser() platformUser: AuthenticatedPlatformUser,
+  ) {
+    return this.tenantsService.updateUserStatus(id, userId, dto, platformUser.id);
   }
 
   @Post('tenants/:id/activate')

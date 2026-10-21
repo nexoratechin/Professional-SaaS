@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import type { Prisma, TenantStatus } from '@college-erp/database';
 import { AppConfigService } from '../../config/app-config.service';
@@ -16,6 +16,8 @@ import type { SetTenantFeatureOverrideDto } from './dto/set-tenant-feature-overr
 import type { TransitionTenantStatusDto } from './dto/transition-tenant-status.dto';
 import type { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import type { UpdateTenantStatusDto } from './dto/update-tenant-status.dto';
+import type { UpdateTenantProfileDto } from './dto/update-tenant-profile.dto';
+import type { UpdateTenantUserStatusDto } from './dto/update-tenant-user-status.dto';
 import { TenantDatabaseService } from './tenant-database.service';
 import { TenantProvisioningService } from './tenant-provisioning.service';
 
@@ -392,5 +394,157 @@ export class TenantsService {
       entityId: key,
       after: { key, removed: true },
     });
+  }
+
+  // --- Platform-side tenant administration (the superadmin "company console") ----------------
+
+  /** Edit the tenant's own profile fields from the platform side. Distinct from the tenant's
+   * self-service PATCH /tenant/settings (which is permission-gated inside the tenant realm):
+   * this is the operator's view and is audited as a platform-scope change. */
+  async updateProfile(id: string, dto: UpdateTenantProfileDto, actorPlatformUserId: string) {
+    const before = await this.platformPrisma.client.tenant.findUniqueOrThrow({ where: { id } });
+    const tenant = await this.platformPrisma.client.tenant.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.billingEmail !== undefined ? { billingEmail: dto.billingEmail } : {}),
+        ...(dto.timezone !== undefined ? { timezone: dto.timezone } : {}),
+        updatedBy: actorPlatformUserId,
+      },
+    });
+    await this.tenantLookup.invalidate(tenant.slug);
+
+    await this.auditService.record({
+      scope: 'PLATFORM',
+      tenantId: id,
+      actorType: 'PLATFORM_USER',
+      actorPlatformUserId,
+      action: AUDIT_ACTIONS.TENANT_SETTINGS_UPDATED,
+      module: AUDIT_MODULES.TENANTS,
+      entityType: 'Tenant',
+      entityId: id,
+      before: { name: before.name, billingEmail: before.billingEmail, timezone: before.timezone },
+      after: { name: tenant.name, billingEmail: tenant.billingEmail, timezone: tenant.timezone },
+    });
+
+    return tenant;
+  }
+
+  /**
+   * Tenant users as the platform sees them. Users live in the tenant's own store; for SHARED
+   * tenants that is this control-plane database, while DEDICATED_* tenants keep their rows in
+   * their own schema/database. We deliberately return an explicit 400 for those stores instead
+   * of silently returning an empty list that would read as "this college has no users".
+   */
+  async listUsers(tenantId: string) {
+    const tenant = await this.platformPrisma.client.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    this.assertSharedStoreForUserAdministration(tenant.dataIsolationMode);
+
+    const users = await this.platformPrisma.client.user.findMany({
+      where: { tenantId },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      take: 500,
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        phone: true,
+        status: true,
+        lastLoginAt: true,
+        createdAt: true,
+        userRoles: { select: { role: { select: { id: true, code: true, name: true } } } },
+      },
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      phone: user.phone,
+      status: user.status,
+      lastLoginAt: user.lastLoginAt,
+      createdAt: user.createdAt,
+      roles: user.userRoles.map((assignment) => assignment.role),
+    }));
+  }
+
+  /** Activate/suspend/deactivate a tenant user from the platform console. Guarded against
+   * removing the college's last active TENANT_ADMIN — that would leave the tenant with nobody
+   * able to administer it, and the operator would have to intervene again. */
+  async updateUserStatus(
+    tenantId: string,
+    userId: string,
+    dto: UpdateTenantUserStatusDto,
+    actorPlatformUserId: string,
+  ) {
+    const tenant = await this.platformPrisma.client.tenant.findUniqueOrThrow({ where: { id: tenantId } });
+    this.assertSharedStoreForUserAdministration(tenant.dataIsolationMode);
+
+    const target = await this.platformPrisma.client.user.findFirst({
+      where: { id: userId, tenantId },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+        userRoles: { select: { role: { select: { code: true } } } },
+      },
+    });
+    if (!target) throw new NotFoundException('Tenant user not found.');
+
+    const isTenantAdmin = target.userRoles.some((assignment) => assignment.role.code === 'TENANT_ADMIN');
+    if (target.status === 'ACTIVE' && isTenantAdmin && dto.status !== 'ACTIVE') {
+      const remainingAdmins = await this.platformPrisma.client.user.count({
+        where: {
+          tenantId,
+          status: 'ACTIVE',
+          id: { not: userId },
+          userRoles: { some: { role: { code: 'TENANT_ADMIN' } } },
+        },
+      });
+      if (remainingAdmins === 0) {
+        throw new BadRequestException('This is the tenant\'s last active College Admin — promote another admin first.');
+      }
+    }
+
+    const updated = await this.platformPrisma.client.user.update({
+      where: { id: userId },
+      data: { status: dto.status },
+      select: { id: true, email: true, status: true },
+    });
+
+    if (dto.status !== 'ACTIVE') {
+      await this.platformPrisma.client.session.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+    await this.platformPrisma.client.tenantMembership.updateMany({
+      where: { tenantId, userId },
+      data: { isActive: dto.status === 'ACTIVE' },
+    });
+
+    await this.auditService.record({
+      scope: 'PLATFORM',
+      tenantId,
+      actorType: 'PLATFORM_USER',
+      actorPlatformUserId,
+      action: AUDIT_ACTIONS.USER_STATUS_CHANGED,
+      module: AUDIT_MODULES.USERS,
+      entityType: 'User',
+      entityId: userId,
+      before: { status: target.status },
+      after: { status: updated.status, email: updated.email },
+    });
+
+    return updated;
+  }
+
+  private assertSharedStoreForUserAdministration(mode: string): void {
+    if (mode !== 'SHARED') {
+      throw new BadRequestException(
+        'User administration from the platform console is available for shared-store tenants only. ' +
+          'This tenant lives in its own database — manage its users from the tenant workspace.',
+      );
+    }
   }
 }

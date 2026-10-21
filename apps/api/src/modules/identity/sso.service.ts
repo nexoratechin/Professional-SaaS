@@ -6,6 +6,7 @@ import { IntegrationSecretCipher } from '@college-erp/integrations';
 import type { SsoProviderSummaryDto } from '@college-erp/types';
 import { AppConfigService } from '../../config/app-config.service';
 import { PlatformPrismaService } from '../../common/prisma/platform-prisma.service';
+import { TenantMembershipService } from '../../common/tenant/tenant-membership.service';
 import { REDIS_CLIENT } from '../../common/redis/redis.constants';
 import { AuditService } from '../audit/audit.service';
 import { PermissionsService } from '../rbac/permissions.service';
@@ -79,6 +80,7 @@ export class SsoService {
     private readonly permissionsService: PermissionsService,
     private readonly auditService: AuditService,
     private readonly securityEvents: SecurityEventsService,
+    private readonly tenantMembership: TenantMembershipService,
     private readonly appConfig: AppConfigService,
   ) {
     this.cipher = new IntegrationSecretCipher(appConfig.get('INTEGRATION_SECRET_KEY'));
@@ -320,12 +322,19 @@ export class SsoService {
         },
         include: USER_WITH_ROLES_INCLUDE,
       })) as UserWithRoles;
+      await this.tenantMembership
+        .record({ tenantId, userId: user.id, email })
+        .catch(() => undefined);
     } catch {
       // Lost a provisioning race for the same (tenant, email) — the other request won; re-read.
       user = (await this.platformPrisma.client.user.findFirstOrThrow({
         where: { tenantId, email },
         include: USER_WITH_ROLES_INCLUDE,
       })) as UserWithRoles;
+      // Idempotent: covers a user provisioned before the workspace directory existed.
+      await this.tenantMembership
+        .record({ tenantId, userId: user.id, email })
+        .catch(() => undefined);
       return user;
     }
 

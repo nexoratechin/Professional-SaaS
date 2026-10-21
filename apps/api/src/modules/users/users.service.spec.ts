@@ -28,6 +28,7 @@ function makeService(opts: {
   };
   const service = new UsersService(
     tenantPrisma as never,
+    { record: jest.fn(), setActive: jest.fn() } as never,
     permissionsService as never,
     { record: jest.fn() } as never,
     { issueVerificationToken: jest.fn() } as never,

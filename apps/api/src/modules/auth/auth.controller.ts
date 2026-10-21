@@ -17,8 +17,9 @@ import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import type { AuthenticatedUser } from '@college-erp/auth';
-import type { CurrentUserDto, LoginResultDto, PermissionsResponseDto } from '@college-erp/types';
+import type { CurrentUserDto, LoginResultDto, MyTenantsResponseDto, PermissionsResponseDto } from '@college-erp/types';
 import { AppConfigService } from '../../config/app-config.service';
+import { TenantMembershipService } from '../../common/tenant/tenant-membership.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { TenantMatchGuard } from '../../common/guards/tenant-match.guard';
@@ -59,6 +60,7 @@ export class AuthController {
     private readonly securityEvents: SecurityEventsService,
     private readonly tenantContext: TenantContextService,
     private readonly tenantPrisma: TenantScopedPrismaService,
+    private readonly tenantMembership: TenantMembershipService,
     private readonly config: AppConfigService,
   ) {}
 
@@ -171,6 +173,17 @@ export class AuthController {
       include: { userRoles: { include: { role: true } } },
     });
     return toCurrentUserDto(fullUser);
+  }
+
+  @Get('tenants')
+  @UseGuards(JwtAuthGuard, TenantMatchGuard)
+  async myTenants(@CurrentUser() user: AuthenticatedUser): Promise<MyTenantsResponseDto> {
+    const tenants = await this.tenantMembership.listForUser(
+      this.tenantContext.tenantId as string,
+      user.id,
+      user.email,
+    );
+    return { tenants };
   }
 
   @Get('permissions')

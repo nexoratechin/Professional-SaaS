@@ -1,14 +1,17 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Put, Query, Body, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { AlertSeverity, AlertStatus, BackgroundJobStatus } from '@college-erp/database';
+import type { AuthenticatedPlatformUser } from '@college-erp/auth';
 import { CurrentPlatformUser } from '../../common/decorators/current-platform-user.decorator';
 import { RequirePlatformRole } from '../../common/decorators/require-platform-role.decorator';
 import { PlatformAuthGuard } from '../../common/guards/platform-auth.guard';
 import { PlatformRoleGuard } from '../../common/guards/platform-role.guard';
+import { PlatformSettingsService } from '../../common/platform-settings/platform-settings.service';
 import { AlertingService } from '../../common/observability/alerting.service';
 import { AnalyticsQueryDto } from '../analytics/dto/analytics-query.dto';
 import { PlatformAnalyticsService } from './platform-analytics.service';
 import { PlatformOpsService } from './platform-ops.service';
+import { UpdateMaintenanceModeDto } from './dto/update-maintenance-mode.dto';
 
 /**
  * Cross-tenant views for the platform admin dashboard. Read-only GETs are open to any authenticated
@@ -30,7 +33,30 @@ export class PlatformOpsController {
     private readonly platformOps: PlatformOpsService,
     private readonly platformAnalytics: PlatformAnalyticsService,
     private readonly alerting: AlertingService,
+    private readonly platformSettings: PlatformSettingsService,
   ) {}
+
+  // ── Platform maintenance window ───────────────────────────────────────────
+
+  /** Readable by every platform user so support can answer "is it us or maintenance?". */
+  @Get('maintenance')
+  getMaintenanceMode() {
+    return this.platformSettings.getMaintenanceMode();
+  }
+
+  /** Flipping the estate-wide switch is an admin action. The platform realm itself stays open. */
+  @Put('maintenance')
+  @UseGuards(PlatformRoleGuard)
+  @RequirePlatformRole('PLATFORM_ADMIN')
+  updateMaintenanceMode(
+    @Body() dto: UpdateMaintenanceModeDto,
+    @CurrentPlatformUser() platformUser: AuthenticatedPlatformUser,
+  ) {
+    return this.platformSettings.updateMaintenanceMode(
+      { enabled: dto.enabled, message: dto.message ?? null, endsAt: dto.endsAt ?? null },
+      platformUser.id,
+    );
+  }
 
   @Get('system/health')
   getHealth() {

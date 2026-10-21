@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { CurrentUserDto, EffectiveEntitlementsResponseDto, FeatureFlagsResponseDto, LoginResponseDto, PermissionsResponseDto, SsoStartResponseDto } from '@college-erp/types';
+import type { CurrentUserDto, EffectiveEntitlementsResponseDto, FeatureFlagsResponseDto, LoginResponseDto, MyTenantsResponseDto, PermissionsResponseDto, SsoStartResponseDto, TenantWorkspaceDto } from '@college-erp/types';
 import { apiFetch, setAccessToken, tryRefresh } from '../../lib/http';
 import { clearOfflineData } from '../pwa/pwa';
+import { readCachedWorkspaces, readLastEmail, writeCachedWorkspaces, writeLastEmail } from './tenant-workspace';
 
 const TENANT_SLUG_STORAGE_KEY = 'college_erp_tenant_slug';
 
@@ -15,10 +16,16 @@ interface AuthState {
   entitlements: Record<string, boolean>;
   hasFetchedEntitlements: boolean;
   tenantSlug: string | null;
+  /** Every workspace this email can enter (control-plane directory). Cached for the picker. */
+  tenants: TenantWorkspaceDto[];
+  /** Last email used on this device, to prefill a workspace switch. Display-only. */
+  lastEmail: string | null;
 }
 
 interface AuthContextValue extends AuthState {
-  login: (tenantSlug: string, email: string, password: string) => Promise<void>;
+  /** Resolves to the caller's workspaces so the login page can route through the picker when
+   *  more than one exists. */
+  login: (tenantSlug: string, email: string, password: string) => Promise<TenantWorkspaceDto[]>;
   logout: () => Promise<void>;
   /** SSO: obtain the provider authorization URL to send the browser to. */
   startSso: (tenantSlug: string, providerKey: string, returnTo?: string) => Promise<string>;
@@ -40,14 +47,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     entitlements: {},
     hasFetchedEntitlements: false,
     tenantSlug: localStorage.getItem(TENANT_SLUG_STORAGE_KEY),
+    tenants: readCachedWorkspaces(),
+    lastEmail: readLastEmail(),
   });
 
-  const loadProfile = useCallback(async (tenantSlug: string) => {
-    const [user, permissionsRes, entitlementsRes] = await Promise.all([
+  const loadProfile = useCallback(async (tenantSlug: string): Promise<TenantWorkspaceDto[]> => {
+    const [user, permissionsRes, entitlementsRes, tenantsRes] = await Promise.all([
       apiFetch<CurrentUserDto>('/auth/me', { tenantSlug }),
       apiFetch<PermissionsResponseDto>('/auth/permissions', { tenantSlug }),
       apiFetch<EffectiveEntitlementsResponseDto>('/tenant/entitlements/effective', { tenantSlug }).catch(() => null),
+      // Directory of every college this email can enter. A failure here must not block sign-in:
+      // the user still lands in the tenant they just authenticated against, and the previously
+      // cached directory (if any) is kept rather than overwritten with an empty list.
+      apiFetch<MyTenantsResponseDto>('/auth/tenants', { tenantSlug }).catch(() => null),
     ]);
+    const fetchedTenants = tenantsRes?.tenants;
+    const tenants = fetchedTenants ?? readCachedWorkspaces();
+    if (fetchedTenants) writeCachedWorkspaces(fetchedTenants);
+    writeLastEmail(user.email);
 
     let features: Record<string, boolean> = {};
     try {
@@ -69,7 +86,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       entitlements,
       hasFetchedEntitlements,
       tenantSlug,
+      tenants,
+      lastEmail: user.email,
     });
+    return tenants;
   }, []);
 
   useEffect(() => {
@@ -101,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       setAccessToken(response.accessToken);
       localStorage.setItem(TENANT_SLUG_STORAGE_KEY, tenantSlug);
-      await loadProfile(tenantSlug);
+      return loadProfile(tenantSlug);
     },
     [loadProfile],
   );
@@ -166,6 +186,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       entitlements: {},
       hasFetchedEntitlements: false,
       tenantSlug: null,
+      // Deliberately kept: the workspace picker renders before the next sign-in.
+      tenants: readCachedWorkspaces(),
+      lastEmail: readLastEmail(),
     });
   }, [state.tenantSlug]);
 

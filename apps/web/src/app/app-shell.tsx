@@ -39,7 +39,8 @@ function RouterLink({ to, className, children }: { to: string; className?: strin
  * business logic — the shell only supplies consistent chrome, navigation and accessibility.
  */
 export function AppLayout() {
-  const { user, permissions, entitlements, hasFetchedEntitlements, tenantSlug, logout } = useAuth();
+  const { user, permissions, entitlements, hasFetchedEntitlements, tenantSlug, tenants, logout } = useAuth();
+  const currentWorkspace = tenants.find((workspace) => workspace.slug === tenantSlug);
   const { branding } = useBranding();
   const location = useLocation();
   const navigate = useNavigate();
@@ -124,7 +125,7 @@ export function AppLayout() {
           )}
           <span>
             {portalName}
-            <small>{tenantSlug ?? 'Workspace'}</small>
+            <small>{currentWorkspace?.name ?? tenantSlug ?? 'Workspace'}</small>
           </span>
         </Link>
         <nav className="app-sidebar__nav" aria-label="Main navigation">
@@ -201,6 +202,19 @@ export function AppLayout() {
                     <span>{user?.email}</span>
                     <span>{tenantSlug}</span>
                   </div>
+                  {tenants.length > 1 && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        navigate('/select-tenant');
+                      }}
+                    >
+                      <Icon name="organization" size={16} />
+                      Switch workspace
+                    </button>
+                  )}
                   <button type="button" role="menuitem" onClick={handleLogout}>
                     <Icon name="logout" size={16} />
                     Sign out

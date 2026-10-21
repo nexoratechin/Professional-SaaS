@@ -20,6 +20,7 @@ const DashboardPage = lazy(() => import('./routes/dashboard').then((m) => ({ def
 const CampusesPage = lazy(() => import('./routes/campuses').then((m) => ({ default: m.CampusesPage })));
 const EntitlementRoute = lazy(() => import('./routes/entitlement-route').then((m) => ({ default: m.EntitlementRoute })));
 const LoginPage = lazy(() => import('./routes/login').then((m) => ({ default: m.LoginPage })));
+const SelectTenantPage = lazy(() => import('./routes/select-tenant').then((m) => ({ default: m.SelectTenantPage })));
 const OnboardingPage = lazy(() => import('./routes/onboarding').then((m) => ({ default: m.OnboardingPage })));
 const PlatformAnalyticsPage = lazy(() => import('./routes/platform/platform-analytics').then((m) => ({ default: m.PlatformAnalyticsPage })));
 const PlatformAuditLogPage = lazy(() => import('./routes/platform/platform-audit-log').then((m) => ({ default: m.PlatformAuditLogPage })));
@@ -28,11 +29,14 @@ const PlatformCatalogPage = lazy(() => import('./routes/platform/platform-catalo
 const PlatformDashboardPage = lazy(() => import('./routes/platform/platform-dashboard').then((m) => ({ default: m.PlatformDashboardPage })));
 const PlatformLayout = lazy(() => import('./routes/platform/platform-layout').then((m) => ({ default: m.PlatformLayout })));
 const PlatformLoginPage = lazy(() => import('./routes/platform/platform-login').then((m) => ({ default: m.PlatformLoginPage })));
+const PlatformMaintenancePage = lazy(() => import('./routes/platform/platform-maintenance').then((m) => ({ default: m.PlatformMaintenancePage })));
 const PlatformProtectedRoute = lazy(() => import('./routes/platform/platform-protected-route').then((m) => ({ default: m.PlatformProtectedRoute })));
+const PlatformSelectCompanyPage = lazy(() => import('./routes/platform/platform-select-company').then((m) => ({ default: m.PlatformSelectCompanyPage })));
 const PlatformSupportPage = lazy(() => import('./routes/platform/platform-support').then((m) => ({ default: m.PlatformSupportPage })));
 const PlatformTenantDetailPage = lazy(() => import('./routes/platform/platform-tenant-detail').then((m) => ({ default: m.PlatformTenantDetailPage })));
 const PlatformTenantNewPage = lazy(() => import('./routes/platform/platform-tenant-new').then((m) => ({ default: m.PlatformTenantNewPage })));
 const PlatformTenantsPage = lazy(() => import('./routes/platform/platform-tenants').then((m) => ({ default: m.PlatformTenantsPage })));
+const PlatformUsersPage = lazy(() => import('./routes/platform/platform-users').then((m) => ({ default: m.PlatformUsersPage })));
 const ProtectedRoute = lazy(() => import('./routes/protected-route').then((m) => ({ default: m.ProtectedRoute })));
 const StudentProfilePage = lazy(() => import('./routes/student-profile').then((m) => ({ default: m.StudentProfilePage })));
 const StudentsPage = lazy(() => import('./routes/students').then((m) => ({ default: m.StudentsPage })));
@@ -144,6 +148,14 @@ function PlatformArea() {
       <Routes>
         <Route path="login" element={<PlatformLoginPage />} />
         <Route
+          path="select-company"
+          element={
+            <PlatformProtectedRoute>
+              <PlatformSelectCompanyPage />
+            </PlatformProtectedRoute>
+          }
+        />
+        <Route
           element={
             <PlatformProtectedRoute>
               <PlatformLayout />
@@ -152,15 +164,59 @@ function PlatformArea() {
         >
           <Route path="dashboard" element={<PlatformDashboardPage />} />
           <Route path="tenants" element={<PlatformTenantsPage />} />
-          <Route path="tenants/new" element={<PlatformTenantNewPage />} />
+          <Route
+            path="tenants/new"
+            element={
+              <PlatformProtectedRoute adminOnly>
+                <PlatformTenantNewPage />
+              </PlatformProtectedRoute>
+            }
+          />
           <Route path="tenants/:id" element={<PlatformTenantDetailPage />} />
-          <Route path="billing" element={<PlatformBillingPage />} />
+          <Route
+            path="users"
+            element={
+              <PlatformProtectedRoute adminOnly>
+                <PlatformUsersPage />
+              </PlatformProtectedRoute>
+            }
+          />
+          <Route
+            path="maintenance"
+            element={
+              <PlatformProtectedRoute adminOnly>
+                <PlatformMaintenancePage />
+              </PlatformProtectedRoute>
+            }
+          />
+          <Route
+            path="billing"
+            element={
+              <PlatformProtectedRoute adminOnly>
+                <PlatformBillingPage />
+              </PlatformProtectedRoute>
+            }
+          />
           <Route path="analytics" element={<PlatformAnalyticsPage />} />
-          <Route path="catalog" element={<PlatformCatalogPage />} />
+          <Route
+            path="catalog"
+            element={
+              <PlatformProtectedRoute adminOnly>
+                <PlatformCatalogPage />
+              </PlatformProtectedRoute>
+            }
+          />
           <Route path="support" element={<PlatformSupportPage />} />
-          <Route path="audit-log" element={<PlatformAuditLogPage />} />
+          <Route
+            path="audit-log"
+            element={
+              <PlatformProtectedRoute adminOnly>
+                <PlatformAuditLogPage />
+              </PlatformProtectedRoute>
+            }
+          />
         </Route>
-        <Route path="*" element={<Navigate to="dashboard" replace />} />
+        <Route path="*" element={<Navigate to="select-company" replace />} />
       </Routes>
     </PlatformAuthProvider>
   );
@@ -174,6 +230,7 @@ function TenantArea() {
         <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/select-tenant" element={<SelectTenantPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/sso/callback" element={<SsoCallbackPage />} />
 
