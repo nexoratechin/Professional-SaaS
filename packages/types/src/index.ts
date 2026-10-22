@@ -550,6 +550,22 @@ export interface TenantConfigAdmissions {
   documentChecklist: string[] | null;
 }
 
+/**
+ * Public admissions portal settings (tenant-wide defaults; a session can override the copy and
+ * upload limits through AdmissionSession.portalInstructions). Applicants are not Users, so this
+ * section is also what the OTP emails/consent text are built from.
+ */
+export interface TenantConfigAdmissionsPortal {
+  enabled: boolean | null;
+  consentText: string | null;
+  consentVersion: string | null;
+  supportEmail: string | null;
+  supportPhone: string | null;
+  maxUploadMb: number | null;
+  allowedMimeTypes: string[] | null;
+  draftRetentionDays: number | null;
+}
+
 export interface TenantConfigNumbering {
   studentPrefix: string | null;
   admissionPrefix: string | null;
@@ -573,6 +589,7 @@ export interface TenantConfigurationDto {
   attendance: Partial<TenantConfigAttendance> | null;
   fees: Partial<TenantConfigFees> | null;
   admissions: Partial<TenantConfigAdmissions> | null;
+  admissionsPortal?: Partial<TenantConfigAdmissionsPortal> | null;
   numbering: Partial<TenantConfigNumbering> | null;
   templates: Partial<TenantConfigTemplates> | null;
   policies: Partial<GlobalCampusPoliciesDto> | null;

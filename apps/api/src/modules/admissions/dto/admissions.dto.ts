@@ -339,6 +339,11 @@ export class ListAdmissionApplicationQueryDto {
   @IsString()
   status?: string;
 
+  /** STAFF (office-entered) or PORTAL (applicant self-service). Omit for both. */
+  @IsOptional()
+  @IsIn(['STAFF', 'PORTAL'])
+  submittedVia?: 'STAFF' | 'PORTAL';
+
   @IsOptional()
   @IsString()
   sortBy?: string;

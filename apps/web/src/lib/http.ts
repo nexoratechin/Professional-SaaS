@@ -24,6 +24,9 @@ export class ApiError extends Error {
 interface ApiFetchOptions extends RequestInit {
   tenantSlug?: string;
   skipAuth?: boolean;
+  /** Explicit bearer token for realms that are not the tenant-user session (public admissions
+   *  applicants). Takes precedence over the stored tenant access token. */
+  bearerToken?: string;
 }
 
 function resolveTenantSlug(explicit?: string): string | undefined {
@@ -41,6 +44,8 @@ async function rawFetch(path: string, options: ApiFetchOptions): Promise<Respons
   }
   if (accessToken && !options.skipAuth) {
     headers.set('Authorization', `Bearer ${accessToken}`);
+  } else if (options.bearerToken) {
+    headers.set('Authorization', `Bearer ${options.bearerToken}`);
   }
 
   // credentials: 'include' — the refresh token lives in an httpOnly cookie the browser must

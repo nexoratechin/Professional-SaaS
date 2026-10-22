@@ -292,6 +292,14 @@ export class NotificationDeliveryService {
     if (notification.channel === 'IN_APP') {
       return [notification.recipientUserId ?? ''];
     }
+    // Public applicants (admissions portal) have no User row; the address was captured on the
+    // notification itself. PUSH always needs a registered device, so it still requires a user.
+    if (notification.recipientAddress) {
+      if (notification.channel === 'PUSH') {
+        throw new ProviderDeliveryError('Push notifications require a user account.', false);
+      }
+      return [notification.recipientAddress];
+    }
     if (!notification.recipientUserId) {
       throw new ProviderDeliveryError(`Recipient user missing for ${notification.channel} notification.`, false);
     }

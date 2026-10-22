@@ -50,6 +50,7 @@ const ExamsPage = lazy(() => import('./routes/exams').then((m) => ({ default: m.
 const CertificatesPage = lazy(() => import('./routes/certificates').then((m) => ({ default: m.CertificatesPage })));
 const CertificateVerifyPage = lazy(() => import('./routes/certificate-verify').then((m) => ({ default: m.CertificateVerifyPage })));
 const StudentIdVerifyPage = lazy(() => import('./routes/student-id-verify').then((m) => ({ default: m.StudentIdVerifyPage })));
+const ApplyPage = lazy(() => import('./routes/apply/apply-page').then((m) => ({ default: m.ApplyPage })));
 const LibraryPage = lazy(() => import('./routes/library').then((m) => ({ default: m.LibraryPage })));
 const InventoryPage = lazy(() => import('./routes/inventory').then((m) => ({ default: m.InventoryPage })));
 const HostelPage = lazy(() => import('./routes/hostel').then((m) => ({ default: m.HostelPage })));
@@ -371,6 +372,8 @@ function TenantArea() {
         {/* Public QR landing — intentionally outside ProtectedRoute; the token is the credential. */}
         <Route path="/verify/certificate" element={<CertificateVerifyPage />} />
         <Route path="/verify/student-id" element={<StudentIdVerifyPage />} />
+        {/* Public admissions portal — the applicant bearer token (sessionStorage) is the credential. */}
+        <Route path="/apply/:tenantSlug" element={<ApplyPage />} />
       </Routes>
       </BrandingProvider>
     </AuthProvider>

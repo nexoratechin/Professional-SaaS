@@ -3,7 +3,7 @@
  * enrolled into the student body) and the currently-open 2027 intake (enquiries, in-flight
  * applications with documents/qualifications, counselling slots, offers and fee receipts).
  */
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import { demoDate, demoDateTime, demoId, logDemo, spread, stablePick, type DemoContext, type IdMap } from './core';
 import { ADMISSION_ENQUIRY_NAMES, STUDENT_LAST_NAMES } from './names';
 import type { SeededPeople } from './people';
@@ -40,6 +40,9 @@ export async function seedAdmissions(input: AdmissionsInput): Promise<SeededAdmi
       admissionFeeCents: 2_500_000,
       status: 'CLOSED' as const,
       meritPublishedAt: demoDate('2026-06-10'),
+      portalEnabled: false,
+      publicSlug: null as string | null,
+      portalInstructions: null as Record<string, unknown> | null,
     },
     {
       key: 'open',
@@ -52,6 +55,15 @@ export async function seedAdmissions(input: AdmissionsInput): Promise<SeededAdmi
       admissionFeeCents: 2_800_000,
       status: 'OPEN' as const,
       meritPublishedAt: null as Date | null,
+      // The demo tenant exposes the 2027 intake on the public portal so the /apply flow can be
+      // exercised end to end without any manual setup.
+      portalEnabled: true,
+      publicSlug: 'demo-2027',
+      portalInstructions: {
+        consentVersion: 'v1',
+        supportEmail: 'admissions@demo.edu',
+        supportPhone: '+91 98765 43210',
+      },
     },
   ];
 
@@ -67,6 +79,9 @@ export async function seedAdmissions(input: AdmissionsInput): Promise<SeededAdmi
         endAt: session.endAt,
         status: session.status,
         meritPublishedAt: session.meritPublishedAt,
+        portalEnabled: session.portalEnabled,
+        publicSlug: session.publicSlug,
+        portalInstructions: (session.portalInstructions ?? undefined) as Prisma.InputJsonValue | undefined,
         updatedBy: creator,
       },
       create: {
@@ -82,6 +97,9 @@ export async function seedAdmissions(input: AdmissionsInput): Promise<SeededAdmi
         status: session.status,
         source: 'FRONT_DESK',
         requiredDocuments: ['Class XII marksheet', 'Transfer certificate', 'Photo ID', 'Passport photo'],
+        portalEnabled: session.portalEnabled,
+        publicSlug: session.publicSlug,
+        portalInstructions: (session.portalInstructions ?? undefined) as Prisma.InputJsonValue | undefined,
         meritPublishedAt: session.meritPublishedAt ?? undefined,
         createdBy: creator,
       },

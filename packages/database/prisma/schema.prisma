@@ -554,6 +554,7 @@ model Tenant {
   admissionFormFields               AdmissionFormField[]
   admissionEligibilityRules         AdmissionEligibilityRule[]
   admissionMessages                 AdmissionMessage[]
+  admissionApplicantAccesses        AdmissionApplicantAccess[]
   courses                           Course[]
   coursePrerequisites               CoursePrerequisite[]
   curricula                         Curriculum[]
@@ -2647,6 +2648,11 @@ model Notification {
   tenantId          String                @map("tenant_id") @db.Char(36)
   tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   recipientUserId   String?               @map("recipient_user_id") @db.Char(36)
+  /// Address for a recipient who is not a tenant User — public admission applicants receiving an
+  /// OTP or offer letter have no account. When set, the delivery worker resolves this address
+  /// instead of the user record, and per-user preferences/audit identity do not apply.
+  recipientAddress  String?               @map("recipient_address") @db.VarChar(320)
+  recipientName     String?               @map("recipient_name") @db.VarChar(255)
   channel           NotificationChannel
   subject           String                @db.Text
   body              String                @db.Text
@@ -5626,6 +5632,20 @@ enum AdmissionSessionStatus {
   CLOSED
 }
 
+/// Where an application (or one of its documents) came from. STAFF = created/uploaded by a
+/// member of the admissions office inside the tenant portal; PORTAL = self-service by the
+/// applicant on the public /apply page. Reporting and audit filtering key off this.
+enum AdmissionSubmissionChannel {
+  STAFF
+  PORTAL
+}
+
+/// Which contact channel an applicant verified. Email is normalised to lowercase; phone to E.164.
+enum AdmissionApplicantChannel {
+  EMAIL
+  PHONE
+}
+
 enum AdmissionProgramStatus {
   OPEN
   CLOSED
@@ -5679,6 +5699,15 @@ model AdmissionSession {
   /// per-program override. Defaults to the moduleâ€™s DEFAULT_DOCUMENT_CHECKLIST.
   requiredDocuments   Json?                  @map("required_documents")
   source              String?                @default("FRONT_DESK") @db.VarChar(255)
+  /// Public admissions portal config. A session is only listed on /apply/<tenant-slug> when
+  /// portalEnabled is true and publicSlug is set. portalOpenAt/portalCloseAt narrow or widen the
+  /// applicant-visible window; when null the session startAt/endAt apply. Values are evaluated
+  /// against the tenant's timezone (see Tenant.timezone).
+  publicSlug          String?                @map("public_slug") @db.VarChar(191)
+  portalEnabled       Boolean                @default(false) @map("portal_enabled")
+  portalOpenAt        DateTime?              @map("portal_open_at")
+  portalCloseAt       DateTime?              @map("portal_close_at")
+  portalInstructions  Json?                  @map("portal_instructions")
   meritPublishedAt    DateTime?              @map("merit_published_at")
   createdBy           String?                @map("created_by") @db.Text
   updatedBy           String?                @map("updated_by") @db.Text
@@ -5692,6 +5721,7 @@ model AdmissionSession {
   formFields       AdmissionFormField[]
 
   @@unique([tenantId, code])
+  @@unique([tenantId, publicSlug])
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([academicYearId])
@@ -5833,6 +5863,13 @@ model AdmissionApplication {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  /// Portal provenance. publicReference is a random, human-quotable code the applicant can read
+  /// to support; it is deliberately not the sequential application number (see the portal plan).
+  publicReference   String?                    @map("public_reference") @db.VarChar(32)
+  submittedVia      AdmissionSubmissionChannel @default(STAFF) @map("submitted_via")
+  consentAcceptedAt DateTime?                  @map("consent_accepted_at")
+  consentVersion    String?                    @map("consent_version") @db.VarChar(32)
+
   documents      AdmissionDocument[]
   qualifications AdmissionQualification[]
   offers         AdmissionOffer[]
@@ -5840,10 +5877,13 @@ model AdmissionApplication {
   activities     AdmissionActivity[]
   duplicates     AdmissionApplication[]   @relation("AdmissionApplicationDuplicates")
   messages       AdmissionMessage[]
+  applicantAccesses AdmissionApplicantAccess[]
 
   @@unique([tenantId, applicationNumber])
+  @@unique([tenantId, publicReference])
   @@index([tenantId])
   @@index([tenantId, status])
+  @@index([tenantId, submittedVia])
   @@index([sessionId])
   @@index([admissionProgramId])
   @@index([campusId])
@@ -5852,6 +5892,53 @@ model AdmissionApplication {
   @@index([duplicateOfId])
   @@index([tenantId, createdAt])
   @@map("admission_applications")
+}
+
+/// One applicant's self-service access record for the public admissions portal.
+///
+/// Applicants are deliberately NOT User rows: they are transient, must not consume tenant user
+/// seats or appear in RBAC, and never sign in to the admin app. The contact is stored in clear
+/// (needed to deliver OTPs and reminders) and as a normalised SHA-256 hash (stable lookup key
+/// regardless of email casing or phone formatting). A row is created on the first OTP request and
+/// reused for the draft, verification and later status lookups.
+model AdmissionApplicantAccess {
+  id            String   @id @default(dbgenerated("(UUID())")) @db.Char(36)
+  tenantId      String   @map("tenant_id") @db.Char(36)
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  /// Set once the applicant creates (or resumes) a draft application.
+  applicationId String?  @map("application_id") @db.Char(36)
+  application   AdmissionApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  channel     AdmissionApplicantChannel
+  /// Normalised contact (lowercased email / E.164 phone) and its SHA-256 hex digest.
+  contact     String                     @db.VarChar(320)
+  contactHash String                     @map("contact_hash") @db.VarChar(64)
+
+  otpHash      String?   @map("otp_hash") @db.VarChar(64)
+  otpExpiresAt DateTime? @map("otp_expires_at")
+  otpAttempts  Int       @default(0) @map("otp_attempts")
+  otpSentAt    DateTime? @map("otp_sent_at")
+  /// Lifetime send counter per access row; backs the per-contact throttle (an attacker rotating
+  /// IPs still hits this ceiling).
+  otpSentCount Int       @default(0) @map("otp_sent_count")
+  verifiedAt   DateTime? @map("verified_at")
+
+  resumeTokenHash String?   @map("resume_token_hash") @db.VarChar(64)
+  resumeExpiresAt DateTime? @map("resume_expires_at")
+
+  ipHash        String?  @map("ip_hash") @db.VarChar(64)
+  userAgentHash String?  @map("user_agent_hash") @db.VarChar(64)
+  lastSeenAt    DateTime @default(now()) @map("last_seen_at")
+  /// Hard expiry for the whole access row (draft retention window). Cleaned up by the worker.
+  expiresAt     DateTime @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, channel, contactHash])
+  @@index([tenantId, applicationId])
+  @@index([expiresAt])
+  @@map("admission_applicant_accesses")
 }
 
 /// Applicant document (scanned/uploaded before the student exists). Mirrors StudentDocument;
@@ -5869,6 +5956,11 @@ model AdmissionDocument {
   mimeType         String?               @map("mime_type") @db.Text
   sizeBytes        Int?                  @map("size_bytes")
   status           StudentDocumentStatus @default(PENDING)
+  /// Portal uploads are the first real files in admissions (staff previously attached metadata
+  /// only). scanStatus mirrors the general document lifecycle: PENDING/SCANNING/CLEAN/INFECTED/
+  /// FAILED. A document is only verifiable once it is CLEAN (or has no file at all).
+  uploadedVia      AdmissionSubmissionChannel? @map("uploaded_via")
+  scanStatus       String?                     @map("scan_status") @db.VarChar(32)
   verifiedAt       DateTime?             @map("verified_at")
   verifiedBy       String?               @map("verified_by") @db.Char(36)
   remarks          String?               @db.Text

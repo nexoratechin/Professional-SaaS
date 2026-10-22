@@ -6,7 +6,9 @@ import { PlatformPrismaService } from '../../common/prisma/platform-prisma.servi
 export interface RecordAuditEntryInput {
   scope: AuditScope;
   tenantId?: string | null;
-  actorType: 'USER' | 'PLATFORM_USER' | 'SYSTEM';
+  /** USER = tenant user, PLATFORM_USER = control-plane operator, SYSTEM = background job, and
+   *  APPLICANT = a public admissions portal applicant (no User row exists). */
+  actorType: 'USER' | 'PLATFORM_USER' | 'SYSTEM' | 'APPLICANT';
   actorUserId?: string;
   actorPlatformUserId?: string;
   action: string;

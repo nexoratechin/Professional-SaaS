@@ -58,6 +58,7 @@ import {
   BulkVerifyApplicationsDto,
   SendAdmissionMessageDto,
 } from './dto/admissions.dto';
+import { UpdateSessionPortalDto } from './portal/dto/public-admissions.dto';
 
 @ApiTags('admissions')
 @Controller('admissions')
@@ -97,6 +98,17 @@ export class AdmissionsController {
   @RequirePermission(K.ADMISSIONS_MANAGE)
   updateSession(@Param('id') id: string, @Body() dto: UpdateAdmissionSessionDto, @CurrentUser() user: AuthenticatedUser) {
     return this.admissionsService.updateSession(this.tid(), user.id, id, dto);
+  }
+
+  /** Publish/unpublish this session on the public /apply/<college-slug> portal. */
+  @Patch('sessions/:id/portal')
+  @RequirePermission(K.ADMISSIONS_MANAGE)
+  updateSessionPortal(
+    @Param('id') id: string,
+    @Body() dto: UpdateSessionPortalDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.admissionsService.updateSessionPortal(this.tid(), user.id, id, dto);
   }
 
   @Post('sessions/:id/close')

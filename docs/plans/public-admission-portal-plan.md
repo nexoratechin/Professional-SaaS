@@ -1,6 +1,6 @@
 # Plan — Public Online Admission Portal
 
-Status: **ready to implement** — all scope decisions resolved (D1–D5 below)
+Status: **implemented (branch `feature/public-admission-portal`)** — see "Implementation notes" at the end
 Owner: parth.prajapati
 Area: `apps/api/src/modules/admissions`, `apps/web`, `apps/worker`, `packages/database`
 Feature flag: existing `admissions` module flag + new per-session portal toggle
@@ -390,6 +390,44 @@ the web wizard is finished.
   surveys". Medium-sized, self-contained, high accreditation value.
 - **Alumni relations module** — `StudentStatus.ALUMNI` exists but there is no alumni model
   (directory, events, donations, mentorship, referrals). Wholly new module.
+
+## Implementation notes (what shipped on this branch)
+
+Phases 1–8 of the plan are implemented as one vertical slice:
+
+| Area | Delivered |
+|---|---|
+| Schema | `AdmissionSubmissionChannel`, `AdmissionApplicantChannel`, session portal columns, application provenance columns, document `uploadedVia`/`scanStatus`, `admission_applicant_accesses`, `Notification.recipientAddress`/`recipientName`; migration `20261022120000_add_admission_portal` |
+| Applicant auth | OTP issue/verify (HMAC'd codes, 10-min TTL, 5 attempts, 60s cooldown, per-access send cap), RS256 `admission:applicant` tokens, single-use resume tokens |
+| Public API | `/public/admissions/:tenantSlug/...` — catalogue, form, OTP, draft create/update, qualifications, signed document upload + confirm + download, submit, track, offer accept/decline |
+| Storage | Real admission files, private signed PUT/GET, mime/size limits, virus scan through the existing queue |
+| Staff | Admissions → **Portal** tab (publish/unpublish, slug, window, consent/support copy), `submittedVia` filter, scan-aware document verification |
+| Worker | `admission-portal-maintenance` hourly sweep (expire offers, purge stale access rows and abandoned drafts + their files); scan processor handles `AdmissionDocument`; delivery resolves `recipientAddress` |
+| Seed | Demo 2027 intake published at `/apply/<demo-tenant>` with `demo-2027` slug |
+| Tests | `admission-portal.config.spec.ts` (config precedence/clamps), `apply-helpers.spec.ts` (wizard helpers) |
+
+**Deliberate deviations from the text above**
+
+1. `AdmissionApplicantAccess.applicationId` is the single FK; there is no `applicantAccessId` on the
+   application. Two FKs between the same tables bought nothing and complicated cascade semantics.
+2. Applicant notifications are wired (OTP, resume link, application received); offer-issued emails
+   and admissions-staff fan-out are not — staff already see new applications in the pipeline, and
+   staff targeting needs a role/department audience resolver.
+3. Offer-expiry reminders are not scheduled; the hourly sweep marks overdue offers `EXPIRED`.
+   An applicant sees that on the tracking page.
+4. The staff UI edits per-session instructions; the tenant-wide `admissionsPortal` section is read
+   by the resolver but has no dedicated settings screen yet.
+5. No captcha at launch (config flag reserved); abuse controls are throttles + OTP counters.
+6. End-to-end coverage for the public flow is still to be added — it needs MySQL + Redis, which
+   were not available while this slice was built. Unit coverage exists for the pure logic.
+
+**Before production**
+
+- Run `pnpm db:migrate` (or `db:deploy:safe`) and confirm the demo slug renders.
+- Configure an email/SMS provider per tenant; without one the worker falls back to `ConsoleProvider`
+  in development and fails terminally in production.
+- Add the e2e suite listed in "Tests" above; it is the acceptance gate for phase 9.
+
 - **Real-time event stream (SSE/WebSocket)** — nothing in the web app subscribes to server events
   today; notifications/approvals/helpdesk are poll-based. Infra improvement, not a product feature.
 - **Live payment gateway + reconciliation** — `payments` is a stub and would unlock online fees

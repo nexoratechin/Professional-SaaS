@@ -1,6 +1,7 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
+import { UnrecoverableError } from 'bullmq';
 import { AUDIT_ACTIONS, AUDIT_MODULES } from '@college-erp/auth';
 import { createTenantScopedClient, platformPrismaClient } from '@college-erp/database';
 import type { DocumentVirusScanJobData } from '@college-erp/types';
@@ -39,7 +40,17 @@ export class DocumentVirusScanProcessor extends WorkerHost {
   }
 
   async process(job: Job<DocumentVirusScanJobData>): Promise<void> {
-    const { tenantId, documentId, versionId } = job.data;
+    const { tenantId, documentId, versionId, admissionDocumentId } = job.data;
+
+    // Public admissions portal uploads share this queue but not the Document/Version model.
+    if (admissionDocumentId) {
+      await this.processAdmissionDocument(tenantId, admissionDocumentId);
+      return;
+    }
+    if (!documentId || !versionId) {
+      throw new UnrecoverableError(`Scan job ${job.id} has neither a version nor an admission document.`);
+    }
+
     const client = createTenantScopedClient(tenantId);
 
     const version = await client.documentVersion.findFirst({ where: { id: versionId, documentId } });
@@ -116,6 +127,84 @@ export class DocumentVirusScanProcessor extends WorkerHost {
       await this.writeAudit(tenantId, documentId, versionId, AUDIT_ACTIONS.DOCUMENT_SCAN_ERROR, { error: message });
       this.logger.error(`Scan failed for version ${versionId}, marking ERROR and retrying: ${message}`);
       throw err; // Let BullMQ apply the queue's attempts/backoff.
+    }
+  }
+
+  /**
+   * Portal upload path. AdmissionDocument has no version row, so the same scanner runs against the
+   * row's own storage key and writes the verdict back to `scanStatus` (staff verification refuses
+   * anything that is not CLEAN). Infected payloads are deleted immediately, exactly like the
+   * documents module.
+   */
+  private async processAdmissionDocument(tenantId: string, admissionDocumentId: string): Promise<void> {
+    const client = createTenantScopedClient(tenantId);
+    const document = await client.admissionDocument.findFirst({ where: { id: admissionDocumentId } });
+    if (!document || !document.storageKey) {
+      this.logger.warn(`Scan job: admission document ${admissionDocumentId} not found or has no file — skipping.`);
+      return;
+    }
+    if (document.scanStatus === 'CLEAN' || document.scanStatus === 'INFECTED') {
+      this.logger.log(`Admission document ${admissionDocumentId} already ${document.scanStatus} — skipping.`);
+      return;
+    }
+
+    await client.admissionDocument.update({ where: { id: document.id }, data: { scanStatus: 'SCANNING' } });
+
+    try {
+      const result = await this.scanner.scan(tenantId, {
+        storageKey: document.storageKey,
+        originalFilename: document.originalFilename ?? document.documentName,
+        mimeType: document.mimeType ?? 'application/octet-stream',
+        sizeBytes: document.sizeBytes ?? 0,
+      });
+
+      if (result.clean) {
+        await client.admissionDocument.update({ where: { id: document.id }, data: { scanStatus: 'CLEAN' } });
+        await platformPrismaClient.platformAuditLog.create({
+          data: {
+            scope: 'TENANT',
+            tenantId,
+            actorType: 'SYSTEM',
+            action: AUDIT_ACTIONS.DOCUMENT_VIRUS_CLEAN,
+            module: AUDIT_MODULES.ADMISSIONS,
+            entityType: 'AdmissionDocument',
+            entityId: document.id,
+            after: { engine: result.engine, admissionDocumentId: document.id },
+          },
+        });
+        return;
+      }
+
+      await this.storage.deleteObject(tenantId, document.storageKey);
+      await client.admissionDocument.update({
+        where: { id: document.id },
+        data: {
+          scanStatus: 'INFECTED',
+          status: 'REJECTED',
+          remarks: `Rejected by the security scan: ${result.threatName ?? 'malware signature detected'}.`,
+        },
+      });
+      await platformPrismaClient.platformAuditLog.create({
+        data: {
+          scope: 'TENANT',
+          tenantId,
+          actorType: 'SYSTEM',
+          action: AUDIT_ACTIONS.DOCUMENT_VIRUS_INFECTED,
+          module: AUDIT_MODULES.ADMISSIONS,
+          entityType: 'AdmissionDocument',
+          entityId: document.id,
+          after: { threatName: result.threatName ?? 'Unknown signature', engine: result.engine },
+        },
+      });
+      this.logger.warn(`Admission document ${document.id} quarantined; object deleted.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await client.admissionDocument.update({
+        where: { id: document.id },
+        data: { scanStatus: 'ERROR', remarks: `Security scan failed: ${message}` },
+      });
+      this.logger.error(`Admission document scan failed for ${document.id}: ${message}`);
+      throw error; // BullMQ retries with the queue's attempts/backoff.
     }
   }
 

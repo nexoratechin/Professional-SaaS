@@ -26,6 +26,8 @@ export const QUEUE_NAMES = {
   HELPDESK_SLA: 'helpdesk-sla',
   DOCUMENT_VIRUS_SCAN: 'document-virus-scan',
   DOCUMENT_RETENTION: 'document-retention',
+  /** Public admissions portal housekeeping: expire offers/access rows and purge abandoned drafts. */
+  ADMISSION_PORTAL_MAINTENANCE: 'admission-portal-maintenance',
   REPORT_EXPORTS: 'report-exports',
   ANALYTICS_REFRESH: 'analytics-refresh',
   /** AI document classification + OCR extraction (apps/worker's ai queues). */
@@ -107,8 +109,12 @@ export type HelpdeskSlaSweepJobData = Record<string, never>;
  * storage object when infected.
  */
 export interface DocumentVirusScanJobData extends TenantJobData {
-  documentId: string;
-  versionId: string;
+  /** General documents module: scan one DocumentVersion of a Document. */
+  documentId?: string;
+  versionId?: string;
+  /** Public admissions portal: scan one AdmissionDocument, which has no version rows. Exactly one
+   *  of {versionId, admissionDocumentId} is set per job. */
+  admissionDocumentId?: string;
 }
 
 /**
@@ -117,6 +123,9 @@ export interface DocumentVirusScanJobData extends TenantJobData {
  * and removes its storage objects through tenant-scoped clients.
  */
 export type DocumentRetentionSweepJobData = Record<string, never>;
+
+/** Hourly public-admissions-portal housekeeping (no per-job parameters — every active tenant). */
+export type AdmissionPortalMaintenanceJobData = Record<string, never>;
 
 /**
  * One async report export. Enqueued by the API when an export is requested and by the worker's

@@ -7,6 +7,7 @@ import { JobsModule } from './common/jobs/jobs.module';
 import { WorkerObservabilityModule } from './common/observability/worker-observability.module';
 import { TenantConnectionModule } from './common/tenant/tenant-connection.module';
 import { AiDocumentProcessingProcessorModule } from './queues/ai/ai-document-processing-processor.module';
+import { AdmissionPortalProcessorModule } from './queues/admission-portal/admission-portal-processor.module';
 import { AnalyticsRefreshProcessorModule } from './queues/analytics-refresh/analytics-refresh-processor.module';
 import { BackupProcessorModule } from './queues/backup/backup-processor.module';
 import { CertificateGenerationProcessorModule } from './queues/certificate-generation/certificate-generation-processor.module';
@@ -58,6 +59,7 @@ import { WorkflowEscalationProcessorModule } from './queues/workflow-escalation/
     HelpdeskSlaProcessorModule,
     DocumentVirusScanProcessorModule,
     DocumentRetentionProcessorModule,
+    AdmissionPortalProcessorModule,
     ReportExportProcessorModule,
     AnalyticsRefreshProcessorModule,
     AiDocumentProcessingProcessorModule,

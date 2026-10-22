@@ -70,6 +70,7 @@ import {
   SendAdmissionMessageDto,
   AdmissionAnalyticsQueryDto,
 } from './dto/admissions.dto';
+import type { UpdateSessionPortalDto } from './portal/dto/public-admissions.dto';
 
 type Client = PrismaClient;
 
@@ -202,6 +203,56 @@ export class AdmissionsService {
       before: { name: before.name },
       after: { name: session.name },
     });
+    return this.getSession(tenantId, sessionId);
+  }
+
+  /**
+   * Publishes/unpublishes a session on the public portal. Kept separate from updateSession so a
+   * regular session edit can never accidentally expose or hide intake pages, and so the public
+   * slug (a URL a college prints on brochures) has its own uniqueness check.
+   */
+  async updateSessionPortal(tenantId: string, userId: string, sessionId: string, dto: UpdateSessionPortalDto) {
+    const before = await this.getSession(tenantId, sessionId);
+    const client = this.tenantPrisma.client as Client;
+
+    const slug = dto.publicSlug?.trim().toLowerCase() ?? before.publicSlug;
+    if (dto.portalEnabled && !slug) {
+      throw new BadRequestException('A public link slug is required before enabling the portal.');
+    }
+    if (dto.publicSlug !== undefined && dto.publicSlug !== null) {
+      if (!/^[a-z0-9][a-z0-9-]{1,60}[a-z0-9]$/.test(slug as string)) {
+        throw new BadRequestException('Slug must be 3-62 characters: lowercase letters, digits and hyphens.');
+      }
+      const clash = await client.admissionSession.findFirst({
+        where: { publicSlug: slug, id: { not: sessionId } },
+        select: { id: true, name: true },
+      });
+      if (clash) throw new ConflictException(`That link is already used by "${clash.name}".`);
+    }
+
+    const openAt = dto.portalOpenAt ? new Date(dto.portalOpenAt) : before.portalOpenAt;
+    const closeAt = dto.portalCloseAt ? new Date(dto.portalCloseAt) : before.portalCloseAt;
+    if (openAt && closeAt && closeAt <= openAt) {
+      throw new BadRequestException('The portal close date must be after the open date.');
+    }
+
+    await (client as any).admissionSession.update({
+      where: { id: sessionId },
+      data: {
+        portalEnabled: dto.portalEnabled,
+        publicSlug: slug ?? null,
+        portalOpenAt: openAt ?? null,
+        portalCloseAt: closeAt ?? null,
+        portalInstructions: dto.portalInstructions !== undefined ? (dto.portalInstructions as any) : (before.portalInstructions as any),
+        updatedBy: userId,
+      },
+    });
+
+    await this.audit(tenantId, userId, AUDIT_ACTIONS.ADMISSION_PORTAL_CONFIG_UPDATED, 'AdmissionSession', sessionId, {
+      before: { portalEnabled: before.portalEnabled, publicSlug: before.publicSlug },
+      after: { portalEnabled: dto.portalEnabled, publicSlug: slug ?? null },
+    });
+
     return this.getSession(tenantId, sessionId);
   }
 
@@ -433,6 +484,7 @@ export class AdmissionsService {
     if (query.sessionId) where.sessionId = query.sessionId;
     if (query.admissionProgramId) where.admissionProgramId = query.admissionProgramId;
     if (query.campusId) where.campusId = query.campusId;
+    if (query.submittedVia) where.submittedVia = query.submittedVia;
     if (query.status) {
       const statuses = query.status
         .split(',')
@@ -719,6 +771,16 @@ export class AdmissionsService {
 
   async verifyDocument(documentId: string, tenantId: string, userId: string, dto: DocumentDecisionDto) {
     const document = await this.assertDocument(documentId);
+    // Portal uploads are real files. Never let staff approve one that has not cleared the scanner:
+    // a PENDING/SCANNING row may still turn out to be malware, and an INFECTED one was quarantined.
+    if (document.storageKey) {
+      if (document.scanStatus === 'INFECTED') {
+        throw new BadRequestException('This file was quarantined by the security scan and cannot be verified.');
+      }
+      if (document.scanStatus === 'PENDING' || document.scanStatus === 'SCANNING') {
+        throw new ConflictException('The security scan has not finished yet. Try again in a moment.');
+      }
+    }
     const updated = await (this.tenantPrisma.client as any).admissionDocument.update({
       where: { id: documentId },
       data: { status: 'VERIFIED', verifiedAt: new Date(), verifiedBy: userId, remarks: dto.remarks ?? document.remarks },
