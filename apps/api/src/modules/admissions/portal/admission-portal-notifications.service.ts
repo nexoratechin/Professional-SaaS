@@ -1,7 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import type { Queue } from 'bullmq';
-import { createTenantScopedClient } from '@college-erp/database';
+import { createTenantScopedClient, platformPrismaClient } from '@college-erp/database';
 import { QUEUE_NAMES, type NotificationJobData } from '@college-erp/types';
 import { AppConfigService } from '../../../config/app-config.service';
 
@@ -110,6 +110,88 @@ export class AdmissionPortalNotificationsService {
       channel: input.channel,
       subject: `Application received — ${input.reference}`,
       body,
+    });
+  }
+
+  /**
+   * In-app alert to everyone who can manage admissions. Recipients are resolved from RBAC rather
+   * than a hard-coded role list, so a college that renames or clones the registrar role still gets
+   * notified. Deliberately IN_APP only: staff already have email, and this must not fan out a
+   * separate mail per application during an intake spike.
+   */
+  async sendStaffAlert(input: { tenantId: string; subject: string; body: string }): Promise<void> {
+    const client = createTenantScopedClient(input.tenantId);
+    const staff = await client.user.findMany({
+      where: {
+        status: 'ACTIVE',
+        userRoles: {
+          some: {
+            role: {
+              rolePermissions: {
+                some: { permission: { key: 'admissions.manage' } },
+              },
+            },
+          },
+        },
+      },
+      select: { id: true },
+      take: 25,
+    });
+
+    for (const member of staff) {
+      const notification = await client.notification.create({
+        data: {
+          tenantId: input.tenantId,
+          recipientUserId: member.id,
+          channel: 'IN_APP',
+          subject: input.subject,
+          body: input.body,
+          status: 'PENDING',
+        },
+      });
+      await this.queue.add('deliver', { tenantId: input.tenantId, notificationId: notification.id });
+    }
+  }
+
+  /** "You have an offer" — resolved from the applicant's access row, falling back to the contact
+   *  stored on the application (staff-created applications have no access row). */
+  async notifyOfferIssued(input: { tenantId: string; applicationId: string }): Promise<void> {
+    const client = createTenantScopedClient(input.tenantId);
+    const [app, tenant] = await Promise.all([
+      client.admissionApplication.findFirst({
+        where: { id: input.applicationId },
+        include: {
+          applicantAccesses: { orderBy: { createdAt: 'desc' }, take: 1 },
+          offers: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
+      }),
+      platformPrismaClient.tenant.findUnique({ where: { id: input.tenantId }, select: { name: true } }),
+    ]);
+    if (!app) return;
+    const offer = app.offers[0];
+    if (!offer) return;
+
+    const access = app.applicantAccesses[0];
+    const channel: 'EMAIL' | 'SMS' | null = access
+      ? access.channel === 'PHONE'
+        ? 'SMS'
+        : 'EMAIL'
+      : app.email
+        ? 'EMAIL'
+        : app.phone
+          ? 'SMS'
+          : null;
+    const address = access?.contact ?? app.email ?? app.phone;
+    if (!channel || !address) return;
+
+    await this.sendOfferIssued({
+      tenantId: input.tenantId,
+      address,
+      name: app.fullName,
+      channel,
+      reference: app.publicReference ?? app.applicationNumber,
+      collegeName: tenant?.name ?? 'the college',
+      expiresAt: offer.expiresAt,
     });
   }
 

@@ -1,8 +1,9 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import type { Job } from 'bullmq';
+import type { Job, Queue } from 'bullmq';
 import { createTenantScopedClient, platformPrismaClient } from '@college-erp/database';
-import { QUEUE_NAMES, type AdmissionPortalMaintenanceJobData } from '@college-erp/types';
+import { QUEUE_NAMES, type AdmissionPortalMaintenanceJobData, type NotificationJobData } from '@college-erp/types';
 import { processorOptions } from '@college-erp/queue';
 import { WorkerStorageService } from '../../common/storage/worker-storage.service';
 
@@ -29,7 +30,10 @@ const DRAFTS_PER_TENANT_RUN = 500;
 export class AdmissionPortalMaintenanceProcessor extends WorkerHost {
   private readonly logger = new Logger(AdmissionPortalMaintenanceProcessor.name);
 
-  constructor(private readonly storage: WorkerStorageService) {
+  constructor(
+    private readonly storage: WorkerStorageService,
+    @InjectQueue(QUEUE_NAMES.NOTIFICATIONS) private readonly notifications: Queue<NotificationJobData>,
+  ) {
     super();
   }
 
@@ -60,6 +64,57 @@ export class AdmissionPortalMaintenanceProcessor extends WorkerHost {
       where: { status: 'ISSUED', expiresAt: { lt: now } },
       data: { status: 'EXPIRED' },
     });
+
+    // "Your offer expires soon": once per offer, three days out.
+    const reminderWindowEnd = new Date(now.getTime() + 3 * DAY_MS);
+    const expiringOffers = await client.admissionOffer.findMany({
+      where: {
+        status: 'ISSUED',
+        reminderSentAt: null,
+        expiresAt: { gt: now, lte: reminderWindowEnd },
+      },
+      include: {
+        application: {
+          include: { applicantAccesses: { orderBy: { createdAt: 'desc' }, take: 1 } },
+        },
+      },
+      take: 200,
+    });
+
+    for (const offer of expiringOffers) {
+      const application = offer.application;
+      const access = application.applicantAccesses[0];
+      const channel: 'EMAIL' | 'SMS' | null = access
+        ? access.channel === 'PHONE'
+          ? 'SMS'
+          : 'EMAIL'
+        : application.email
+          ? 'EMAIL'
+          : application.phone
+            ? 'SMS'
+            : null;
+      const address = access?.contact ?? application.email ?? application.phone;
+
+      if (channel && address) {
+        const notification = await client.notification.create({
+          data: {
+            tenantId,
+            recipientAddress: address,
+            recipientName: application.fullName,
+            channel,
+            subject: `Your admission offer expires on ${offer.expiresAt.toISOString().slice(0, 10)}`,
+            body:
+              `Your offer ${offer.offerNumber} for ${application.fullName} is still awaiting a response.\n\n` +
+              `Accept or decline it in the admissions portal before ${offer.expiresAt.toISOString().slice(0, 10)}; ` +
+              `the seat is released when the offer expires.`,
+            status: 'PENDING',
+          },
+        });
+        await this.notifications.add('deliver', { tenantId, notificationId: notification.id });
+      }
+
+      await client.admissionOffer.update({ where: { id: offer.id }, data: { reminderSentAt: now } });
+    }
 
     const staleAccess = await client.admissionApplicantAccess.deleteMany({
       where: { expiresAt: { lt: new Date(now.getTime() - ACCESS_GRACE_DAYS * DAY_MS) } },

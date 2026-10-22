@@ -534,6 +534,7 @@ export class PublicAdmissionsService {
     const url = await this.storage.getUploadUrl(tenant.tenantId, key, mimeType);
     return {
       documentId: document.id,
+      key,
       uploadUrl: url,
       method: 'PUT' as const,
       headers: { 'Content-Type': mimeType },
@@ -700,6 +701,14 @@ export class PublicAdmissionsService {
         collegeName: tenant.name,
         supportEmail: config.supportEmail,
         supportPhone: config.supportPhone,
+      })
+      .catch(() => undefined);
+
+    await this.notifications
+      .sendStaffAlert({
+        tenantId: tenant.tenantId,
+        subject: `New online application — ${app.publicReference ?? app.applicationNumber}`,
+        body: `${app.fullName} submitted an application for ${session.name}. Review it in Admissions → Applications (source: Online).`,
       })
       .catch(() => undefined);
 

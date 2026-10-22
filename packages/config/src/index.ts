@@ -39,6 +39,10 @@ export const apiEnvSchema = z.object({
    *  account for which they can trigger a reset. */
   AUTH_DEBUG_TOKEN_LOGGING: boolFromString,
 
+  /** Returns the public-admissions OTP in the API response for automated tests. Off by default and
+   *  ignored in production (see ApplicantAccessService). Never enable on a public deployment. */
+  ADMISSION_PORTAL_DEBUG_OTP: boolFromString,
+
   /** AES-256-GCM key (64 hex chars = 32 bytes) encrypting MFA/TOTP secrets at rest — generate
    * with `openssl rand -hex 32`. Distinct from the JWT keypair: this protects a symmetric secret
    * that must be decrypted to verify a 6-digit code, never asserted/signed like a token claim. */

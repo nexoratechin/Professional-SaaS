@@ -28,6 +28,7 @@ import { WorkflowDefinitionsService } from '../workflow/workflow-definitions.ser
 import { WorkflowEngineService } from '../workflow/workflow-engine.service';
 import { rowsToCsv } from '../organization/org-csv';
 import { admissionScopeFilter } from './admissions-scope';
+import { AdmissionPortalNotificationsService } from './portal/admission-portal-notifications.service';
 import {
   DEFAULT_DOCUMENT_CHECKLIST,
   ADMISSION_FORM_FIELDS,
@@ -92,6 +93,7 @@ export class AdmissionsService {
     private readonly workflowDefinitions: WorkflowDefinitionsService,
     private readonly workflowEngine: WorkflowEngineService,
     private readonly storage: StorageService,
+    private readonly portalNotifications: AdmissionPortalNotificationsService,
   ) {}
 
   // ── Scope ─────────────────────────────────────────────────────────────────
@@ -1172,6 +1174,14 @@ export class AdmissionsService {
       after: { applicationId, offerNumber, admissionFeeCents: fee, expiresAt, seatsLeft: program.seats - program.filledSeats },
     });
     void application;
+    // Fire-and-forget: a mail/SMS failure must never roll back an issued offer.
+    void this.portalNotifications
+      .notifyOfferIssued({ tenantId, applicationId })
+      .catch((error) =>
+        this.logger.warn(
+          `Offer notification failed for application ${applicationId}: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
     return this.getApplication(applicationId, tenantId, userId);
   }
 

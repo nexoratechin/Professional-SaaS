@@ -6044,6 +6044,9 @@ model AdmissionOffer {
   status            AdmissionOfferStatus @default(ISSUED)
   acceptedAt        DateTime?            @map("accepted_at")
   declinedAt        DateTime?            @map("declined_at")
+  /// When the "your offer expires soon" reminder was sent (portal maintenance sweep). Null means
+  /// not yet reminded; set once so the hourly sweep cannot spam the applicant.
+  reminderSentAt    DateTime?            @map("reminder_sent_at")
   remarks           String?              @db.Text
   createdBy         String?              @map("created_by") @db.Text
   createdAt         DateTime             @default(now()) @map("created_at")

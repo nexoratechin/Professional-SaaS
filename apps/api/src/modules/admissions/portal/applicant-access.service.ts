@@ -26,6 +26,8 @@ export interface OtpRequestResult {
   sentTo: string;
   expiresInSeconds: number;
   resendAfterSeconds: number;
+  /** Only present when ADMISSION_PORTAL_DEBUG_OTP is on outside production (e2e/local). */
+  debugCode?: string;
 }
 
 export interface ApplicantSession {
@@ -159,7 +161,14 @@ export class ApplicantAccessService {
       sentTo: this.mask(normalised.channel, normalised.contact),
       expiresInSeconds: input.config.otp.ttlSeconds,
       resendAfterSeconds: input.config.otp.resendCooldownSeconds,
+      ...(this.debugOtpEnabled() ? { debugCode: code } : {}),
     };
+  }
+
+  /** e2e/local escape hatch: an environment with no mail provider can still complete the flow.
+   *  Hard-disabled in production regardless of configuration. */
+  private debugOtpEnabled(): boolean {
+    return this.appConfig.get('NODE_ENV') !== 'production' && this.appConfig.get('ADMISSION_PORTAL_DEBUG_OTP');
   }
 
   async verifyOtp(input: {

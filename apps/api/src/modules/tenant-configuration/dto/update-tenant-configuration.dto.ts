@@ -332,6 +332,46 @@ class AdmissionsSectionDto {
   documentChecklist?: string[] | null;
 }
 
+/** Tenant-wide defaults for the public /apply portal (a session can override the copy/limits). */
+export class AdmissionsPortalSectionDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @IsString()
+  consentText?: string;
+
+  @IsOptional()
+  @IsString()
+  consentVersion?: string;
+
+  @IsOptional()
+  @IsEmail()
+  supportEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  supportPhone?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(25)
+  maxUploadMb?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  allowedMimeTypes?: string[];
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(180)
+  draftRetentionDays?: number;
+}
+
 export class NumberingSectionDto {
   @IsOptional()
   @IsString()
@@ -427,6 +467,11 @@ export class UpdateTenantConfigurationDto {
   @ValidateNested()
   @Type(() => AdmissionsSectionDto)
   admissions?: AdmissionsSectionDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AdmissionsPortalSectionDto)
+  admissionsPortal?: AdmissionsPortalSectionDto;
 
   @IsOptional()
   @ValidateNested()

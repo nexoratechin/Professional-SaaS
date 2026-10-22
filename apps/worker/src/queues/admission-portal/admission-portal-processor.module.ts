@@ -6,7 +6,13 @@ import { AdmissionPortalMaintenanceProcessor } from './admission-portal-maintena
 import { AdmissionPortalSchedulerService } from './admission-portal-scheduler.service';
 
 @Module({
-  imports: [WorkerStorageModule, BullModule.registerQueue({ name: QUEUE_NAMES.ADMISSION_PORTAL_MAINTENANCE })],
+  imports: [
+    WorkerStorageModule,
+    BullModule.registerQueue(
+      { name: QUEUE_NAMES.ADMISSION_PORTAL_MAINTENANCE },
+      { name: QUEUE_NAMES.NOTIFICATIONS },
+    ),
+  ],
   providers: [AdmissionPortalMaintenanceProcessor, AdmissionPortalSchedulerService],
 })
 export class AdmissionPortalProcessorModule {}

@@ -207,6 +207,7 @@ export function TenantConfigurationPage() {
   const attendance = sectionOf('attendance');
   const fees = sectionOf('fees');
   const admissions = sectionOf('admissions');
+  const portal = sectionOf('admissionsPortal');
   const numbering = sectionOf('numbering');
 
   if (error) {
@@ -391,6 +392,35 @@ export function TenantConfigurationPage() {
               />
             </label>
             {canManage && <Button onClick={() => void saveSection('admissions')} disabled={busy}>Save admissions</Button>}
+          </Card>
+
+          <Card>
+            <h2 style={{ fontSize: '1rem', marginBottom: 8 }}>Admissions portal (public /apply page)</h2>
+            {boolField('admissionsPortal', 'enabled', portal.enabled as boolean)}
+            {textField('admissionsPortal', 'consentVersion', portal.consentVersion as string)}
+            <label style={{ display: 'block', marginBottom: 10 }}>
+              Declaration text
+              <textarea
+                value={(portal.consentText as string) ?? ''}
+                onChange={(e) => setSection('admissionsPortal', { consentText: e.target.value })}
+                rows={4}
+                placeholder="Leave blank to use the platform default consent text."
+                style={{ display: 'block', marginTop: 4, padding: '0.35rem 0.5rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
+              />
+            </label>
+            {textField('admissionsPortal', 'supportEmail', portal.supportEmail as string, 'email')}
+            {textField('admissionsPortal', 'supportPhone', portal.supportPhone as string)}
+            {numberField('admissionsPortal', 'maxUploadMb', portal.maxUploadMb as number, { min: 1, max: 25 })}
+            {numberField('admissionsPortal', 'draftRetentionDays', portal.draftRetentionDays as number, { min: 1, max: 180 })}
+            <p style={{ fontSize: '0.78rem', color: '#6b7280' }}>
+              Tenant-wide defaults. Each session can still override the copy and window from Admissions → Portal.
+              Disabling here hides the portal for every session.
+            </p>
+            {canManage && (
+              <Button onClick={() => void saveSection('admissionsPortal')} disabled={busy}>
+                Save admissions portal
+              </Button>
+            )}
           </Card>
 
           <Card>
